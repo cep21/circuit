@@ -4,11 +4,8 @@
 <!-- Image designed by Jack Lindamood, Licensed under the Creative Commons 3.0 Attributions license, originate from https://github.com/golang-samples/gopher-vector design by Takuya Ueda -->
 <img align="left" width="100" src="https://cep21.github.io/hystrix/imgs/hystrix-gopher.png"/>
 
-Hystrix is a Go implementation of [Hystrix](https://github.com/Netflix/Hystrix) from Netflix.
-
-It is designed to support context.Context and supports the feature set of Netflix's Java library.
-
-The names of functions and configuration attempts to mirror the Java implementation's when appropriate.
+Hystrix is an efficient and feature complete [Hystrix](https://github.com/Netflix/Hystrix) like Go implementation of the [circuit
+breaker pattern](https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker).
 
 # Feature set
 
