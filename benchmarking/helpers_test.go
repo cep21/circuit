@@ -22,7 +22,7 @@ func genericBenchmarkTesting(b *testing.B, concurrent int, f func() error, expec
 					}
 				} else {
 					if err != nil {
-						b.Errorf("Expected error when there should be none: %s", err)
+						b.Errorf("Saw error when there should be none: %s", err)
 					}
 				}
 			}

@@ -112,11 +112,13 @@ func BenchmarkCiruits(b *testing.B) {
 		},
 		{
 			name:   "iand_circuit",
-			runner: handyRunner,
+			runner: iandCircuitRunner,
 			configs: []circuitConfigs{
 				{
 					name:   "Default",
-					config: iandCircuit.Breaker{},
+					config: iandCircuit.Breaker{
+						Concurrency: 75,
+					},
 				},
 			},
 			funcTypes: []interface{}{passes, fails},

@@ -163,8 +163,9 @@ Then pass those implementations to configure.
 
 ## Panics
 
-Code executed with `Execute` does not spawn a goroutine and panics naturally go up the call stack to the caller.  This is not
-true for `Go`.
+Code executed with `Execute` does not spawn a goroutine and panics naturally go up the call stack to the caller.
+This is also true for `Go`, where we attempt to recover and throw panics on the same stack that
+calls Go.
  ```go
   h := hystrix.Hystrix{}
   circuit := h.MustCreateCircuit("panic_up", hystrix.CommandProperties{})
@@ -199,9 +200,9 @@ internal to this project.
 
 ## Not counting early terminations as failures
 
-If you're passing a context to your circuit, and the passed context fails, you may not want to count the circuit as
-behaving badly. In that case, you can use the custom `IgnoreContextFailures` field to ignore those failures.  I strongly
-recommend using this.
+If the context passed into a circuit function ends, before the circuit can
+finish, it does not count the circuit as unhealthy.  You can disable this
+behavior with the `IgnoreInterrputs` flag.
 
 ```go
   h := hystrix.Hystrix{}
@@ -212,7 +213,8 @@ recommend using this.
     },
     GoSpecific: hystrix.ExecutionConfig{
     	// Do not count parent context failures as the circuit's fault
-      IgnoreContextFailures: true,
+    	// This is the default
+      IgnoreInterrputs: false,
     },
   })
   // The passed in context will time out in a millisecond
