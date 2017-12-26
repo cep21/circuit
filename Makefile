@@ -2,7 +2,7 @@ PROFILE_RUN ?= BenchmarkCiruits/Hystrix/passing/NoTimeout/75
 BENCH_RUN ?= .
 # Run unit tests
 test:
-	go test -v -race ./...
+	env "GORACE=halt_on_error=1" go test -v -race ./...
 
 # Format the code
 fix:
@@ -37,7 +37,8 @@ lint:
 
 setup:
 	go get -u github.com/alecthomas/gometalinter
-	gometalinter --install --update
+	go get -t -d ./benchmarking/... ./metric_implementations/...
+	gometalinter --install
 
 # Run the example
 run:

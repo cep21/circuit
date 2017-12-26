@@ -1,17 +1,16 @@
-nguage: go
+language: go
 
 sudo: false
 
 go:
-  - 1.8
   - 1.9
 
 install:
-  make setup
+  - make setup
 
 script:
-  make lint
-  make test
+  - make test
+  - make lint
 
 after_success:
-  make bench
+  - make bench 2>&1 | grep -v 'is at capacity' | grep -v 'opening circuit'
