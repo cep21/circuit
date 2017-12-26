@@ -6,27 +6,32 @@ It is designed to support context.Context and supports the feature set of Netfli
 
 The names of functions and configuration attempts to mirror the Java implementation's when appropriate.
 
-
-# Comparison to go-hystrix
-
-This library differs from [go-hystrix](https://github.com/afex/hystrix-go) in a few ways:
+# Feature set
 
 * No global mutable state
 * No singletons
 * No forced goroutines
-* Reasonable panic() behavior
-* Support for context.Context
-* Simpler implementation
-* More efficient
-* Low memory allocation costs
-* More precise implementation (more likely does what it advertises)
-* More Hystrix configuration features
-* Better error handling options
-* Clearer data race prevention model
+* recoverable panic()
+* Integrated with context.Context
+* Comprehensive metric tracking
+* Efficient implementation
+* Low/zero memory allocation costs
+* Support for Netflix Hystrix dashboards
+* Multiple error handling features
 * Expose circuit health and configuration on expvar
 * Built in SLO tracking
-* Customizable state transition logic
+* Customizable state transition logic, allowing complex circuit state changes
 * Live configuration changes
+* Many tests
+* Benchmarks
+* Good inline documentation
+
+
+# Comparison to go-hystrix
+
+This library is most directly comparable to [go-hystrix](https://github.com/afex/hystrix-go),
+but differs in many ways including performance, accuracy (more accurately does what it advertises),
+feature set, context support, panic behavior, and metric tracking.
 
 # Usage
 

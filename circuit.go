@@ -167,8 +167,13 @@ func (c *Circuit) Go(ctx context.Context, runFunc func(context.Context) error, f
 	return c.Execute(ctx, c.goroutineWrapper.run(runFunc), c.goroutineWrapper.fallback(fallbackFunc))
 }
 
+// Run will execute the circuit without a fallback.  It is the equivalent of calling Execute with a nil fallback function
+func (c *Circuit) Run(ctx context.Context, runFunc func(context.Context) error) error {
+	return c.Execute(ctx, runFunc, nil)
+}
+
 // Execute the hystrix circuit.  Prefer this over Go.  Similar to http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#execute--
-func (c *Circuit) Execute(ctx context.Context, runFunc func(context.Context) error, fallbackFunc func(context.Context, error) error) (retErr error) {
+func (c *Circuit) Execute(ctx context.Context, runFunc func(context.Context) error, fallbackFunc func(context.Context, error) error) error {
 	if c.threadSafeConfig.CircuitBreaker.Disabled.Get() {
 		return runFunc(ctx)
 	}
