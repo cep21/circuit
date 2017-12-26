@@ -8,11 +8,16 @@ import (
 	"fmt"
 	"io"
 	"bytes"
+	"time"
 )
 
 func Example_http() {
 	h := hystrix.Hystrix{}
-	c := h.MustCreateCircuit("hello-http", hystrix.CommandProperties{})
+	c := h.MustCreateCircuit("hello-http", hystrix.CommandProperties{
+		Execution: hystrix.ExecutionConfig{
+			Timeout: time.Second * 3,
+		},
+	})
 
 	var body bytes.Buffer
 	runErr := c.Run(context.Background(), func (ctx context.Context) error {

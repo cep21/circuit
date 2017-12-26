@@ -7,8 +7,9 @@ import (
 )
 
 func TestRollingPercentile_Fresh(t *testing.T) {
-	x := NewRollingPercentile(time.Second, 10, 100)
-	snap := x.Snapshot(time.Now())
+	now := time.Now()
+	x := NewRollingPercentile(time.Second, 10, 100, now)
+	snap := x.Snapshot(now)
 	expectSnap(t, "at empty", snap, 0, -1, map[float64]time.Duration{
 		50: -1,
 	})
@@ -24,7 +25,8 @@ func TestRollingPercentile_Empty(t *testing.T) {
 }
 
 func TestRollingPercentile_Race(t *testing.T) {
-	x := NewRollingPercentile(time.Millisecond, 10, 100)
+	now := time.Now()
+	x := NewRollingPercentile(time.Millisecond, 10, 100, now)
 	wg := sync.WaitGroup{}
 	concurrent := 50
 	doNotPassTime := time.Now().Add(time.Millisecond * 50)
@@ -40,8 +42,8 @@ func TestRollingPercentile_Race(t *testing.T) {
 }
 
 func TestRollingPercentile_AddDuration(t *testing.T) {
-	x := NewRollingPercentile(time.Second, 10, 100)
 	now := time.Now()
+	x := NewRollingPercentile(time.Second, 10, 100, now)
 	x.AddDuration(time.Second*2, now)
 	snap := x.Snapshot(now)
 	expectSnap(t, "at one item", snap, 1, time.Second*2, map[float64]time.Duration{
@@ -86,8 +88,8 @@ func expectSnap(t *testing.T, name string, snap SortedDurations, size int, mean 
 
 func TestRollingPercentile_Movement(t *testing.T) {
 	// 100 ms per bucket
-	x := NewRollingPercentile(time.Millisecond*100, 10, 100)
 	now := time.Now()
+	x := NewRollingPercentile(time.Millisecond*100, 10, 100, now)
 	x.AddDuration(time.Millisecond, now)
 	x.AddDuration(time.Millisecond*3, now)
 	x.AddDuration(time.Millisecond*2, now.Add(time.Millisecond*500))

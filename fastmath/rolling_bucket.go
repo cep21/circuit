@@ -43,12 +43,6 @@ func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 			return -1
 		}
 		return absIndex % r.NumBuckets
-		//ret := (absIndex % r.NumBuckets) + indexDiff
-		//fmt.Println(absIndex, r.NumBuckets, indexDiff, lastAbsVal, ret)
-		//if ret < 0 {
-		//	ret += r.NumBuckets
-		//}
-		//return int(ret)
 	}
 	for i :=0;i<r.NumBuckets && lastAbsVal < absIndex;i++ {
 		if !r.lastAbsIndex.CompareAndSwap(int64(lastAbsVal), int64(lastAbsVal) + 1) {
