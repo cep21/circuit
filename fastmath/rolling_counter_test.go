@@ -22,6 +22,52 @@ func TestRollingCounter_Empty(t *testing.T) {
 	}
 }
 
+func TestRollingCounter_MovingBackwards(t *testing.T) {
+	now := time.Now()
+	x := NewRollingCounter(time.Millisecond, 10, now)
+	x.Inc(now)
+	x.Inc(now.Add(time.Millisecond * 2))
+	x.Inc(now)
+	endTime := now.Add(time.Millisecond * 2)
+	b := x.GetBuckets(endTime)
+	if b[0] != 1 {
+		t.Error("Expect one value at current bucket")
+	}
+	if b[2] != 2 {
+		t.Error("expect 2 values at 2 back buckets")
+	}
+}
+
+func TestRollingCounter_NormalConsistency(t *testing.T) {
+	now := time.Now()
+	bucketSize := 100
+	numBuckets := 20
+	x := NewRollingCounter(time.Millisecond * time.Duration(bucketSize), numBuckets, now)
+	concurrent := 20
+	end := 10000
+	wg := sync.WaitGroup{}
+	for i:=0;i<concurrent;i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j:=0;j<end;j++ {
+				newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(j)))
+				x.Inc(newNow)
+				time.Sleep(time.Millisecond / 100)
+			}
+		}()
+	}
+	wg.Wait()
+	newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(end)))
+	if x.RollingSum(newNow) != int64(concurrent * bucketSize * (numBuckets - 1)) {
+		t.Error("small rolling sum", x.RollingSum(newNow))
+	}
+	b := x.GetBuckets(newNow)
+	if b[1] != int64(concurrent * bucketSize) {
+		t.Error("incorrect size at b[1]", b[1])
+	}
+}
+
 func BenchmarkRollingCounter(b *testing.B) {
 	type rollingCounterTestCase struct {
 		name       string

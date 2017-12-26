@@ -14,8 +14,8 @@ type RollingBuckets struct {
 
 func (r *RollingBuckets) Init(numBuckets int, bucketWidth time.Duration, now time.Time) {
 	r.NumBuckets = numBuckets
-	r.StartTime = now
 	r.BucketWidth = bucketWidth
+	r.StartTime = now
 }
 
 func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
@@ -42,11 +42,13 @@ func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 			// of our rolling window.  We should just do what ... ignore it?
 			return -1
 		}
-		ret := (absIndex % r.NumBuckets) + indexDiff
-		if ret < 0 {
-			ret += r.NumBuckets
-		}
-		return int(ret)
+		return absIndex % r.NumBuckets
+		//ret := (absIndex % r.NumBuckets) + indexDiff
+		//fmt.Println(absIndex, r.NumBuckets, indexDiff, lastAbsVal, ret)
+		//if ret < 0 {
+		//	ret += r.NumBuckets
+		//}
+		//return int(ret)
 	}
 	for i :=0;i<r.NumBuckets && lastAbsVal < absIndex;i++ {
 		if !r.lastAbsIndex.CompareAndSwap(int64(lastAbsVal), int64(lastAbsVal) + 1) {
