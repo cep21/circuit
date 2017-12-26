@@ -117,6 +117,13 @@ func (r *RollingPercentile) AddDuration(d time.Duration, now time.Time) {
 	r.mu.Unlock()
 }
 
+type currentBucketInfo struct {
+	currentBucket int
+	bucketStart   time.Time
+	rollingBucket RollingBuckets
+}
+
+
 func (r *RollingPercentile) addFastPath(now time.Time, d time.Duration) bool {
 	currentBucketPtr := r.fastPathCurrentBucket.Load()
 	if currentBucketPtr == nil {

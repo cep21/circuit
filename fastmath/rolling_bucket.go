@@ -1,24 +1,27 @@
 package fastmath
 
-import "time"
+import (
+	"time"
+)
 
 type RollingBuckets struct {
 	NumBuckets int
 	StartTime time.Time
 	BucketWidth time.Duration
-	ClearBucket func(int)
 
 	lastAbsIndex AtomicInt64
 }
 
-func (r *RollingBuckets) Init(numBuckets int, bucketWidth time.Duration, now time.Time, clearBucket func(int)) {
+func (r *RollingBuckets) Init(numBuckets int, bucketWidth time.Duration, now time.Time) {
 	r.NumBuckets = numBuckets
 	r.StartTime = now
 	r.BucketWidth = bucketWidth
-	r.ClearBucket = clearBucket
 }
 
-func (r *RollingBuckets) Advance(now time.Time) int {
+func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
+	if r.NumBuckets == 0 {
+		return -1
+	}
 	diff := now.Sub(r.StartTime)
 	if diff < 0 {
 		// This point is before init.  That is invalid.  We should ignore it.
@@ -39,22 +42,22 @@ func (r *RollingBuckets) Advance(now time.Time) int {
 			// of our rolling window.  We should just do what ... ignore it?
 			return -1
 		}
-		ret := (absIndex % r.NumBuckets) - indexDiff
+		ret := (absIndex % r.NumBuckets) + indexDiff
 		if ret < 0 {
 			ret += r.NumBuckets
 		}
 		return int(ret)
 	}
-	for i :=0;i<r.NumBuckets;i++ {
+	for i :=0;i<r.NumBuckets && lastAbsVal < absIndex;i++ {
 		if !r.lastAbsIndex.CompareAndSwap(int64(lastAbsVal), int64(lastAbsVal) + 1) {
 			// someone else is swapping
-			return r.Advance(now)
+			return r.Advance(now, clearBucket)
 		}
 		lastAbsVal = lastAbsVal + 1
-		r.ClearBucket(lastAbsVal)
+		clearBucket(lastAbsVal % r.NumBuckets)
 	}
 	// indexDiff > 0 at this point.  We have to roll our window forward
 	// Cleared all the buckets.  Try to advance back to wherever we need
 	r.lastAbsIndex.CompareAndSwap(int64(lastAbsVal), int64(absIndex))
-	return r.Advance(now)
+	return r.Advance(now, clearBucket)
 }
