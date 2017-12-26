@@ -149,6 +149,8 @@ type GoSpecificConfig struct {
 	// CustomConfig is anything you want.  It is passed along the circuit to create logic for ClosedToOpenFactory
 	// and OpenToClosedFactory configuration
 	CustomConfig interface{}
+	// Now returns the current time.  You usually want this to be nil, so we can just use time.Now
+	Now func() time.Time
 }
 
 func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
@@ -166,6 +168,9 @@ func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
 	}
 	if g.CustomConfig == nil {
 		g.CustomConfig = other.CustomConfig
+	}
+	if g.Now == nil {
+		g.Now = other.Now
 	}
 }
 
@@ -262,6 +267,7 @@ var defaultGoSpecificConfig = GoSpecificConfig{
 	ResponseTimeSLO:     time.Millisecond * 300,
 	ClosedToOpenFactory: newErrorPercentageCheck,
 	OpenToClosedFactory: newSleepyOpenToClose,
+	Now: time.Now,
 }
 
 var defaultCommandProperties = CommandProperties{

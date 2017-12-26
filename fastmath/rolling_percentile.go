@@ -4,20 +4,13 @@ import (
 	"math"
 	"sort"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 )
 
 type RollingPercentile struct {
 	buckets       []durationsBucket
-	currentBucket int
 
-	bucketWidth time.Duration
-	bucketStart time.Time
-	mu          sync.Mutex
-
-	fastPathCurrentBucket atomic.Value
+	rollingBucket RollingBuckets
 }
 
 type SortedDurations []time.Duration
@@ -72,11 +65,12 @@ func (s SortedDurations) Percentile(p float64) time.Duration {
 }
 
 // NewRollingPercentile creates a new rolling percentile bucketer
-func NewRollingPercentile(bucketWidth time.Duration, numBuckets int, bucketSize int) RollingPercentile {
-	return RollingPercentile{
-		bucketWidth: bucketWidth,
+func NewRollingPercentile(bucketWidth time.Duration, numBuckets int, bucketSize int, now time.Time) RollingPercentile {
+	ret := RollingPercentile{
 		buckets:     makeBuckets(numBuckets, bucketSize),
 	}
+	ret.rollingBucket.Init(numBuckets, bucketWidth, now)
+	return ret
 }
 
 func makeBuckets(numBuckets int, bucketSize int) []durationsBucket {
@@ -91,107 +85,35 @@ func (r *RollingPercentile) Snapshot(now time.Time) SortedDurations {
 	if len(r.buckets) == 0 {
 		return SortedDurations(nil)
 	}
-	r.mu.Lock()
-	r.advance(now)
+	r.rollingBucket.Advance(now, r.clearBucket)
 	ret := make([]time.Duration, 0, len(r.buckets)*10)
 	for idx := range r.buckets {
 		ret = append(ret, r.buckets[idx].Durations()...)
 	}
-	r.mu.Unlock()
 	sort.Slice(ret, func(i, j int) bool {
 		return ret[i] < ret[j]
 	})
 	return SortedDurations(ret)
 }
 
+func (r *RollingPercentile) clearBucket(idx int) {
+	r.buckets[idx].clear()
+}
+
 func (r *RollingPercentile) AddDuration(d time.Duration, now time.Time) {
 	if len(r.buckets) == 0 {
 		return
 	}
-	if r.addFastPath(now, d) {
-		return
-	}
-	r.mu.Lock()
-	r.advance(now)
-	r.buckets[r.currentBucket].addDuration(d)
-	r.mu.Unlock()
+	idx := r.rollingBucket.Advance(now, r.clearBucket)
+	r.buckets[idx].addDuration(d)
 }
 
-type currentBucketInfo struct {
-	currentBucket int
-	bucketStart   time.Time
-	rollingBucket RollingBuckets
-}
-
-
-func (r *RollingPercentile) addFastPath(now time.Time, d time.Duration) bool {
-	currentBucketPtr := r.fastPathCurrentBucket.Load()
-	if currentBucketPtr == nil {
-		return false
+// Reset the counter to all zero values.
+func (r *RollingPercentile) Reset(now time.Time) {
+	r.rollingBucket.Advance(now, r.clearBucket)
+	for i :=0;i<r.rollingBucket.NumBuckets;i++ {
+		r.clearBucket(i)
 	}
-	currentBucket := currentBucketPtr.(*currentBucketInfo)
-	if currentBucket.bucketStart.After(now) {
-		return false
-	}
-	diff := now.Sub(currentBucket.bucketStart)
-	if diff >= r.bucketWidth {
-		return false
-	}
-	if len(r.buckets) == 0 {
-		return true
-	}
-	r.buckets[currentBucket.currentBucket].addDuration(d)
-	return true
-}
-
-func (r *RollingPercentile) resetNoLock(now time.Time) {
-	for i := range r.buckets {
-		r.buckets[i].clear()
-	}
-	r.currentBucket = 0
-	r.bucketStart = now
-	r.fastPathCurrentBucket.Store(&currentBucketInfo{
-		currentBucket: r.currentBucket,
-		bucketStart:   r.bucketStart,
-	})
-}
-
-// advance forward, clearing buckets as needed
-func (r *RollingPercentile) advance(now time.Time) {
-	if !now.After(r.bucketStart) {
-		// advance backwards is ignored
-		return
-	}
-	if r.bucketStart.IsZero() {
-		r.bucketStart = now
-		r.fastPathCurrentBucket.Store(&currentBucketInfo{
-			currentBucket: r.currentBucket,
-			bucketStart:   r.bucketStart,
-		})
-		return
-	}
-	diff := now.Sub(r.bucketStart)
-	if diff < r.bucketWidth {
-		return
-	}
-
-	// At this point, we must advance forward in the buckets list
-	for i := 0; i < len(r.buckets); i++ {
-		diff := now.Sub(r.bucketStart)
-		if diff < r.bucketWidth {
-			return
-		}
-
-		// Move to the next bucket and clear out the value there
-		r.currentBucket = (r.currentBucket + 1) % len(r.buckets)
-		r.buckets[r.currentBucket].clear()
-		r.bucketStart = r.bucketStart.Add(r.bucketWidth)
-		r.fastPathCurrentBucket.Store(&currentBucketInfo{
-			currentBucket: r.currentBucket,
-			bucketStart:   r.bucketStart,
-		})
-	}
-	r.resetNoLock(now)
 }
 
 // durationsBucket supports atomically adding durations to a size limited list

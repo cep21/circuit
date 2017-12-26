@@ -108,9 +108,10 @@ func (e *ErrorPercentageCheck) SetConfigThreadSafe(props CommandProperties) {
 // SetConfigNotThreadSafe recreates the buckets
 func (e *ErrorPercentageCheck) SetConfigNotThreadSafe(props CommandProperties) {
 	e.SetConfigThreadSafe(props)
+	now := props.GoSpecific.Now()
 	rollingCounterBucketWidth := time.Duration(props.Metrics.RollingStatsDuration.Nanoseconds() / int64(props.Metrics.RollingStatsNumBuckets))
-	e.errorsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, props.Metrics.RollingStatsNumBuckets)
-	e.legitimateAttemptsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, props.Metrics.RollingStatsNumBuckets)
+	e.errorsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, props.Metrics.RollingStatsNumBuckets, now)
+	e.legitimateAttemptsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, props.Metrics.RollingStatsNumBuckets, now)
 }
 
 func newErrorPercentageCheck() ClosedToOpen {

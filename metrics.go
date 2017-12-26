@@ -186,16 +186,16 @@ func (r *rollingCmdMetrics) ErrBadRequest(duration time.Duration) {
 
 var _ RunMetrics = &rollingCmdMetrics{}
 
-func newRollingCmdMetrics(bucketWidth time.Duration, numBuckets int, rollingPercentileBucketWidth time.Duration, rollingPercentileNumBuckets int, rollingPercentileBucketSize int) rollingCmdMetrics {
+func newRollingCmdMetrics(bucketWidth time.Duration, numBuckets int, rollingPercentileBucketWidth time.Duration, rollingPercentileNumBuckets int, rollingPercentileBucketSize int, now time.Time) rollingCmdMetrics {
 	return rollingCmdMetrics{
-		successCount:              fastmath.NewRollingCounter(bucketWidth, numBuckets),
-		errConcurrencyLimitReject: fastmath.NewRollingCounter(bucketWidth, numBuckets),
-		errFailure:                fastmath.NewRollingCounter(bucketWidth, numBuckets),
-		errShortCircuit:           fastmath.NewRollingCounter(bucketWidth, numBuckets),
-		errTimeout:                fastmath.NewRollingCounter(bucketWidth, numBuckets),
-		errBadRequest:             fastmath.NewRollingCounter(bucketWidth, numBuckets),
-		errInterrupt:              fastmath.NewRollingCounter(bucketWidth, numBuckets),
-		rollingLatencyPercentile:  fastmath.NewRollingPercentile(rollingPercentileBucketWidth, rollingPercentileNumBuckets, rollingPercentileBucketSize),
+		successCount:              fastmath.NewRollingCounter(bucketWidth, numBuckets, now),
+		errConcurrencyLimitReject: fastmath.NewRollingCounter(bucketWidth, numBuckets, now),
+		errFailure:                fastmath.NewRollingCounter(bucketWidth, numBuckets, now),
+		errShortCircuit:           fastmath.NewRollingCounter(bucketWidth, numBuckets, now),
+		errTimeout:                fastmath.NewRollingCounter(bucketWidth, numBuckets, now),
+		errBadRequest:             fastmath.NewRollingCounter(bucketWidth, numBuckets, now),
+		errInterrupt:              fastmath.NewRollingCounter(bucketWidth, numBuckets, now),
+		rollingLatencyPercentile:  fastmath.NewRollingPercentile(rollingPercentileBucketWidth, rollingPercentileNumBuckets, rollingPercentileBucketSize, now),
 	}
 }
 
@@ -219,11 +219,11 @@ func (r *rollingFallbackMetrics) ErrFailure(duration time.Duration) {
 
 var _ FallbackMetric = &rollingFallbackMetrics{}
 
-func newRollingFallbackMetricCollector(bucketWidth time.Duration, numBuckets int) rollingFallbackMetrics {
+func newRollingFallbackMetricCollector(bucketWidth time.Duration, numBuckets int, now time.Time) rollingFallbackMetrics {
 	return rollingFallbackMetrics{
-		successCount:              fastmath.NewRollingCounter(bucketWidth, numBuckets),
-		errConcurrencyLimitReject: fastmath.NewRollingCounter(bucketWidth, numBuckets),
-		errFailure:                fastmath.NewRollingCounter(bucketWidth, numBuckets),
+		successCount:              fastmath.NewRollingCounter(bucketWidth, numBuckets, now),
+		errConcurrencyLimitReject: fastmath.NewRollingCounter(bucketWidth, numBuckets, now),
+		errFailure:                fastmath.NewRollingCounter(bucketWidth, numBuckets, now),
 	}
 }
 
@@ -256,14 +256,15 @@ func (c *circuitStats) SetConfigThreadSafe(config CommandProperties) {
 // default configuration parameters.
 func (c *circuitStats) SetConfigNotThreadSafe(config CommandProperties) {
 	c.SetConfigThreadSafe(config)
+	now := config.GoSpecific.Now()
 	rollingCounterBucketWidth := time.Duration(config.Metrics.RollingStatsDuration.Nanoseconds() / int64(config.Metrics.RollingStatsNumBuckets))
-	c.errorsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, config.Metrics.RollingStatsNumBuckets)
-	c.legitimateAttemptsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, config.Metrics.RollingStatsNumBuckets)
-	c.backedOutAttemptsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, config.Metrics.RollingStatsNumBuckets)
-	c.builtInRollingFallbackMetricCollector = newRollingFallbackMetricCollector(rollingCounterBucketWidth, config.Metrics.RollingStatsNumBuckets)
+	c.errorsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, config.Metrics.RollingStatsNumBuckets, now)
+	c.legitimateAttemptsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, config.Metrics.RollingStatsNumBuckets, now)
+	c.backedOutAttemptsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, config.Metrics.RollingStatsNumBuckets, now)
+	c.builtInRollingFallbackMetricCollector = newRollingFallbackMetricCollector(rollingCounterBucketWidth, config.Metrics.RollingStatsNumBuckets, now)
 
 	rollingPercentileBucketWidth := time.Duration(config.Metrics.RollingPercentileDuration.Nanoseconds() / int64(config.Metrics.RollingPercentileNumBuckets))
-	c.builtInRollingCmdMetricCollector = newRollingCmdMetrics(rollingCounterBucketWidth, config.Metrics.RollingStatsNumBuckets, rollingPercentileBucketWidth, config.Metrics.RollingPercentileNumBuckets, config.Metrics.RollingPercentileBucketSize)
+	c.builtInRollingCmdMetricCollector = newRollingCmdMetrics(rollingCounterBucketWidth, config.Metrics.RollingStatsNumBuckets, rollingPercentileBucketWidth, config.Metrics.RollingPercentileNumBuckets, config.Metrics.RollingPercentileBucketSize, now)
 
 	c.cmdMetricCollector = MultiCmdMetricCollector{
 		CmdMetricCollectors: append([]RunMetrics{
