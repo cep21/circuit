@@ -422,3 +422,7 @@ go run example/main.go
 2017/12/19 15:24:42 
 2017/12/19 15:24:42 Then, add the stream http://localhost:8123/hystrix.stream
 ```
+
+If you load the Hystrix dasbhoard (following the above instructions), you should see metrics for all the example circuits.
+
+[![dashboard](https://cep21.github.io/hystrix/imgs/hystrix_ui.png)](https://cep21.github.io/hystrix/imgs/hystrix_ui.png)
