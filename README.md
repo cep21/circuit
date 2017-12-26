@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/cep21/hystrix.svg?branch=master)](https://travis-ci.org/cep21/hystrix)
 # Hystrix
 
 Hystrix is a Go implementation of [Hystrix](https://github.com/Netflix/Hystrix) from Netflix.
