@@ -373,10 +373,10 @@ BenchmarkCiruits/handy/passing/Default/1-8               	 1000000	      1087 ns
 BenchmarkCiruits/handy/passing/Default/75-8              	 1000000	      1689 ns/op	       0 B/op	       0 allocs/op
 BenchmarkCiruits/handy/failing/Default/1-8               	 1000000	      1316 ns/op	       0 B/op	       0 allocs/op
 BenchmarkCiruits/handy/failing/Default/75-8              	 1000000	      1843 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/iand_circuit/passing/Default/1-8        	 1000000	      1048 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/iand_circuit/passing/Default/75-8       	 1000000	      1704 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/iand_circuit/failing/Default/1-8        	 1000000	      1313 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/iand_circuit/failing/Default/75-8       	 1000000	      1741 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/iand_circuit/passing/Default/1-8        	10000000	       121 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/iand_circuit/passing/Default/75-8       	 5000000	       317 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/iand_circuit/failing/Default/1-8        	50000000	        23.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/iand_circuit/failing/Default/75-8       	300000000	         5.65 ns/op	       0 B/op	       0 allocs/op
 PASS
 ok  	github.com/cep21/hystrix/benchmarking	59.518s
 ``
@@ -391,7 +391,7 @@ BenchmarkCiruits/GoHystrix/passing/DefaultConfig/75-8    	  500000	      2317 ns
 BenchmarkCiruits/rubyist/passing/Threshold-10/75-8       	 2000000	       799 ns/op	     309 B/op	       4 allocs/op
 BenchmarkCiruits/gobreaker/passing/Default/75-8          	 2000000	       677 ns/op	       0 B/op	       0 allocs/op
 BenchmarkCiruits/handy/passing/Default/75-8              	 1000000	      1689 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/iand_circuit/passing/Default/75-8       	 1000000	      1704 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/iand_circuit/passing/Default/75-8       	 5000000	       317 ns/op	       0 B/op	       0 allocs/op
 ```
 
 # Development
