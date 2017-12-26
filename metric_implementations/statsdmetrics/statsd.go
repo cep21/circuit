@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cep21/hystrix"
 	"github.com/cactus/go-statsd-client/statsd"
+	"github.com/cep21/hystrix"
 )
 
 type CommandFactory struct {

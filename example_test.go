@@ -1,14 +1,15 @@
 package hystrix_test
 
 import (
-	"github.com/cep21/hystrix"
+	"bytes"
 	"context"
-	"net/http"
 	"errors"
 	"fmt"
 	"io"
-	"bytes"
+	"net/http"
 	"time"
+
+	"github.com/cep21/hystrix"
 )
 
 func Example_http() {
@@ -20,7 +21,7 @@ func Example_http() {
 	})
 
 	var body bytes.Buffer
-	runErr := c.Run(context.Background(), func (ctx context.Context) error {
+	runErr := c.Run(context.Background(), func(ctx context.Context) error {
 		req, err := http.NewRequest("GET", "http://www.google.com", nil)
 		if err != nil {
 			return hystrix.SimpleBadRequest{Err: err}

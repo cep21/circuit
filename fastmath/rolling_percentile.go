@@ -8,7 +8,7 @@ import (
 )
 
 type RollingPercentile struct {
-	buckets       []durationsBucket
+	buckets []durationsBucket
 
 	rollingBucket RollingBuckets
 }
@@ -67,7 +67,7 @@ func (s SortedDurations) Percentile(p float64) time.Duration {
 // NewRollingPercentile creates a new rolling percentile bucketer
 func NewRollingPercentile(bucketWidth time.Duration, numBuckets int, bucketSize int, now time.Time) RollingPercentile {
 	ret := RollingPercentile{
-		buckets:     makeBuckets(numBuckets, bucketSize),
+		buckets: makeBuckets(numBuckets, bucketSize),
 	}
 	ret.rollingBucket.Init(numBuckets, bucketWidth, now)
 	return ret
@@ -111,7 +111,7 @@ func (r *RollingPercentile) AddDuration(d time.Duration, now time.Time) {
 // Reset the counter to all zero values.
 func (r *RollingPercentile) Reset(now time.Time) {
 	r.rollingBucket.Advance(now, r.clearBucket)
-	for i :=0;i<r.rollingBucket.NumBuckets;i++ {
+	for i := 0; i < r.rollingBucket.NumBuckets; i++ {
 		r.clearBucket(i)
 	}
 }

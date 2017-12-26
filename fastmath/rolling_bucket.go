@@ -5,8 +5,8 @@ import (
 )
 
 type RollingBuckets struct {
-	NumBuckets int
-	StartTime time.Time
+	NumBuckets  int
+	StartTime   time.Time
 	BucketWidth time.Duration
 
 	lastAbsIndex AtomicInt64
@@ -44,8 +44,8 @@ func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 		}
 		return absIndex % r.NumBuckets
 	}
-	for i :=0;i<r.NumBuckets && lastAbsVal < absIndex;i++ {
-		if !r.lastAbsIndex.CompareAndSwap(int64(lastAbsVal), int64(lastAbsVal) + 1) {
+	for i := 0; i < r.NumBuckets && lastAbsVal < absIndex; i++ {
+		if !r.lastAbsIndex.CompareAndSwap(int64(lastAbsVal), int64(lastAbsVal)+1) {
 			// someone else is swapping
 			return r.Advance(now, clearBucket)
 		}

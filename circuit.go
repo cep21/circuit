@@ -206,14 +206,6 @@ func (c *Circuit) throttleConcurrentCommands(currentCommandCount int64) error {
 	return nil
 }
 
-func errDueToContextCancelation(ctx context.Context, retErr error) bool {
-	return retErr != nil && ctx.Err() != nil
-}
-
-func interruptErrorsEnabled(err error, originalContextFailed bool, allowToIgnoreContextCancels bool) bool {
-	return allowToIgnoreContextCancels && err != nil && originalContextFailed
-}
-
 // run is the equivalent of Java Hystrix's http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#run()
 func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) (retErr error) {
 	if runFunc == nil {
@@ -274,7 +266,7 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 
 	// The runFunc failed, but someone asked the original context to end.  This probably isn't a failure of the hystrix
 	// circuit: someone just wanted `Execute` to end early, so don't track it as a failure.
-	if c.checkErrInterrupt(ret, originalContext, runFuncDoneTime, totalCmdTime) {
+	if c.checkErrInterrupt(originalContext, ret, runFuncDoneTime, totalCmdTime) {
 		return ret
 	}
 
@@ -302,7 +294,7 @@ func (c *Circuit) checkSuccess(runFuncDoneTime time.Time, totalCmdTime time.Dura
 	c.close(runFuncDoneTime)
 }
 
-func (c *Circuit) checkErrInterrupt(ret error, originalContext context.Context, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
+func (c *Circuit) checkErrInterrupt(originalContext context.Context, ret error, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
 	if !c.threadSafeConfig.GoSpecific.IgnoreInterrputs.Get() && ret != nil && originalContext.Err() != nil {
 		if c.IsOpen() {
 			c.openToClose.BackedOutAttempt(runFuncDoneTime)

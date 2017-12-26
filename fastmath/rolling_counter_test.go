@@ -42,15 +42,15 @@ func TestRollingCounter_NormalConsistency(t *testing.T) {
 	now := time.Now()
 	bucketSize := 100
 	numBuckets := 20
-	x := NewRollingCounter(time.Millisecond * time.Duration(bucketSize), numBuckets, now)
+	x := NewRollingCounter(time.Millisecond*time.Duration(bucketSize), numBuckets, now)
 	concurrent := 20
 	end := 10000
 	wg := sync.WaitGroup{}
-	for i:=0;i<concurrent;i++ {
+	for i := 0; i < concurrent; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for j:=0;j<end;j++ {
+			for j := 0; j < end; j++ {
 				newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(j)))
 				x.Inc(newNow)
 				time.Sleep(time.Millisecond / 100)
@@ -59,11 +59,11 @@ func TestRollingCounter_NormalConsistency(t *testing.T) {
 	}
 	wg.Wait()
 	newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(end)))
-	if x.RollingSum(newNow) != int64(concurrent * bucketSize * (numBuckets - 1)) {
+	if x.RollingSum(newNow) != int64(concurrent*bucketSize*(numBuckets-1)) {
 		t.Error("small rolling sum", x.RollingSum(newNow))
 	}
 	b := x.GetBuckets(newNow)
-	if b[1] != int64(concurrent * bucketSize) {
+	if b[1] != int64(concurrent*bucketSize) {
 		t.Error("incorrect size at b[1]", b[1])
 	}
 }
@@ -150,7 +150,6 @@ func TestRollingCounter_Race(t *testing.T) {
 	}
 	wg.Wait()
 }
-
 
 func TestRollingCounter_IncPast(t *testing.T) {
 	now := time.Now()

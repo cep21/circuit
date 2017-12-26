@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cep21/hystrix"
 	gohystrix "github.com/afex/hystrix-go/hystrix"
-	"github.com/rubyist/circuitbreaker"
+	"github.com/cep21/hystrix"
 	iandCircuit "github.com/iand/circuit"
+	"github.com/rubyist/circuitbreaker"
 	"github.com/sony/gobreaker"
 	"github.com/streadway/handy/breaker"
 )
@@ -115,8 +115,8 @@ func BenchmarkCiruits(b *testing.B) {
 			runner: handyRunner,
 			configs: []circuitConfigs{
 				{
-					name: "Default",
-					config:iandCircuit.Breaker{},
+					name:   "Default",
+					config: iandCircuit.Breaker{},
 				},
 			},
 			funcTypes: []interface{}{passes, fails},

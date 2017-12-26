@@ -16,10 +16,10 @@ type ExecutionConfig struct {
 
 func (c *ExecutionConfig) merge(other ExecutionConfig) {
 	if c.MaxConcurrentRequests == 0 {
-		c.MaxConcurrentRequests = defaultExecutionConfig.MaxConcurrentRequests
+		c.MaxConcurrentRequests = other.MaxConcurrentRequests
 	}
 	if c.Timeout == 0 {
-		c.Timeout = defaultExecutionConfig.Timeout
+		c.Timeout = other.Timeout
 	}
 }
 
@@ -34,31 +34,31 @@ type FallbackConfig struct {
 
 func (c *FallbackConfig) merge(other FallbackConfig) {
 	if c.MaxConcurrentRequests == 0 {
-		c.MaxConcurrentRequests = defaultFallbackConfig.MaxConcurrentRequests
+		c.MaxConcurrentRequests = other.MaxConcurrentRequests
 	}
 	if !c.Disabled {
-		c.Disabled = defaultFallbackConfig.Disabled
+		c.Disabled = other.Disabled
 	}
 }
 
 func (c *CircuitBreakerConfig) merge(other CircuitBreakerConfig) {
 	if !c.Disabled {
-		c.Disabled = defaultCircuitBreakerConfig.Disabled
+		c.Disabled = other.Disabled
 	}
 	if c.RequestVolumeThreshold == 0 {
-		c.RequestVolumeThreshold = defaultCircuitBreakerConfig.RequestVolumeThreshold
+		c.RequestVolumeThreshold = other.RequestVolumeThreshold
 	}
 	if c.SleepWindow == 0 {
-		c.SleepWindow = defaultCircuitBreakerConfig.SleepWindow
+		c.SleepWindow = other.SleepWindow
 	}
 	if c.ErrorThresholdPercentage == 0 {
-		c.ErrorThresholdPercentage = defaultCircuitBreakerConfig.ErrorThresholdPercentage
+		c.ErrorThresholdPercentage = other.ErrorThresholdPercentage
 	}
 	if !c.ForcedClosed {
-		c.ForcedClosed = defaultCircuitBreakerConfig.ForcedClosed
+		c.ForcedClosed = other.ForcedClosed
 	}
 	if !c.ForceOpen {
-		c.ForceOpen = defaultCircuitBreakerConfig.ForceOpen
+		c.ForceOpen = other.ForceOpen
 	}
 }
 
@@ -81,22 +81,22 @@ type MetricsConfig struct {
 
 func (c *MetricsConfig) merge(other MetricsConfig) {
 	if c.RollingStatsDuration == 0 {
-		c.RollingStatsDuration = defaultMetricsConfig.RollingStatsDuration
+		c.RollingStatsDuration = other.RollingStatsDuration
 	}
 	if c.RollingStatsNumBuckets == 0 {
-		c.RollingStatsNumBuckets = defaultMetricsConfig.RollingStatsNumBuckets
+		c.RollingStatsNumBuckets = other.RollingStatsNumBuckets
 	}
 	if !c.RollingPercentileDisabled {
-		c.RollingPercentileDisabled = defaultMetricsConfig.RollingPercentileDisabled
+		c.RollingPercentileDisabled = other.RollingPercentileDisabled
 	}
 	if c.RollingPercentileDuration == 0 {
-		c.RollingPercentileDuration = defaultMetricsConfig.RollingPercentileDuration
+		c.RollingPercentileDuration = other.RollingPercentileDuration
 	}
 	if c.RollingPercentileNumBuckets == 0 {
-		c.RollingPercentileNumBuckets = defaultMetricsConfig.RollingPercentileNumBuckets
+		c.RollingPercentileNumBuckets = other.RollingPercentileNumBuckets
 	}
 	if c.RollingPercentileBucketSize == 0 {
-		c.RollingPercentileBucketSize = defaultMetricsConfig.RollingPercentileBucketSize
+		c.RollingPercentileBucketSize = other.RollingPercentileBucketSize
 	}
 }
 
@@ -267,7 +267,7 @@ var defaultGoSpecificConfig = GoSpecificConfig{
 	ResponseTimeSLO:     time.Millisecond * 300,
 	ClosedToOpenFactory: newErrorPercentageCheck,
 	OpenToClosedFactory: newSleepyOpenToClose,
-	Now: time.Now,
+	Now:                 time.Now,
 }
 
 var defaultCommandProperties = CommandProperties{

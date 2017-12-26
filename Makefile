@@ -33,7 +33,7 @@ profile_blocking:
 
 # Lint the code
 lint:
-	gometalinter --enable-all -D lll
+	gometalinter --enable-all -D lll --dupl-threshold=100
 
 # Run the example
 run:

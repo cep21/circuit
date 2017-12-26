@@ -23,7 +23,7 @@ type RollingCounter struct {
 // NewRollingCounter initializes a rolling counter with a bucket width and # of buckets
 func NewRollingCounter(bucketWidth time.Duration, numBuckets int, now time.Time) RollingCounter {
 	ret := RollingCounter{
-		buckets:     make([]AtomicInt64, numBuckets),
+		buckets: make([]AtomicInt64, numBuckets),
 	}
 	ret.rollingBucket.Init(numBuckets, bucketWidth, now)
 	return ret
@@ -74,7 +74,7 @@ func (r *RollingCounter) GetBuckets(now time.Time) []int64 {
 	r.rollingBucket.Advance(now, r.clearBucket)
 	startIdx := int(r.rollingBucket.lastAbsIndex.Get() % int64(r.rollingBucket.NumBuckets))
 	ret := make([]int64, r.rollingBucket.NumBuckets)
-	for i:=0;i<r.rollingBucket.NumBuckets;i++ {
+	for i := 0; i < r.rollingBucket.NumBuckets; i++ {
 		idx := startIdx - i
 		if idx < 0 {
 			idx += r.rollingBucket.NumBuckets
@@ -92,7 +92,7 @@ func (r *RollingCounter) clearBucket(idx int) {
 // Reset the counter to all zero values.
 func (r *RollingCounter) Reset(now time.Time) {
 	r.rollingBucket.Advance(now, r.clearBucket)
-	for i :=0;i<r.rollingBucket.NumBuckets;i++ {
+	for i := 0; i < r.rollingBucket.NumBuckets; i++ {
 		r.clearBucket(i)
 	}
 }

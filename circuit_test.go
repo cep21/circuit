@@ -194,8 +194,9 @@ func TestGoForwardsPanic(t *testing.T) {
 			t.Fatal("should recover")
 		}
 	}()
+	var x []int
 	c.Go(ctx, func(ctx2 context.Context) error {
-		panic(1)
+		x[0] = 0 // will panic
 		return nil
 	}, nil)
 	t.Fatal("Should never get this far")
