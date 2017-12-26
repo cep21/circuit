@@ -35,6 +35,10 @@ profile_blocking:
 lint:
 	gometalinter --enable-all -D lll --dupl-threshold=100
 
+setup:
+	go get -u github.com/alecthomas/gometalinter
+	gometalinter --install --update
+
 # Run the example
 run:
 	go run -race example/main.go

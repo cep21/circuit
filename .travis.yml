@@ -1,0 +1,17 @@
+nguage: go
+
+sudo: false
+
+go:
+  - 1.8
+  - 1.9
+
+install:
+  make setup
+
+script:
+  make lint
+  make test
+
+after_success:
+  make bench
