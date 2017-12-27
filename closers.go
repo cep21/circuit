@@ -110,7 +110,7 @@ func (e *errorPercentageCheck) SetConfigThreadSafe(props CommandProperties) {
 // SetConfigNotThreadSafe recreates the buckets
 func (e *errorPercentageCheck) SetConfigNotThreadSafe(props CommandProperties) {
 	e.SetConfigThreadSafe(props)
-	now := props.GoSpecific.Now()
+	now := props.GoSpecific.TimeKeeper.Now()
 	rollingCounterBucketWidth := time.Duration(props.Metrics.RollingStatsDuration.Nanoseconds() / int64(props.Metrics.RollingStatsNumBuckets))
 	e.errorsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, props.Metrics.RollingStatsNumBuckets, now)
 	e.legitimateAttemptsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, props.Metrics.RollingStatsNumBuckets, now)
@@ -187,4 +187,5 @@ func (s *sleepyOpenToClose) SetConfigThreadSafe(props CommandProperties) {
 // SetConfigNotThreadSafe just calls SetConfigThreadSafe
 func (s *sleepyOpenToClose) SetConfigNotThreadSafe(props CommandProperties) {
 	s.SetConfigThreadSafe(props)
+	s.reopenCircuitCheck.TimeAfterFunc = props.GoSpecific.TimeKeeper.AfterFunc
 }

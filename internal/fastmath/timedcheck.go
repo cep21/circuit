@@ -10,6 +10,10 @@ type TimedCheck struct {
 	sleepDuration     AtomicInt64
 	eventCountToAllow AtomicInt64
 
+	isFastFail        AtomicBoolean
+	isFailFastVersion AtomicInt64
+
+	TimeAfterFunc              func(time.Duration, func()) *time.Timer
 	nextOpenTime               time.Time
 	currentlyAllowedEventCount int64
 	mu                         sync.RWMutex
@@ -19,6 +23,13 @@ type TimedCheck struct {
 // alredy sleeping checks, but will change during the next check.
 func (c *TimedCheck) SetSleepDuration(newDuration time.Duration) {
 	c.sleepDuration.Set(newDuration.Nanoseconds())
+}
+
+func (c *TimedCheck) afterFunc(d time.Duration, f func()) *time.Timer {
+	if c.TimeAfterFunc == nil {
+		return time.AfterFunc(d, f)
+	}
+	return c.TimeAfterFunc(d, f)
 }
 
 // SetEventCountToAllow configures how many times Check() can return true before moving time
@@ -32,11 +43,22 @@ func (c *TimedCheck) SleepStart(now time.Time) {
 	c.mu.Lock()
 	c.nextOpenTime = now.Add(c.sleepDuration.Duration())
 	c.currentlyAllowedEventCount = 0
+	c.isFastFail.Set(true)
+	currentVersion := c.isFailFastVersion.Add(1)
+	c.afterFunc(c.sleepDuration.Duration(), func() {
+		// If sleep start is called again, don't reset from an old version
+		if currentVersion == c.isFailFastVersion.Get() {
+			c.isFastFail.Set(false)
+		}
+	})
 	c.mu.Unlock()
 }
 
 // Check returns true if a check is allowed at this time
 func (c *TimedCheck) Check(now time.Time) bool {
+	if c.isFastFail.Get() {
+		return false
+	}
 	c.mu.RLock()
 	// Common condition fast check
 	if c.nextOpenTime.After(now) {

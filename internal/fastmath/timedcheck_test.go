@@ -4,6 +4,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/cep21/hystrix/internal/clock"
 )
 
 func TestTimedCheck_Empty(t *testing.T) {
@@ -15,27 +17,31 @@ func TestTimedCheck_Empty(t *testing.T) {
 }
 
 func TestTimedCheck_Check(t *testing.T) {
-	x := TimedCheck{}
+	c := clock.MockClock{}
+	x := TimedCheck{
+		TimeAfterFunc: c.AfterFunc,
+	}
 	x.SetSleepDuration(time.Second)
 	now := time.Now()
+	c.Set(now)
 	x.SleepStart(now)
 	if x.Check(now) {
-		t.Error("Should not check at first")
+		t.Fatal("Should not check at first")
 	}
-	if x.Check(now.Add(time.Millisecond * 999)) {
-		t.Error("Should not check close to end")
+	if x.Check(c.Set(now.Add(time.Millisecond * 999))) {
+		t.Fatal("Should not check close to end")
 	}
-	if !x.Check(now.Add(time.Second)) {
-		t.Error("Should check at barrier")
+	if !x.Check(c.Set(now.Add(time.Second))) {
+		t.Fatal("Should check at barrier")
 	}
-	if x.Check(now.Add(time.Second)) {
-		t.Error("Should only check once")
+	if x.Check(c.Set(now.Add(time.Second))) {
+		t.Fatal("Should only check once")
 	}
-	if x.Check(now.Add(time.Second + time.Millisecond)) {
-		t.Error("Should only double check")
+	if x.Check(c.Set(now.Add(time.Second + time.Millisecond))) {
+		t.Fatal("Should only double check")
 	}
-	if !x.Check(now.Add(time.Second * 2)) {
-		t.Error("Should check again at 2 sec")
+	if !x.Check(c.Set(now.Add(time.Second * 2))) {
+		t.Fatal("Should check again at 2 sec")
 	}
 }
 

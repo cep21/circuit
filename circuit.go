@@ -79,6 +79,7 @@ func (c *Circuit) SetConfigNotThreadSafe(config CommandProperties) {
 	c.notThreadSafeConfigMu.Lock()
 	c.notThreadSafeConfig = config
 	c.notThreadSafeConfigMu.Unlock()
+	c.timeNow = config.GoSpecific.TimeKeeper.Now
 
 	c.openToClose = config.GoSpecific.OpenToClosedFactory()
 	c.closedToOpen = config.GoSpecific.ClosedToOpenFactory()
@@ -90,10 +91,7 @@ func (c *Circuit) SetConfigNotThreadSafe(config CommandProperties) {
 }
 
 func (c *Circuit) now() time.Time {
-	if c.timeNow != nil {
-		return c.timeNow()
-	}
-	return time.Now()
+	return c.timeNow()
 }
 
 // Var exports that help diagnose the circuit
@@ -215,6 +213,12 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 	startTime := c.now()
 	originalContext := ctx
 
+	if !c.allowNewRun(startTime) {
+		// Rather than make this inline, return a global reference (for memory optimization sake).
+		c.circuitStats.cmdMetricCollector.ErrShortCircuit()
+		return errCircuitOpen
+	}
+
 	if c.closedToOpen.Prevent(startTime) {
 		return errCircuitOpen
 	}
@@ -224,12 +228,6 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 	if err := c.throttleConcurrentCommands(currentCommandCount); err != nil {
 		c.circuitStats.cmdMetricCollector.ErrConcurrencyLimitReject()
 		return err
-	}
-
-	if !c.allowNewRun(startTime) {
-		// Rather than make this inline, return a global reference (for memory optimization sake).
-		c.circuitStats.cmdMetricCollector.ErrShortCircuit()
-		return errCircuitOpen
 	}
 
 	// Set timeout on the command if we have one

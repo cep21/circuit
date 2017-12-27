@@ -7,17 +7,17 @@ import (
 )
 
 // AtomicBoolean is an atomic boolean
-type AtomicBoolean struct{ flag int64 }
+type AtomicBoolean struct{ flag uint32 }
 
 func (a *AtomicBoolean) Get() bool {
-	return atomic.LoadInt64(&a.flag) == 1
+	return atomic.LoadUint32(&a.flag) == 1
 }
 
 func (a *AtomicBoolean) Set(value bool) {
 	if value {
-		atomic.StoreInt64(&a.flag, 1)
+		atomic.StoreUint32(&a.flag, 1)
 	} else {
-		atomic.StoreInt64(&a.flag, 0)
+		atomic.StoreUint32(&a.flag, 0)
 	}
 }
 

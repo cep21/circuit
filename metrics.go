@@ -256,7 +256,7 @@ func (c *circuitStats) SetConfigThreadSafe(config CommandProperties) {
 // default configuration parameters.
 func (c *circuitStats) SetConfigNotThreadSafe(config CommandProperties) {
 	c.SetConfigThreadSafe(config)
-	now := config.GoSpecific.Now()
+	now := config.GoSpecific.TimeKeeper.Now()
 	rollingCounterBucketWidth := time.Duration(config.Metrics.RollingStatsDuration.Nanoseconds() / int64(config.Metrics.RollingStatsNumBuckets))
 	c.errorsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, config.Metrics.RollingStatsNumBuckets, now)
 	c.legitimateAttemptsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, config.Metrics.RollingStatsNumBuckets, now)

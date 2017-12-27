@@ -149,11 +149,28 @@ type GoSpecificConfig struct {
 	// CustomConfig is anything you want.  It is passed along the circuit to create logic for ClosedToOpenFactory
 	// and OpenToClosedFactory configuration
 	CustomConfig interface{}
-	// Now returns the current time.  You usually want this to be nil, so we can just use time.Now
-	Now func() time.Time
+	// TimeKeeper returns the current way to keep time.  You only want to modify this for testing.
+	TimeKeeper TimeKeeper
 	// If true, *all* internal stat tracking will not be enabled.  You cannot change this property at runtime, since it
 	// takes optimization steps that aren't allowed.  Only use this if you really need the extra ns
 	DisableAllStats bool
+}
+
+// TimeKeeper allows overriding time to test the circuit
+type TimeKeeper struct {
+	// Now should simulate time.Now
+	Now func() time.Time
+	// AfterFunc should simulate time.AfterFunc
+	AfterFunc func(time.Duration, func()) *time.Timer
+}
+
+func (t *TimeKeeper) merge(other TimeKeeper) {
+	if t.Now == nil {
+		t.Now = other.Now
+	}
+	if t.AfterFunc == nil {
+		t.AfterFunc = other.AfterFunc
+	}
 }
 
 func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
@@ -172,12 +189,10 @@ func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
 	if g.CustomConfig == nil {
 		g.CustomConfig = other.CustomConfig
 	}
-	if g.Now == nil {
-		g.Now = other.Now
-	}
 	if !g.DisableAllStats {
 		g.DisableAllStats = other.DisableAllStats
 	}
+	g.TimeKeeper.merge(other.TimeKeeper)
 }
 
 // MetricsCollectors can receive metrics during a circuit.  They should be fast, as they will
@@ -273,7 +288,10 @@ var defaultGoSpecificConfig = GoSpecificConfig{
 	ResponseTimeSLO:     time.Millisecond * 300,
 	ClosedToOpenFactory: newErrorPercentageCheck,
 	OpenToClosedFactory: newSleepyOpenToClose,
-	Now:                 time.Now,
+	TimeKeeper: TimeKeeper{
+		Now:       time.Now,
+		AfterFunc: time.AfterFunc,
+	},
 }
 
 var defaultCommandProperties = CommandProperties{
