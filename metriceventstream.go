@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cep21/hystrix/fastmath"
+	"github.com/cep21/hystrix/internal/fastmath"
 )
 
 // MetricEventStream is a HTTP handler that supports hystrix's metric stream API

@@ -319,6 +319,12 @@ requests that resopnd _quickly enough_.
   // response did not meet service SLO
 ```
 
+## Not counting user error as a fault
+
+Sometimes users pass invalid functions to the input of your circuit.  You want to return
+an error in that case, but not count the error as a failure of the circuit.  Use `SimpleBadRequest`
+in this case.
+
 # Why fork go-hystrix
 
 I wanted to change the API to confirm to other design principals (forced asyncronousness, global mutable state, etc),

@@ -115,7 +115,7 @@ func BenchmarkCiruits(b *testing.B) {
 			runner: iandCircuitRunner,
 			configs: []circuitConfigs{
 				{
-					name:   "Default",
+					name: "Default",
 					config: iandCircuit.Breaker{
 						Concurrency: 75,
 					},

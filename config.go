@@ -3,7 +3,7 @@ package hystrix
 import (
 	"time"
 
-	"github.com/cep21/hystrix/fastmath"
+	"github.com/cep21/hystrix/internal/fastmath"
 )
 
 // ExecutionConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#execution

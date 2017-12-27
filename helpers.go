@@ -3,7 +3,7 @@ package hystrix
 import (
 	"context"
 
-	"github.com/cep21/hystrix/fastmath"
+	"github.com/cep21/hystrix/internal/fastmath"
 )
 
 // This file contains random helper objects/functions that aren't large enough to need their own file
