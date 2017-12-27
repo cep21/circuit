@@ -1,5 +1,5 @@
 <!-- Image designed by Jack Lindamood, Licensed under the Creative Commons 3.0 Attributions license, originate from https://github.com/golang-samples/gopher-vector design by Takuya Ueda -->
-[![Mascot](https://cep21.github.io/hystrix/imgs/hystrix-gopher_100px.png)
+![Mascot](https://cep21.github.io/hystrix/imgs/hystrix-gopher_100px.png)
 # Hystrix
 [![Build Status](https://travis-ci.org/cep21/hystrix.svg?branch=master)](https://travis-ci.org/cep21/hystrix)
 
