@@ -144,16 +144,16 @@ type GoSpecificConfig struct {
 
 	// ClosedToOpenFactory creates logic that determines if the circuit should go from Closed to Open state.
 	// By default, it uses the Hystrix model of opening a circuit after a threshold and % as reached.
-	ClosedToOpenFactory func() ClosedToOpen
+	ClosedToOpenFactory func() ClosedToOpen `json:"-"`
 	// OpenToClosedFactory creates logic that determines if the circuit should go from Open to Closed state.
 	// By default, it uses the Hystrix model of allowing a single connection and switching if the connection is
 	// Successful
-	OpenToClosedFactory func() OpenToClosed
+	OpenToClosedFactory func() OpenToClosed `json:"-"`
 	// CustomConfig is anything you want.  It is passed along the circuit to create logic for ClosedToOpenFactory
 	// and OpenToClosedFactory configuration
-	CustomConfig interface{}
+	CustomConfig interface{} `json:"-"`
 	// TimeKeeper returns the current way to keep time.  You only want to modify this for testing.
-	TimeKeeper TimeKeeper
+	TimeKeeper TimeKeeper `json:"-"`
 }
 
 // TimeKeeper allows overriding time to test the circuit
@@ -198,9 +198,9 @@ func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
 // MetricsCollectors can receive metrics during a circuit.  They should be fast, as they will
 // block circuit operation during function calls.
 type MetricsCollectors struct {
-	Run             []RunMetrics
-	Fallback        []FallbackMetric
-	ResponseTimeSLO []ResponseTimeSLOCollector
+	Run             []RunMetrics               `json:"-"`
+	Fallback        []FallbackMetric           `json:"-"`
+	ResponseTimeSLO []ResponseTimeSLOCollector `json:"-"`
 }
 
 func (m *MetricsCollectors) merge(other MetricsCollectors) {
