@@ -1,4 +1,5 @@
-// Package hystrix is a Go implementation of Netflix's Hystrix library
+// Package hystrix is a Go implementation of Netflix's Hystrix library.  Most documentation is available on
+// the github README page https://github.com/cep21/hystrix/blob/master/README.md
 package hystrix
 
 import (
@@ -9,6 +10,8 @@ import (
 
 // Hystrix manages circuits with unique names
 type Hystrix struct {
+	// DefaultCircuitProperties is a list of CommandProperties constructors called, in reverse order,
+	// to append or modify configuration for your circuit.
 	DefaultCircuitProperties []func(circuitName string) CommandProperties
 	circuitMap               map[string]*Circuit
 	mu                       sync.RWMutex
@@ -68,8 +71,9 @@ func (h *Hystrix) CreateCircuit(name string, config CommandProperties) (*Circuit
 	if h.circuitMap == nil {
 		h.circuitMap = make(map[string]*Circuit, 5)
 	}
-	for _, prop := range h.DefaultCircuitProperties {
-		config.Merge(prop(name))
+	// Merge in reverse order so the most recently appending constructor is more important
+	for i := len(h.DefaultCircuitProperties) - 1; i >= 0; i-- {
+		config.Merge(h.DefaultCircuitProperties[i](name))
 	}
 	_, exists := h.circuitMap[name]
 	if exists {

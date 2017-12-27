@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cep21/hystrix/fastmath"
+	"github.com/cep21/hystrix/internal/fastmath"
 )
 
 // Circuit is a hystrix circuit that can accept commands and open/close on failures

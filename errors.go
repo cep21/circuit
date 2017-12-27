@@ -21,7 +21,7 @@ func (m *hystrixError) HystrixConcurrencyLimitReached() bool {
 
 // BadRequest is implemented by an error returned by runFunc if you want to consider the requestor bad, not the circuit
 // bad.  See http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/exception/HystrixBadRequestException.html
-// and https://github.com/Netflix/Hystrix/wiki/How-To-Use#error-propagation for information
+// and https://github.com/Netflix/Hystrix/wiki/How-To-Use#error-propagation for information.
 type BadRequest interface {
 	HystrixBadRequest() bool
 }

@@ -3,88 +3,88 @@ package hystrix
 import (
 	"time"
 
-	"github.com/cep21/hystrix/fastmath"
+	"github.com/cep21/hystrix/internal/fastmath"
 )
 
-// MultiCmdMetricCollector send metrics to multiple RunMetrics
-type MultiCmdMetricCollector struct {
+// multiCmdMetricCollector send metrics to multiple RunMetrics
+type multiCmdMetricCollector struct {
 	CmdMetricCollectors []RunMetrics
 }
 
-var _ RunMetrics = &MultiCmdMetricCollector{}
+var _ RunMetrics = &multiCmdMetricCollector{}
 
 // Success sends Success to all collectors
-func (r *MultiCmdMetricCollector) Success(duration time.Duration) {
+func (r *multiCmdMetricCollector) Success(duration time.Duration) {
 	for _, c := range r.CmdMetricCollectors {
 		c.Success(duration)
 	}
 }
 
 // ErrConcurrencyLimitReject sends ErrConcurrencyLimitReject to all collectors
-func (r *MultiCmdMetricCollector) ErrConcurrencyLimitReject() {
+func (r *multiCmdMetricCollector) ErrConcurrencyLimitReject() {
 	for _, c := range r.CmdMetricCollectors {
 		c.ErrConcurrencyLimitReject()
 	}
 }
 
 // ErrFailure sends ErrFailure to all collectors
-func (r *MultiCmdMetricCollector) ErrFailure(duration time.Duration) {
+func (r *multiCmdMetricCollector) ErrFailure(duration time.Duration) {
 	for _, c := range r.CmdMetricCollectors {
 		c.ErrFailure(duration)
 	}
 }
 
 // ErrShortCircuit sends ErrShortCircuit to all collectors
-func (r *MultiCmdMetricCollector) ErrShortCircuit() {
+func (r *multiCmdMetricCollector) ErrShortCircuit() {
 	for _, c := range r.CmdMetricCollectors {
 		c.ErrShortCircuit()
 	}
 }
 
 // ErrTimeout sends ErrTimeout to all collectors
-func (r *MultiCmdMetricCollector) ErrTimeout(duration time.Duration) {
+func (r *multiCmdMetricCollector) ErrTimeout(duration time.Duration) {
 	for _, c := range r.CmdMetricCollectors {
 		c.ErrTimeout(duration)
 	}
 }
 
 // ErrBadRequest sends ErrBadRequest to all collectors
-func (r *MultiCmdMetricCollector) ErrBadRequest(duration time.Duration) {
+func (r *multiCmdMetricCollector) ErrBadRequest(duration time.Duration) {
 	for _, c := range r.CmdMetricCollectors {
 		c.ErrBadRequest(duration)
 	}
 }
 
 // ErrInterrupt sends ErrInterrupt to all collectors
-func (r *MultiCmdMetricCollector) ErrInterrupt(duration time.Duration) {
+func (r *multiCmdMetricCollector) ErrInterrupt(duration time.Duration) {
 	for _, c := range r.CmdMetricCollectors {
 		c.ErrInterrupt(duration)
 	}
 }
 
-var _ FallbackMetric = &MultiFallbackMetricCollectors{}
+var _ FallbackMetric = &multiFallbackMetricCollectors{}
 
-// MultiFallbackMetricCollectors sends fallback metrics to all collectors
-type MultiFallbackMetricCollectors struct {
+// multiFallbackMetricCollectors sends fallback metrics to all collectors
+type multiFallbackMetricCollectors struct {
 	FallbackMetricCollectors []FallbackMetric
 }
 
 // Success sends Success to all collectors
-func (r *MultiFallbackMetricCollectors) Success(duration time.Duration) {
+func (r *multiFallbackMetricCollectors) Success(duration time.Duration) {
 	for _, c := range r.FallbackMetricCollectors {
 		c.Success(duration)
 	}
 }
 
 // ErrConcurrencyLimitReject sends ErrConcurrencyLimitReject to all collectors
-func (r *MultiFallbackMetricCollectors) ErrConcurrencyLimitReject() {
+func (r *multiFallbackMetricCollectors) ErrConcurrencyLimitReject() {
 	for _, c := range r.FallbackMetricCollectors {
 		c.ErrConcurrencyLimitReject()
 	}
 }
 
 // ErrFailure sends ErrFailure to all collectors
-func (r *MultiFallbackMetricCollectors) ErrFailure(duration time.Duration) {
+func (r *multiFallbackMetricCollectors) ErrFailure(duration time.Duration) {
 	for _, c := range r.FallbackMetricCollectors {
 		c.ErrFailure(duration)
 	}
@@ -237,10 +237,10 @@ type circuitStats struct {
 	// change the error percentage.
 	backedOutAttemptsCount fastmath.RollingCounter
 	// All cmd and fallback metrics go here
-	cmdMetricCollector      MultiCmdMetricCollector
-	fallbackMetricCollector MultiFallbackMetricCollectors
+	cmdMetricCollector      multiCmdMetricCollector
+	fallbackMetricCollector multiFallbackMetricCollectors
 
-	responseTimeSLO ResponseTimeSLO
+	responseTimeSLO responseTimeSLO
 
 	// These are Circuit specific stats that are always tracked.
 	builtInRollingCmdMetricCollector      rollingCmdMetrics
@@ -266,12 +266,12 @@ func (c *circuitStats) SetConfigNotThreadSafe(config CommandProperties) {
 	rollingPercentileBucketWidth := time.Duration(config.Metrics.RollingPercentileDuration.Nanoseconds() / int64(config.Metrics.RollingPercentileNumBuckets))
 	c.builtInRollingCmdMetricCollector = newRollingCmdMetrics(rollingCounterBucketWidth, config.Metrics.RollingStatsNumBuckets, rollingPercentileBucketWidth, config.Metrics.RollingPercentileNumBuckets, config.Metrics.RollingPercentileBucketSize, now)
 
-	c.cmdMetricCollector = MultiCmdMetricCollector{
+	c.cmdMetricCollector = multiCmdMetricCollector{
 		CmdMetricCollectors: append([]RunMetrics{
 			&c.builtInRollingCmdMetricCollector, &c.responseTimeSLO,
 		}, config.MetricsCollectors.Run...),
 	}
-	c.fallbackMetricCollector = MultiFallbackMetricCollectors{
+	c.fallbackMetricCollector = multiFallbackMetricCollectors{
 		FallbackMetricCollectors: append([]FallbackMetric{
 			&c.builtInRollingFallbackMetricCollector,
 		}, config.MetricsCollectors.Fallback...),
