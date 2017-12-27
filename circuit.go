@@ -138,7 +138,7 @@ func (c *Circuit) IsOpen() bool {
 // CloseCircuit closes an open circuit.  Usually because we think it's healthy again.  Be aware, if the circuit isn't actually
 // healthy, it will just open back up again.
 func (c *Circuit) CloseCircuit() {
-	c.close(c.now())
+	c.close(c.now(), true)
 }
 
 // OpenCircuit will open a closed circuit.  The circuit will then try to repair itself
@@ -292,7 +292,7 @@ func (c *Circuit) checkSuccess(runFuncDoneTime time.Time, totalCmdTime time.Dura
 		c.closedToOpen.SuccessfulAttempt(runFuncDoneTime, totalCmdTime)
 	}
 	c.circuitStats.cmdMetricCollector.Success(totalCmdTime)
-	c.close(runFuncDoneTime)
+	c.close(runFuncDoneTime, false)
 }
 
 func (c *Circuit) checkErrInterrupt(originalContext context.Context, ret error, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
@@ -392,10 +392,8 @@ func (c *Circuit) allowNewRun(now time.Time) bool {
 	return false
 }
 
-// Close closes an open circuit.  Usually because we think it's healthy again.
-// For linguistic sake, it is called "Close" and not "CloseCircuit".  It is *NOT* the io.Closer Close() function
-// you are used to.
-func (c *Circuit) close(now time.Time) {
+// close closes an open circuit.  Usually because we think it's healthy again.
+func (c *Circuit) close(now time.Time, forceClosed bool) {
 	if !c.IsOpen() {
 		// Not open.  Don't need to close it
 		return
@@ -403,7 +401,7 @@ func (c *Circuit) close(now time.Time) {
 	if c.threadSafeConfig.CircuitBreaker.ForceOpen.Get() {
 		return
 	}
-	if c.openToClose.AttemptToClose(now) {
+	if forceClosed || c.openToClose.AttemptToClose(now) {
 		c.isOpen.Set(false)
 	}
 }
