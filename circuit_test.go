@@ -666,7 +666,7 @@ func TestCircuitRecovers(t *testing.T) {
 	// This is when the circuit starts working again
 	startWorkingTime := time.Now().Add(time.Millisecond * 11)
 	// This is the latest that the circuit should keep failing requests
-	circuitOkTime := startWorkingTime.Add(c.Config().CircuitBreaker.SleepWindow).Add(time.Millisecond)
+	circuitOkTime := startWorkingTime.Add(c.Config().CircuitBreaker.SleepWindow).Add(time.Millisecond * 200)
 
 	// Give some buffer so time.AfterFunc can get called
 	doNotPassTime := time.Now().Add(time.Millisecond * 250)
