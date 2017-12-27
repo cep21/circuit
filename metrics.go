@@ -266,15 +266,17 @@ func (c *circuitStats) SetConfigNotThreadSafe(config CommandProperties) {
 	rollingPercentileBucketWidth := time.Duration(config.Metrics.RollingPercentileDuration.Nanoseconds() / int64(config.Metrics.RollingPercentileNumBuckets))
 	c.builtInRollingCmdMetricCollector = newRollingCmdMetrics(rollingCounterBucketWidth, config.Metrics.RollingStatsNumBuckets, rollingPercentileBucketWidth, config.Metrics.RollingPercentileNumBuckets, config.Metrics.RollingPercentileBucketSize, now)
 
-	c.cmdMetricCollector = multiCmdMetricCollector{
-		CmdMetricCollectors: append([]RunMetrics{
-			&c.builtInRollingCmdMetricCollector, &c.responseTimeSLO,
-		}, config.MetricsCollectors.Run...),
-	}
-	c.fallbackMetricCollector = multiFallbackMetricCollectors{
-		FallbackMetricCollectors: append([]FallbackMetric{
-			&c.builtInRollingFallbackMetricCollector,
-		}, config.MetricsCollectors.Fallback...),
+	if !config.GoSpecific.DisableAllStats {
+		c.cmdMetricCollector = multiCmdMetricCollector{
+			CmdMetricCollectors: append([]RunMetrics{
+				&c.builtInRollingCmdMetricCollector, &c.responseTimeSLO,
+			}, config.MetricsCollectors.Run...),
+		}
+		c.fallbackMetricCollector = multiFallbackMetricCollectors{
+			FallbackMetricCollectors: append([]FallbackMetric{
+				&c.builtInRollingFallbackMetricCollector,
+			}, config.MetricsCollectors.Fallback...),
+		}
 	}
 }
 

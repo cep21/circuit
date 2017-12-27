@@ -151,6 +151,9 @@ type GoSpecificConfig struct {
 	CustomConfig interface{}
 	// Now returns the current time.  You usually want this to be nil, so we can just use time.Now
 	Now func() time.Time
+	// If true, *all* internal stat tracking will not be enabled.  You cannot change this property at runtime, since it
+	// takes optimization steps that aren't allowed.  Only use this if you really need the extra ns
+	DisableAllStats bool
 }
 
 func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
@@ -171,6 +174,9 @@ func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
 	}
 	if g.Now == nil {
 		g.Now = other.Now
+	}
+	if !g.DisableAllStats {
+		g.DisableAllStats = other.DisableAllStats
 	}
 }
 
