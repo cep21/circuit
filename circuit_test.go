@@ -525,8 +525,9 @@ func TestSleepDurationWorks(t *testing.T) {
 	concurrentThreads := 25
 	c := NewCircuitFromConfig("TestFailureBehavior", CommandProperties{
 		CircuitBreaker: CircuitBreakerConfig{
-			// This should allow a new request every 10 milliseconds
-			SleepWindow: time.Millisecond * 5,
+			// This should allow a new request every 50 milliseconds
+			// This value needs to be large enough to let time.AfterFunc trigger
+			SleepWindow: time.Millisecond * 40,
 
 			// The first failure should open the circuit
 			ErrorThresholdPercentage: 1,
@@ -540,9 +541,9 @@ func TestSleepDurationWorks(t *testing.T) {
 		},
 	})
 
-	// Once failing, c should never see more than one request every 5 ms
-	// If I wait 11 ms, I should see exactly 2 requests (the one at 10 and at 20)
-	doNotPassTime := time.Now().Add(time.Millisecond * 11)
+	// Once failing, c should never see more than one request every 40 ms
+	// If I wait 110 ms, I should see exactly 2 requests (the one at 40 and at 80)
+	doNotPassTime := time.Now().Add(time.Millisecond * 110)
 	err := c.Execute(context.Background(), alwaysFails, alwaysPassesFallback)
 	if err != nil {
 		t.Errorf("I expect this to not fail since it has a fallback")
@@ -665,9 +666,10 @@ func TestCircuitRecovers(t *testing.T) {
 	// This is when the circuit starts working again
 	startWorkingTime := time.Now().Add(time.Millisecond * 11)
 	// This is the latest that the circuit should keep failing requests
-	circuitOkTime := startWorkingTime.Add(c.Config().CircuitBreaker.SleepWindow).Add(time.Millisecond)
+	circuitOkTime := startWorkingTime.Add(c.Config().CircuitBreaker.SleepWindow).Add(time.Millisecond * 200)
 
-	doNotPassTime := time.Now().Add(time.Millisecond * 20)
+	// Give some buffer so time.AfterFunc can get called
+	doNotPassTime := time.Now().Add(time.Millisecond * 250)
 	err := c.Execute(context.Background(), alwaysFails, alwaysPassesFallback)
 	if err != nil {
 		t.Errorf("I expect this to not fail since it has a fallback")
