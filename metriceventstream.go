@@ -147,10 +147,9 @@ func collectCommandMetrics(cb *Circuit) *streamCmdMetric {
 	snap := cb.circuitStats.builtInRollingCmdMetricCollector.rollingLatencyPercentile.Snapshot(now)
 	circuitConfig := cb.Config()
 	return &streamCmdMetric{
-		Type:  "HystrixCommand",
-		Name:  cb.Name(),
-		Group: "",
-		//Group:          cb.Name(),
+		Type:           "HystrixCommand",
+		Name:           cb.Name(),
+		Group:          "",
 		ReportingHosts: 1,
 		Time:           now.UnixNano() / time.Millisecond.Nanoseconds(),
 
