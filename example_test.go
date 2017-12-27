@@ -55,7 +55,7 @@ func Example_http() {
 // This example shows execute failing (marking the circuit with a failure), but not returning an error
 // back to the user since the fallback was able to execute.  For this case, we try to load the size of the
 // largest message a user can send, but fall back to 140 if the load fails.
-func ExampleCircuit_Execute() {
+func ExampleCircuit_Execute_fallback() {
 	c := hystrix.NewCircuitFromConfig("divider", hystrix.CommandProperties{})
 	var maximumMessageSize int
 	err := c.Execute(context.Background(), func(_ context.Context) error {
@@ -66,6 +66,39 @@ func ExampleCircuit_Execute() {
 	})
 	fmt.Printf("value=%d err=%v", maximumMessageSize, err)
 	// Output: value=140 err=<nil>
+}
+
+// This example shows execute failing (marking the circuit with a failure), but not returning an error
+// back to the user since the fallback was able to execute.  For this case, we try to load the size of the
+// largest message a user can send, but fall back to 140 if the load fails.
+func ExampleCircuit_Execute_helloworld() {
+	c := hystrix.NewCircuitFromConfig("hello-world", hystrix.CommandProperties{})
+	err := c.Execute(context.Background(), func(_ context.Context) error {
+		return nil
+	},nil)
+	fmt.Printf("err=%v", err)
+	// Output: err=<nil>
+}
+
+func ExampleCircuit_Go() {
+	h := hystrix.Hystrix{}
+	circuit := h.MustCreateCircuit("untrusting-circuit", hystrix.CommandProperties{
+		Execution: hystrix.ExecutionConfig{
+			// Time out the context after one second
+			Timeout: time.Second,
+		},
+	})
+
+	neverEnds := make(chan struct{})
+	defer close(neverEnds) // Just to clean up our testing goroutine
+
+	errResult := circuit.Go(context.Background(), func(ctx context.Context) error {
+		// This will be left hanging because we never send a signal to neverEnds
+		<- neverEnds
+		return nil
+	}, nil)
+	fmt.Printf("err=%v", errResult)
+	// Output: err=context deadline exceeded
 }
 
 // ExampleBadRequest shows how to return errors in a circuit without considering the circuit at fault.
