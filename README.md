@@ -1,8 +1,7 @@
-[![Build Status](https://travis-ci.org/cep21/hystrix.svg?branch=master)](https://travis-ci.org/cep21/hystrix)
-# Hystrix
-
 <!-- Image designed by Jack Lindamood, Licensed under the Creative Commons 3.0 Attributions license, originate from https://github.com/golang-samples/gopher-vector design by Takuya Ueda -->
-<img align="right" width="100" src="https://cep21.github.io/hystrix/imgs/hystrix-gopher.png"/>
+[![Mascot](https://cep21.github.io/hystrix/imgs/hystrix-gopher_100px.png)
+# Hystrix
+[![Build Status](https://travis-ci.org/cep21/hystrix.svg?branch=master)](https://travis-ci.org/cep21/hystrix)
 
 Hystrix is an efficient and feature complete [Hystrix](https://github.com/Netflix/Hystrix) like Go implementation of the [circuit
 breaker pattern](https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker).
