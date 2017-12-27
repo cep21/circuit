@@ -139,15 +139,16 @@ func TestManyConcurrent(t *testing.T) {
 	wg.Wait()
 }
 
-func TestDoBlocks(t *testing.T) {
+func TestExecuteBlocks(t *testing.T) {
 	c := NewCircuitFromConfig("TestGoFunction", CommandProperties{
 		Execution: ExecutionConfig{
-			Timeout: time.Millisecond * 1,
+			Timeout: time.Nanosecond,
 		},
 	})
 	ctx := context.Background()
-	startTime := time.Now()
+	var startTime time.Time
 	err := c.Execute(ctx, func(_ context.Context) error {
+		startTime = time.Now()
 		time.Sleep(time.Millisecond * 25)
 		return nil
 	}, nil)
@@ -181,7 +182,7 @@ func TestDoForwardsPanics(t *testing.T) {
 	t.Fatal("Should never get this far")
 }
 
-func TestGoForwardsPanic(t *testing.T) {
+func TestCircuit_Go_ForwardsPanic(t *testing.T) {
 	c := NewCircuitFromConfig("TestGoFunction", CommandProperties{
 		Execution: ExecutionConfig{
 			Timeout: time.Millisecond * 2,
@@ -202,7 +203,7 @@ func TestGoForwardsPanic(t *testing.T) {
 	t.Fatal("Should never get this far")
 }
 
-func TestGoFunction(t *testing.T) {
+func TestCircuit_Go_CanEnd(t *testing.T) {
 	c := NewCircuitFromConfig("TestGoFunction", CommandProperties{
 		Execution: ExecutionConfig{
 			Timeout: time.Millisecond * 2,
@@ -210,11 +211,11 @@ func TestGoFunction(t *testing.T) {
 	})
 	ctx := context.Background()
 	startTime := time.Now()
-	err := c.Go(ctx, sleepsForX(time.Second), nil)
+	err := c.Go(ctx, sleepsForX(time.Hour), nil)
 	if err == nil {
 		t.Errorf("expected a timeout error")
 	}
-	if time.Since(startTime) > time.Millisecond*10 {
+	if time.Since(startTime) > time.Second*10 {
 		t.Errorf("Took too long to run %s", time.Since(startTime))
 	}
 }
