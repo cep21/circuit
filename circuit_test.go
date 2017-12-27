@@ -668,7 +668,8 @@ func TestCircuitRecovers(t *testing.T) {
 	// This is the latest that the circuit should keep failing requests
 	circuitOkTime := startWorkingTime.Add(c.Config().CircuitBreaker.SleepWindow).Add(time.Millisecond)
 
-	doNotPassTime := time.Now().Add(time.Millisecond * 20)
+	// Give some buffer so time.AfterFunc can get called
+	doNotPassTime := time.Now().Add(time.Millisecond * 250)
 	err := c.Execute(context.Background(), alwaysFails, alwaysPassesFallback)
 	if err != nil {
 		t.Errorf("I expect this to not fail since it has a fallback")
