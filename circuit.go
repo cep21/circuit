@@ -42,7 +42,7 @@ type Circuit struct {
 // NewCircuitFromConfig creates an inline circuit.  If you want to group all your circuits together, you should probably
 // just use Hystrix struct instead.
 func NewCircuitFromConfig(name string, config CommandProperties) *Circuit {
-	config.Merge(defaultCommandProperties)
+	config.merge(defaultCommandProperties)
 	ret := &Circuit{
 		name:                name,
 		notThreadSafeConfig: config,

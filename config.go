@@ -187,9 +187,9 @@ func (m *MetricsCollectors) merge(other MetricsCollectors) {
 	m.Fallback = append(m.Fallback, other.Fallback...)
 }
 
-// Merge these properties with another command's properties.  Anything set to the zero value, will takes values from
+// merge these properties with another command's properties.  Anything set to the zero value, will takes values from
 // other.
-func (c *CommandProperties) Merge(other CommandProperties) {
+func (c *CommandProperties) merge(other CommandProperties) {
 	c.Execution.merge(other.Execution)
 	c.Fallback.merge(other.Fallback)
 	c.CircuitBreaker.merge(other.CircuitBreaker)

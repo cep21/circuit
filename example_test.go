@@ -10,20 +10,22 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cep21/hystrix"
 	"net/http/httptest"
+
+	"github.com/cep21/hystrix"
 )
 
+// This is a full example of using a circuit around HTTP requests.
 func Example_http() {
 	h := hystrix.Hystrix{}
 	c := h.MustCreateCircuit("hello-http", hystrix.CommandProperties{
 		Execution: hystrix.ExecutionConfig{
-			// Timeout after 30 seconds
-			Timeout: time.Second * 30,
+			// Timeout after 3 seconds
+			Timeout: time.Second * 3,
 		},
 	})
 
-	testServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req*http.Request) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		rw.Write([]byte("hello world"))
 	}))
 	defer testServer.Close()
@@ -81,7 +83,7 @@ func ExampleCircuit_Execute_helloworld() {
 	c := hystrix.NewCircuitFromConfig("hello-world", hystrix.CommandProperties{})
 	err := c.Execute(context.Background(), func(_ context.Context) error {
 		return nil
-	},nil)
+	}, nil)
 	fmt.Printf("err=%v", err)
 	// Output: err=<nil>
 }
@@ -100,7 +102,7 @@ func ExampleCircuit_Go() {
 
 	errResult := circuit.Go(context.Background(), func(ctx context.Context) error {
 		// This will be left hanging because we never send a signal to neverEnds
-		<- neverEnds
+		<-neverEnds
 		return nil
 	}, nil)
 	fmt.Printf("err=%v", errResult)
@@ -127,7 +129,7 @@ func ExampleCircuit_Execute_panics() {
 // You can use DefaultCircuitProperties to set configuration dynamically for any circuit
 func ExampleHystrix_DefaultCircuitProperties() {
 	myFactory := func(circuitName string) hystrix.CommandProperties {
-		timeoutsByName := map[string]time.Duration {
+		timeoutsByName := map[string]time.Duration{
 			"v1": time.Second,
 			"v2": time.Second * 2,
 		}
@@ -136,7 +138,7 @@ func ExampleHystrix_DefaultCircuitProperties() {
 			// Just return empty if you don't want to set any config
 			return hystrix.CommandProperties{}
 		}
-		return hystrix.CommandProperties {
+		return hystrix.CommandProperties{
 			Execution: hystrix.ExecutionConfig{
 				Timeout: customTimeout,
 			},
@@ -144,8 +146,8 @@ func ExampleHystrix_DefaultCircuitProperties() {
 	}
 
 	// Hystrix manages circuits with unique names
-	h := hystrix.Hystrix {
-		DefaultCircuitProperties: []func(circuitName string) hystrix.CommandProperties {myFactory},
+	h := hystrix.Hystrix{
+		DefaultCircuitProperties: []func(circuitName string) hystrix.CommandProperties{myFactory},
 	}
 	h.MustCreateCircuit("v1", hystrix.CommandProperties{})
 	fmt.Println("The timeout of v1 is", h.GetCircuit("v1").Config().Execution.Timeout)
