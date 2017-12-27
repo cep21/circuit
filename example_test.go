@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cep21/hystrix"
+	"net/http/httptest"
 )
 
 func Example_http() {
@@ -22,9 +23,14 @@ func Example_http() {
 		},
 	})
 
+	testServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req*http.Request) {
+		rw.Write([]byte("hello world"))
+	}))
+	defer testServer.Close()
+
 	var body bytes.Buffer
 	runErr := c.Run(context.Background(), func(ctx context.Context) error {
-		req, err := http.NewRequest("GET", "http://www.google.com", nil)
+		req, err := http.NewRequest("GET", testServer.URL, nil)
 		if err != nil {
 			return hystrix.SimpleBadRequest{Err: err}
 		}
@@ -99,6 +105,81 @@ func ExampleCircuit_Go() {
 	}, nil)
 	fmt.Printf("err=%v", errResult)
 	// Output: err=context deadline exceeded
+}
+
+// This example will panic, and the panic can be caught up the stack
+func ExampleCircuit_Execute_panics() {
+	h := hystrix.Hystrix{}
+	circuit := h.MustCreateCircuit("panic_up", hystrix.CommandProperties{})
+
+	defer func() {
+		r := recover()
+		if r != nil {
+			fmt.Println("I recovered from a panic", r)
+		}
+	}()
+	circuit.Execute(context.Background(), func(ctx context.Context) error {
+		panic("oh no")
+	}, nil)
+	// Output: I recovered from a panic oh no
+}
+
+// You can use DefaultCircuitProperties to set configuration dynamically for any circuit
+func ExampleHystrix_DefaultCircuitProperties() {
+	myFactory := func(circuitName string) hystrix.CommandProperties {
+		timeoutsByName := map[string]time.Duration {
+			"v1": time.Second,
+			"v2": time.Second * 2,
+		}
+		customTimeout := timeoutsByName[circuitName]
+		if customTimeout == 0 {
+			// Just return empty if you don't want to set any config
+			return hystrix.CommandProperties{}
+		}
+		return hystrix.CommandProperties {
+			Execution: hystrix.ExecutionConfig{
+				Timeout: customTimeout,
+			},
+		}
+	}
+
+	// Hystrix manages circuits with unique names
+	h := hystrix.Hystrix {
+		DefaultCircuitProperties: []func(circuitName string) hystrix.CommandProperties {myFactory},
+	}
+	h.MustCreateCircuit("v1", hystrix.CommandProperties{})
+	fmt.Println("The timeout of v1 is", h.GetCircuit("v1").Config().Execution.Timeout)
+	// Output: The timeout of v1 is 1s
+}
+
+// Many configuration variables can be set at runtime in a thread safe way
+func ExampleCircuit_SetConfigThreadSafe() {
+	h := hystrix.Hystrix{}
+	circuit := h.MustCreateCircuit("changes-at-runtime", hystrix.CommandProperties{})
+	// ... later on (during live)
+	circuit.SetConfigThreadSafe(hystrix.CommandProperties{
+		Execution: hystrix.ExecutionConfig{
+			MaxConcurrentRequests: int64(12),
+		},
+	})
+}
+
+// Even though Go executes inside a goroutine, we catch that panic and bubble it up the same
+// call stack that called Go
+func ExampleCircuit_Go_panics() {
+	h := hystrix.Hystrix{}
+	circuit := h.MustCreateCircuit("panic_up", hystrix.CommandProperties{})
+
+	defer func() {
+		r := recover()
+		if r != nil {
+			fmt.Println("I recovered from a panic", r)
+		}
+	}()
+	circuit.Go(context.Background(), func(ctx context.Context) error {
+		panic("oh no")
+	}, nil)
+	// Output: I recovered from a panic oh no
 }
 
 // ExampleBadRequest shows how to return errors in a circuit without considering the circuit at fault.
