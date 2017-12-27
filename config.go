@@ -132,6 +132,9 @@ type GoSpecificConfig struct {
 	// Normally if the parent context is canceled before a timeout is reached, we don't consider the circuit
 	// unhealth.  Set this to true to consider those circuits unhealthy.
 	IgnoreInterrputs bool
+	// If true, *all* internal stat tracking will not be enabled.  You cannot change this property at runtime, since it
+	// takes optimization steps that aren't allowed.  Only use this if you really need the extra ns
+	DisableAllStats bool
 	// Track to report an SLO similar to "99% of requests should respond correctly within 300 ms"
 	// This is the duration part.  Will allow metric reporting and gathering of the number of good requests <= that
 	// amount, compared to the number of requests not.
@@ -151,9 +154,6 @@ type GoSpecificConfig struct {
 	CustomConfig interface{}
 	// TimeKeeper returns the current way to keep time.  You only want to modify this for testing.
 	TimeKeeper TimeKeeper
-	// If true, *all* internal stat tracking will not be enabled.  You cannot change this property at runtime, since it
-	// takes optimization steps that aren't allowed.  Only use this if you really need the extra ns
-	DisableAllStats bool
 }
 
 // TimeKeeper allows overriding time to test the circuit
