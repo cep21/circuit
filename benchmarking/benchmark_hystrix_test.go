@@ -57,7 +57,9 @@ func BenchmarkCiruits(b *testing.B) {
 							MaxConcurrentRequests: int64(12),
 							Timeout:               -1,
 						}, GoSpecific: hystrix.GoSpecificConfig{
-							CustomConfig: true,
+							CustomConfig: map[interface{}]interface{}{
+								"use-go": true,
+							},
 						},
 					},
 				},

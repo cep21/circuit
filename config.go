@@ -156,7 +156,7 @@ type GoSpecificConfig struct {
 	TimeKeeper TimeKeeper `json:"-"`
 	// GoLostErrors can receive errors that would otherwise be lost by `Go` executions.  For example, if Go returns
 	// early but some long time later an error or panic eventually happens.
-	GoLostErrors      func(err error, panics interface{})
+	GoLostErrors func(err error, panics interface{}) `json:"-"`
 }
 
 // TimeKeeper allows overriding time to test the circuit
@@ -176,6 +176,19 @@ func (t *TimeKeeper) merge(other TimeKeeper) {
 	}
 }
 
+func (g *GoSpecificConfig) mergeCustomConfig(other GoSpecificConfig) {
+	if len(other.CustomConfig) != 0 {
+		if g.CustomConfig == nil {
+			g.CustomConfig = make(map[interface{}]interface{}, len(other.CustomConfig))
+		}
+		for k, v := range other.CustomConfig {
+			if _, exists := g.CustomConfig[k]; !exists {
+				g.CustomConfig[k] = v
+			}
+		}
+	}
+}
+
 func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
 	if !g.IgnoreInterrputs {
 		g.IgnoreInterrputs = other.IgnoreInterrputs
@@ -189,16 +202,8 @@ func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
 	if g.OpenToClosedFactory == nil {
 		g.OpenToClosedFactory = other.OpenToClosedFactory
 	}
-	if len(other.CustomConfig) != 0 {
-		if g.CustomConfig == nil {
-			g.CustomConfig = make(map[interface{}]interface{}, len(other.CustomConfig))
-		}
-		for k, v := range other.CustomConfig {
-			if _, exists := g.CustomConfig[k]; !exists {
-				g.CustomConfig[k] = v
-			}
-		}
-	}
+	g.mergeCustomConfig(other)
+
 	if !g.DisableAllStats {
 		g.DisableAllStats = other.DisableAllStats
 	}
