@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix/internal"
 )
 
 // multiCmdMetricCollector send metrics to multiple RunMetrics
@@ -227,6 +228,13 @@ func newRollingFallbackMetricCollector(bucketWidth time.Duration, numBuckets int
 	}
 }
 
+type RollingCounter interface {
+	RollingSum() int64
+	TotalSum() int64
+}
+
+var _ RollingCounter = &fastmath.RollingCounter{}
+
 type circuitStats struct {
 	// Tracks how many errors we've seen in a time window
 	errorsCount fastmath.RollingCounter
@@ -245,6 +253,18 @@ type circuitStats struct {
 	// These are Circuit specific stats that are always tracked.
 	builtInRollingCmdMetricCollector      rollingCmdMetrics
 	builtInRollingFallbackMetricCollector rollingFallbackMetrics
+}
+
+func (c *circuitStats) Errors() RollingCounter {
+	return &c.errorsCount
+}
+
+func (c *circuitStats) LegitimateAttempts() RollingCounter {
+	return &c.legitimateAttemptsCount
+}
+
+func (c *circuitStats) BackedOutAttempts() RollingCounter {
+	return &c.backedOutAttemptsCount
 }
 
 func (c *circuitStats) SetConfigThreadSafe(config CommandProperties) {

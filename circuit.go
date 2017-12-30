@@ -52,10 +52,12 @@ func NewCircuitFromConfig(name string, config CommandProperties) *Circuit {
 	return ret
 }
 
+// ConcurrentCommands returns how many commands are currently running
 func (c *Circuit) ConcurrentCommands() int64 {
 	return c.concurrentCommands.Get()
 }
 
+// ConcurrentFallbacks returns how many fallbacks are currently running
 func (c *Circuit) ConcurrentFallbacks() int64 {
 	return c.concurrentFallbacks.Get()
 }
