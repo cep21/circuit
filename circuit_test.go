@@ -84,11 +84,11 @@ func TestHappyCircuit(t *testing.T) {
 	if err != nil {
 		t.Error("saw error from circuit that always passes")
 	}
-	errCount := c.errorsCount.RollingSum(time.Now())
+	errCount := c.errorsCount.RollingSumAt(time.Now())
 	if errCount != 0 {
 		t.Error("Happy circuit shouldn't make errors")
 	}
-	requestCount := c.legitimateAttemptsCount.RollingSum(time.Now())
+	requestCount := c.legitimateAttemptsCount.RollingSumAt(time.Now())
 	if requestCount != 1 {
 		t.Error("happy circuit should still count as a request")
 	}
@@ -104,15 +104,15 @@ func TestBadRequest(t *testing.T) {
 	if err == nil {
 		t.Error("I really expected an error here!")
 	}
-	errCount := c.errorsCount.RollingSum(time.Now())
+	errCount := c.errorsCount.RollingSumAt(time.Now())
 	if errCount != 0 {
 		t.Error("bad requests shouldn't be errors!")
 	}
-	requestCount := c.legitimateAttemptsCount.RollingSum(time.Now())
+	requestCount := c.legitimateAttemptsCount.RollingSumAt(time.Now())
 	if requestCount != 0 {
 		t.Error("bad requests should not count as legit requests!")
 	}
-	requestCount = c.backedOutAttemptsCount.RollingSum(time.Now())
+	requestCount = c.backedOutAttemptsCount.RollingSumAt(time.Now())
 	if requestCount != 1 {
 		t.Error("bad requests should count as backed out requests!")
 	}
@@ -282,10 +282,10 @@ func TestFallbackCircuit(t *testing.T) {
 	if err != nil {
 		t.Error("saw error from circuit that has happy fallback", err)
 	}
-	if c.errorsCount.RollingSum(time.Now()) != 1 {
+	if c.errorsCount.RollingSumAt(time.Now()) != 1 {
 		t.Error("Even if fallback happens, and works ok, we should still count an error in the circuit")
 	}
-	if c.builtInRollingCmdMetricCollector.errFailure.RollingSum(time.Now()) != 1 {
+	if c.builtInRollingCmdMetricCollector.errFailure.RollingSumAt(time.Now()) != 1 {
 		t.Error("Even if fallback happens, and works ok, we should still increment an error in stats")
 	}
 }
@@ -308,7 +308,7 @@ func TestCircuitIgnoreContextFailures(t *testing.T) {
 	if c.builtInRollingCmdMetricCollector.errInterrupt.TotalSum() != 1 {
 		t.Error("Total sum should count the interrupt")
 	}
-	if c.builtInRollingCmdMetricCollector.errInterrupt.RollingSum(time.Now()) != 1 {
+	if c.builtInRollingCmdMetricCollector.errInterrupt.RollingSumAt(time.Now()) != 1 {
 		t.Error("rolling sum should count the interrupt")
 	}
 }
@@ -334,7 +334,7 @@ func TestFallbackCircuitConcurrency(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if c.builtInRollingFallbackMetricCollector.errConcurrencyLimitReject.RollingSum(time.Now()) != 1 {
+	if c.builtInRollingFallbackMetricCollector.errConcurrencyLimitReject.RollingSumAt(time.Now()) != 1 {
 		t.Error("At least one fallback call should fail")
 	}
 	if workingCircuitCount != 2 {

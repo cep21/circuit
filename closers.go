@@ -90,13 +90,13 @@ func (e *errorPercentageCheck) ErrorAttempt(now time.Time) {
 // AttemptToOpen returns true if rolling count >= threshold and
 // error % is high enough.
 func (e *errorPercentageCheck) AttemptToOpen(now time.Time) bool {
-	attemptCount := e.legitimateAttemptsCount.RollingSum(now)
+	attemptCount := e.legitimateAttemptsCount.RollingSumAt(now)
 	if attemptCount == 0 || attemptCount < e.requestVolumeThreshold.Get() {
 		// not enough requests. Will not open circuit
 		return false
 	}
 
-	errCount := e.errorsCount.RollingSum(now)
+	errCount := e.errorsCount.RollingSumAt(now)
 	errPercentage := int64(float64(errCount) / float64(attemptCount) * 100)
 	return errPercentage >= e.errorPercentage.Get()
 }

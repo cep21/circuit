@@ -16,7 +16,7 @@ type RollingPercentile struct {
 type SortedDurations []time.Duration
 
 func (s SortedDurations) String() string {
-	ret := []string{}
+	ret := make([]string, 0, len(s))
 	for _, d := range s {
 		ret = append(ret, d.String())
 	}
@@ -81,9 +81,9 @@ func makeBuckets(numBuckets int, bucketSize int) []durationsBucket {
 	return ret
 }
 
-func (r *RollingPercentile) Snapshot(now time.Time) SortedDurations {
+func (r *RollingPercentile) SortedDurations(now time.Time) []time.Duration {
 	if len(r.buckets) == 0 {
-		return SortedDurations(nil)
+		return nil
 	}
 	r.rollingBucket.Advance(now, r.clearBucket)
 	ret := make([]time.Duration, 0, len(r.buckets)*10)
@@ -93,7 +93,15 @@ func (r *RollingPercentile) Snapshot(now time.Time) SortedDurations {
 	sort.Slice(ret, func(i, j int) bool {
 		return ret[i] < ret[j]
 	})
-	return SortedDurations(ret)
+	return ret
+}
+
+func (r *RollingPercentile) Snapshot() SortedDurations {
+	return r.SnapshotAt(time.Now())
+}
+
+func (r *RollingPercentile) SnapshotAt(now time.Time) SortedDurations {
+	return SortedDurations(r.SortedDurations(now))
 }
 
 func (r *RollingPercentile) clearBucket(idx int) {

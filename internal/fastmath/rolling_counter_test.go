@@ -12,7 +12,7 @@ import (
 func TestRollingCounter_Empty(t *testing.T) {
 	x := RollingCounter{}
 	now := time.Now()
-	s := x.RollingSum(now)
+	s := x.RollingSumAt(now)
 	if s != 0 {
 		t.Errorf("expect to start with empty sum %d", s)
 	}
@@ -59,8 +59,8 @@ func TestRollingCounter_NormalConsistency(t *testing.T) {
 	}
 	wg.Wait()
 	newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(end)))
-	if x.RollingSum(newNow) != int64(concurrent*bucketSize*(numBuckets-1)) {
-		t.Error("small rolling sum", x.RollingSum(newNow))
+	if x.RollingSumAt(newNow) != int64(concurrent*bucketSize*(numBuckets-1)) {
+		t.Error("small rolling sum", x.RollingSumAt(newNow))
 	}
 	b := x.GetBuckets(newNow)
 	if b[1] != int64(concurrent*bucketSize) {
@@ -142,7 +142,7 @@ func TestRollingCounter_Race(t *testing.T) {
 			x.TotalSum()
 		})
 		doTillTime(doNotPassTime, &wg, func() {
-			x.RollingSum(time.Now())
+			x.RollingSumAt(time.Now())
 		})
 		doTillTime(doNotPassTime, &wg, func() {
 			x.GetBuckets(time.Now())
@@ -155,12 +155,12 @@ func TestRollingCounter_IncPast(t *testing.T) {
 	now := time.Now()
 	x := NewRollingCounter(time.Millisecond, 4, now)
 	x.Inc(now)
-	if x.RollingSum(now) != 1 {
+	if x.RollingSumAt(now) != 1 {
 		t.Errorf("Should see a single item after adding by 1")
 	}
 	x.Inc(now.Add(time.Millisecond * 100))
-	if x.RollingSum(now) != 1 {
-		t.Errorf("Should see one item, saw %d", x.RollingSum(now))
+	if x.RollingSumAt(now) != 1 {
+		t.Errorf("Should see one item, saw %d", x.RollingSumAt(now))
 	}
 }
 
@@ -171,11 +171,11 @@ func TestRollingCounter_Inc(t *testing.T) {
 		t.Errorf("String() function does not work: %s", x.String())
 	}
 	x.Inc(now)
-	if x.RollingSum(now) != 1 {
+	if x.RollingSumAt(now) != 1 {
 		t.Errorf("Should see a single item after adding by 1")
 	}
 	x.Inc(now)
-	if x.RollingSum(now) != 2 {
+	if x.RollingSumAt(now) != 2 {
 		t.Errorf("Should see two items now")
 	}
 }
@@ -205,14 +205,14 @@ func TestRollingCounter_MoveForward(t *testing.T) {
 	expectBuckets(t, startTime, &x, []int64{0, 0, 0, 0})
 	x.Inc(startTime)
 	x.Inc(startTime)
-	if x.RollingSum(startTime) != 2 {
+	if x.RollingSumAt(startTime) != 2 {
 		t.Errorf("Should see two items after adding by 1 twice")
 	}
 	expectBuckets(t, startTime, &x, []int64{2, 0, 0, 0})
 
 	nextTime := startTime.Add(time.Millisecond)
 	x.Inc(nextTime)
-	if x.RollingSum(nextTime) != 3 {
+	if x.RollingSumAt(nextTime) != 3 {
 		t.Errorf("Should see a sum of 3 after advancing")
 	}
 	if x.TotalSum() != 3 {
@@ -224,28 +224,28 @@ func TestRollingCounter_MoveForward(t *testing.T) {
 
 	x.Inc(moveCloseToEnd)
 	expectBuckets(t, moveCloseToEnd, &x, []int64{1, 0, 1, 2})
-	if x.RollingSum(moveCloseToEnd) != 4 {
+	if x.RollingSumAt(moveCloseToEnd) != 4 {
 		t.Errorf("Should see a sum of 3 after advancing close to the end")
 	}
 
 	movePastOneBucket := startTime.Add(time.Millisecond * 4)
 	x.Inc(movePastOneBucket)
 	expectBuckets(t, movePastOneBucket, &x, []int64{1, 1, 0, 1})
-	if x.RollingSum(movePastOneBucket) != 3 {
+	if x.RollingSumAt(movePastOneBucket) != 3 {
 		t.Errorf("Should see a sum of 3 after advancing close to the end again")
 	}
 
 	movePastAllButOneBucket := movePastOneBucket.Add(time.Millisecond * 3)
 	x.Inc(movePastAllButOneBucket)
 	expectBuckets(t, movePastAllButOneBucket, &x, []int64{1, 0, 0, 1})
-	if x.RollingSum(movePastAllButOneBucket) != 2 {
+	if x.RollingSumAt(movePastAllButOneBucket) != 2 {
 		t.Errorf("Should see a sum of 2 after advancing close to the end")
 	}
 
 	movePastAllBuckets := movePastAllButOneBucket.Add(time.Millisecond * 4)
 	x.Inc(movePastAllBuckets)
 	expectBuckets(t, movePastAllBuckets, &x, []int64{1, 0, 0, 0})
-	if s := x.RollingSum(movePastAllBuckets); s != 1 {
+	if s := x.RollingSumAt(movePastAllBuckets); s != 1 {
 		t.Errorf("Should see a sum of 1 after advancing past all the buckets, saw %d", s)
 	}
 }

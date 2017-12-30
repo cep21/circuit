@@ -52,6 +52,14 @@ func NewCircuitFromConfig(name string, config CommandProperties) *Circuit {
 	return ret
 }
 
+func (c *Circuit) ConcurrentCommands() int64 {
+	return c.concurrentCommands.Get()
+}
+
+func (c *Circuit) ConcurrentFallbacks() int64 {
+	return c.concurrentFallbacks.Get()
+}
+
 // SetConfigThreadSafe changes the current configuration of this circuit. Note that many config parameters, specifically those
 // around creating stat tracking buckets, are not modifiable during runtime for efficiency reasons.  Those buckets
 // will stay the same.
@@ -116,16 +124,6 @@ func (c *Circuit) DebugValues() interface{} {
 // Name of this circuit
 func (c *Circuit) Name() string {
 	return c.name
-}
-
-// ConcurrentCommands is the number of executions happening right now
-func (c *Circuit) ConcurrentCommands() int64 {
-	return c.concurrentCommands.Get()
-}
-
-// ConcurrentFallbacks is the number of fallbacks happening right now
-func (c *Circuit) ConcurrentFallbacks() int64 {
-	return c.concurrentFallbacks.Get()
 }
 
 // IsOpen returns true if the circuit should be considered 'open' (ie not allowing runFunc calls)
@@ -195,11 +193,6 @@ func (c *Circuit) Execute(ctx context.Context, runFunc func(context.Context) err
 		return err
 	}
 	return c.fallback(ctx, err, fallbackFunc)
-}
-
-// ErrorPercentage returns [0.0 - 1.0] what % of request are considered failing in the rolling window.
-func (c *Circuit) ErrorPercentage() float64 {
-	return c.circuitStats.errorPercentage(time.Now())
 }
 
 // --------- only private functions below here

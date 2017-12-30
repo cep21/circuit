@@ -280,11 +280,16 @@ func (c *circuitStats) SetConfigNotThreadSafe(config CommandProperties) {
 	}
 }
 
+// ErrorPercentage returns [0.0 - 1.0] what % of request are considered failing in the rolling window.
+func (c *circuitStats) ErrorPercentage() float64 {
+	return c.errorPercentage(time.Now())
+}
+
 func (c *circuitStats) errorPercentage(now time.Time) float64 {
-	attemptCount := c.legitimateAttemptsCount.RollingSum(now)
+	attemptCount := c.legitimateAttemptsCount.RollingSumAt(now)
 	if attemptCount == 0 {
 		return 0
 	}
-	errCount := c.errorsCount.RollingSum(now)
+	errCount := c.errorsCount.RollingSumAt(now)
 	return float64(errCount) / float64(attemptCount)
 }

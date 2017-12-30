@@ -144,7 +144,7 @@ func (m *MetricEventStream) Close() error {
 
 func collectCommandMetrics(cb *Circuit) *streamCmdMetric {
 	now := cb.now()
-	snap := cb.circuitStats.builtInRollingCmdMetricCollector.rollingLatencyPercentile.Snapshot(now)
+	snap := cb.circuitStats.builtInRollingCmdMetricCollector.rollingLatencyPercentile.SnapshotAt(now)
 	circuitConfig := cb.Config()
 	return &streamCmdMetric{
 		Type:           "HystrixCommand",
@@ -153,23 +153,23 @@ func collectCommandMetrics(cb *Circuit) *streamCmdMetric {
 		ReportingHosts: 1,
 		Time:           now.UnixNano() / time.Millisecond.Nanoseconds(),
 
-		RequestCount:       cb.circuitStats.legitimateAttemptsCount.RollingSum(now) + cb.circuitStats.backedOutAttemptsCount.RollingSum(now),
-		ErrorCount:         cb.circuitStats.errorsCount.RollingSum(now),
+		RequestCount:       cb.circuitStats.legitimateAttemptsCount.RollingSumAt(now) + cb.circuitStats.backedOutAttemptsCount.RollingSumAt(now),
+		ErrorCount:         cb.circuitStats.errorsCount.RollingSumAt(now),
 		ErrorPct:           int64(100 * cb.circuitStats.errorPercentage(now)),
 		CircuitBreakerOpen: cb.IsOpen(),
 
-		RollingCountFallbackSuccess:   cb.circuitStats.builtInRollingFallbackMetricCollector.successCount.RollingSum(now),
-		RollingCountFallbackFailure:   cb.circuitStats.builtInRollingFallbackMetricCollector.errFailure.RollingSum(now),
-		RollingCountFallbackRejection: cb.circuitStats.builtInRollingFallbackMetricCollector.errConcurrencyLimitReject.RollingSum(now),
+		RollingCountFallbackSuccess:   cb.circuitStats.builtInRollingFallbackMetricCollector.successCount.RollingSumAt(now),
+		RollingCountFallbackFailure:   cb.circuitStats.builtInRollingFallbackMetricCollector.errFailure.RollingSumAt(now),
+		RollingCountFallbackRejection: cb.circuitStats.builtInRollingFallbackMetricCollector.errConcurrencyLimitReject.RollingSumAt(now),
 
-		RollingCountSuccess:           cb.circuitStats.builtInRollingCmdMetricCollector.successCount.RollingSum(now),
-		RollingCountSemaphoreRejected: cb.circuitStats.builtInRollingCmdMetricCollector.errConcurrencyLimitReject.RollingSum(now),
-		RollingCountFailure:           cb.circuitStats.builtInRollingCmdMetricCollector.errFailure.RollingSum(now),
-		RollingCountShortCircuited:    cb.circuitStats.builtInRollingCmdMetricCollector.errShortCircuit.RollingSum(now),
-		RollingCountTimeout:           cb.circuitStats.builtInRollingCmdMetricCollector.errTimeout.RollingSum(now),
+		RollingCountSuccess:           cb.circuitStats.builtInRollingCmdMetricCollector.successCount.RollingSumAt(now),
+		RollingCountSemaphoreRejected: cb.circuitStats.builtInRollingCmdMetricCollector.errConcurrencyLimitReject.RollingSumAt(now),
+		RollingCountFailure:           cb.circuitStats.builtInRollingCmdMetricCollector.errFailure.RollingSumAt(now),
+		RollingCountShortCircuited:    cb.circuitStats.builtInRollingCmdMetricCollector.errShortCircuit.RollingSumAt(now),
+		RollingCountTimeout:           cb.circuitStats.builtInRollingCmdMetricCollector.errTimeout.RollingSumAt(now),
 		// Note: There is no errInterrupt field inside the dashboard, but i still want to expose these metrics there,
 		//       so I just roll them into BadRequests
-		RollingCountBadRequests: cb.circuitStats.builtInRollingCmdMetricCollector.errBadRequest.RollingSum(now) + cb.circuitStats.builtInRollingCmdMetricCollector.errInterrupt.RollingSum(now),
+		RollingCountBadRequests: cb.circuitStats.builtInRollingCmdMetricCollector.errBadRequest.RollingSumAt(now) + cb.circuitStats.builtInRollingCmdMetricCollector.errInterrupt.RollingSumAt(now),
 
 		TotalCountFallbackSuccess:   cb.circuitStats.builtInRollingFallbackMetricCollector.successCount.TotalSum(),
 		TotalCountFallbackFailure:   cb.circuitStats.builtInRollingFallbackMetricCollector.errFailure.TotalSum(),
