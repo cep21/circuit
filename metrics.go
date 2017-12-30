@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/cep21/hystrix/internal/fastmath"
-	"github.com/cep21/hystrix/internal"
 )
 
 // multiCmdMetricCollector send metrics to multiple RunMetrics
@@ -134,6 +133,22 @@ type FallbackMetric interface {
 	ErrConcurrencyLimitReject()
 }
 
+type CommandMetrics interface {
+	Successes() RollingCounter
+	ConcurrencyLimitRejects() RollingCounter
+	Failures() RollingCounter
+	ShortCircuits() RollingCounter
+	Timeouts() RollingCounter
+	BadRequests() RollingCounter
+	Interrupts() RollingCounter
+}
+
+type FallbackMetrics interface {
+	Successes() RollingCounter
+	ConcurrencyLimitRejects() RollingCounter
+	Failures() RollingCounter
+}
+
 type rollingCmdMetrics struct {
 	successCount              fastmath.RollingCounter
 	errConcurrencyLimitReject fastmath.RollingCounter
@@ -143,8 +158,39 @@ type rollingCmdMetrics struct {
 	errBadRequest             fastmath.RollingCounter
 	errInterrupt              fastmath.RollingCounter
 
-	// It is analogous to https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#latency-percentiles-end-to-end-execution-gauge
+	// It is analogous to https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#latency-percentiles-hystrixcommandrun-execution-gauge
 	rollingLatencyPercentile fastmath.RollingPercentile
+}
+
+var _ CommandMetrics = &rollingCmdMetrics{}
+var _ FallbackMetrics = &rollingFallbackMetrics{}
+
+func (r *rollingCmdMetrics) Successes() RollingCounter {
+	return &r.successCount
+}
+
+func (r *rollingCmdMetrics) ConcurrencyLimitRejects() RollingCounter {
+	return &r.errConcurrencyLimitReject
+}
+
+func (r *rollingCmdMetrics) Failures() RollingCounter {
+	return &r.errFailure
+}
+
+func (r *rollingCmdMetrics) ShortCircuits() RollingCounter {
+	return &r.errShortCircuit
+}
+
+func (r *rollingCmdMetrics) Timeouts() RollingCounter {
+	return &r.errTimeout
+}
+
+func (r *rollingCmdMetrics) BadRequests() RollingCounter {
+	return &r.errBadRequest
+}
+
+func (r *rollingCmdMetrics) Interrupts() RollingCounter {
+	return &r.errInterrupt
 }
 
 func (r *rollingCmdMetrics) Success(duration time.Duration) {
@@ -206,6 +252,18 @@ type rollingFallbackMetrics struct {
 	errFailure                fastmath.RollingCounter
 }
 
+func (r *rollingFallbackMetrics) Successes() RollingCounter {
+	return &r.successCount
+}
+
+func (r *rollingFallbackMetrics) ConcurrencyLimitRejects() RollingCounter {
+	return &r.errConcurrencyLimitReject
+}
+
+func (r *rollingFallbackMetrics) Failures() RollingCounter {
+	return &r.errFailure
+}
+
 func (r *rollingFallbackMetrics) Success(duration time.Duration) {
 	r.successCount.Inc(time.Now())
 }
@@ -228,8 +286,11 @@ func newRollingFallbackMetricCollector(bucketWidth time.Duration, numBuckets int
 	}
 }
 
+// RollingCounter tracks how many of an event happens inside a time window
 type RollingCounter interface {
+	// RollingSum returns the sum inside the current time window
 	RollingSum() int64
+	// TotalSum returns the sum since the beginning of the program
 	TotalSum() int64
 }
 

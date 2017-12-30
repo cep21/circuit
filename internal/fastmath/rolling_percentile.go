@@ -9,7 +9,6 @@ import (
 
 type RollingPercentile struct {
 	buckets []durationsBucket
-
 	rollingBucket RollingBuckets
 }
 
@@ -147,6 +146,17 @@ func (b *durationsBucket) Durations() []time.Duration {
 		ret[i] = b.durationsSomeInvalid[i].Duration()
 	}
 	return ret
+}
+
+func (b *durationsBucket) iterateDurations(startingIndex int64, callback func(time.Duration)) int64 {
+	lastAbsoluteIndex := b.currentIndex.Get() - 1
+	// work backwards from this value till we get to starting index
+	for i :=lastAbsoluteIndex; i >= startingIndex; i-- {
+		arrayIndex := i % int64(len(b.durationsSomeInvalid))
+		val := b.durationsSomeInvalid[arrayIndex].Duration()
+		callback(val)
+	}
+	return lastAbsoluteIndex + 1
 }
 
 func (b *durationsBucket) clear() {
