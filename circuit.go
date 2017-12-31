@@ -12,8 +12,8 @@ import (
 // Circuit is a hystrix circuit that can accept commands and open/close on failures
 type Circuit struct {
 	//circuitStats
-	CmdMetricCollector      multiCmdMetricCollector
-	FallbackMetricCollector multiFallbackMetricCollectors
+	CmdMetricCollector      RunMetricsCollection
+	FallbackMetricCollector FallbackMetricsCollection
 	// This is used to help run `Go` calls in the background
 	goroutineWrapper goroutineWrapper
 	name             string
@@ -112,8 +112,8 @@ func (c *Circuit) SetConfigNotThreadSafe(config CommandProperties) {
 	if cfg, ok := c.closedToOpen.(Configurable); ok {
 		cfg.SetConfigNotThreadSafe(config)
 	}
-	c.CmdMetricCollector.CmdMetricCollectors = config.MetricsCollectors.Run
-	c.FallbackMetricCollector.FallbackMetricCollectors = config.MetricsCollectors.Fallback
+	c.CmdMetricCollector = config.MetricsCollectors.Run
+	c.FallbackMetricCollector = config.MetricsCollectors.Fallback
 	c.FallbackMetricCollector.SetConfigNotThreadSafe(config)
 	c.CmdMetricCollector.SetConfigNotThreadSafe(config)
 

@@ -5,6 +5,7 @@ import "fmt"
 var errThrottledConcucrrentCommands = &hystrixError{concurrencyLimitReached: true, msg: "throttling connections to command"}
 var errCircuitOpen = &hystrixError{circuitOpen: true, msg: "circuit is open"}
 
+// hystrixError is used for internally generated errors
 type hystrixError struct {
 	concurrencyLimitReached bool
 	circuitOpen             bool
@@ -17,6 +18,10 @@ func (m *hystrixError) Error() string {
 
 func (m *hystrixError) HystrixConcurrencyLimitReached() bool {
 	return m.concurrencyLimitReached
+}
+
+func (m *hystrixError) HystrixCiruitOpen() bool {
+	return m.circuitOpen
 }
 
 // BadRequest is implemented by an error returned by runFunc if you want to consider the requestor bad, not the circuit
@@ -57,9 +62,5 @@ func (s SimpleBadRequest) HystrixBadRequest() bool {
 
 var _ error = &SimpleBadRequest{}
 var _ BadRequest = &SimpleBadRequest{}
-
-func (m *hystrixError) HystrixCiruitOpen() bool {
-	return m.circuitOpen
-}
 
 var _ error = &hystrixError{}

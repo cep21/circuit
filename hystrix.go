@@ -15,8 +15,10 @@ type Hystrix struct {
 	// DefaultCircuitProperties is a list of CommandProperties constructors called, in reverse order,
 	// to append or modify configuration for your circuit.
 	DefaultCircuitProperties []CommandPropertiesConstructor
-	circuitMap               map[string]*Circuit
-	mu                       sync.RWMutex
+
+	circuitMap map[string]*Circuit
+	// mu locks circuitMap, not DefaultCircuitProperties
+	mu sync.RWMutex
 }
 
 // AllCircuits returns every hystrix circuit tracked
