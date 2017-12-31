@@ -4,97 +4,97 @@ import (
 	"time"
 )
 
-// multiCmdMetricCollector send metrics to multiple RunMetrics
-type multiCmdMetricCollector struct {
-	CmdMetricCollectors []RunMetrics
-}
+// RunMetricsCollection send metrics to multiple RunMetrics
+type RunMetricsCollection []RunMetrics
 
-func (r *multiCmdMetricCollector) SetConfigNotThreadSafe(config CommandProperties) {
-	for _, c := range r.CmdMetricCollectors {
+var _ RunMetrics = &RunMetricsCollection{}
+var _ Configurable = &RunMetricsCollection{}
+
+// SetConfigNotThreadSafe passes the config to all sub-RunMetrics
+func (r RunMetricsCollection) SetConfigNotThreadSafe(config CommandProperties) {
+	for _, c := range r {
 		if cfg, ok := c.(Configurable); ok {
 			cfg.SetConfigNotThreadSafe(config)
 		}
 	}
 }
 
-func (r *multiCmdMetricCollector) SetConfigThreadSafe(config CommandProperties) {
-	for _, c := range r.CmdMetricCollectors {
+// SetConfigThreadSafe passes the config to all sub-RunMetrics
+func (r RunMetricsCollection) SetConfigThreadSafe(config CommandProperties) {
+	for _, c := range r {
 		if cfg, ok := c.(Configurable); ok {
 			cfg.SetConfigThreadSafe(config)
 		}
 	}
 }
 
-var _ RunMetrics = &multiCmdMetricCollector{}
-var _ Configurable = &multiCmdMetricCollector{}
-
 // Success sends Success to all collectors
-func (r *multiCmdMetricCollector) Success(duration time.Duration) {
-	for _, c := range r.CmdMetricCollectors {
+func (r RunMetricsCollection) Success(duration time.Duration) {
+	for _, c := range r {
 		c.Success(duration)
 	}
 }
 
 // ErrConcurrencyLimitReject sends ErrConcurrencyLimitReject to all collectors
-func (r *multiCmdMetricCollector) ErrConcurrencyLimitReject() {
-	for _, c := range r.CmdMetricCollectors {
+func (r RunMetricsCollection) ErrConcurrencyLimitReject() {
+	for _, c := range r {
 		c.ErrConcurrencyLimitReject()
 	}
 }
 
 // ErrFailure sends ErrFailure to all collectors
-func (r *multiCmdMetricCollector) ErrFailure(duration time.Duration) {
-	for _, c := range r.CmdMetricCollectors {
+func (r RunMetricsCollection) ErrFailure(duration time.Duration) {
+	for _, c := range r {
 		c.ErrFailure(duration)
 	}
 }
 
 // ErrShortCircuit sends ErrShortCircuit to all collectors
-func (r *multiCmdMetricCollector) ErrShortCircuit() {
-	for _, c := range r.CmdMetricCollectors {
+func (r RunMetricsCollection) ErrShortCircuit() {
+	for _, c := range r {
 		c.ErrShortCircuit()
 	}
 }
 
 // ErrTimeout sends ErrTimeout to all collectors
-func (r *multiCmdMetricCollector) ErrTimeout(duration time.Duration) {
-	for _, c := range r.CmdMetricCollectors {
+func (r RunMetricsCollection) ErrTimeout(duration time.Duration) {
+	for _, c := range r {
 		c.ErrTimeout(duration)
 	}
 }
 
 // ErrBadRequest sends ErrBadRequest to all collectors
-func (r *multiCmdMetricCollector) ErrBadRequest(duration time.Duration) {
-	for _, c := range r.CmdMetricCollectors {
+func (r RunMetricsCollection) ErrBadRequest(duration time.Duration) {
+	for _, c := range r {
 		c.ErrBadRequest(duration)
 	}
 }
 
 // ErrInterrupt sends ErrInterrupt to all collectors
-func (r *multiCmdMetricCollector) ErrInterrupt(duration time.Duration) {
-	for _, c := range r.CmdMetricCollectors {
+func (r RunMetricsCollection) ErrInterrupt(duration time.Duration) {
+	for _, c := range r {
 		c.ErrInterrupt(duration)
 	}
 }
 
-var _ FallbackMetric = &multiFallbackMetricCollectors{}
-var _ Configurable = &multiFallbackMetricCollectors{}
+// FallbackMetricsCollection sends fallback metrics to all collectors
+type FallbackMetricsCollection []FallbackMetric
 
-// multiFallbackMetricCollectors sends fallback metrics to all collectors
-type multiFallbackMetricCollectors struct {
-	FallbackMetricCollectors []FallbackMetric
-}
+var _ FallbackMetric = &FallbackMetricsCollection{}
+var _ Configurable = &FallbackMetricsCollection{}
 
-func (r *multiFallbackMetricCollectors) SetConfigNotThreadSafe(config CommandProperties) {
-	for _, c := range r.FallbackMetricCollectors {
+// SetConfigNotThreadSafe passes the config to all sub-FallbackMetric
+func (r FallbackMetricsCollection) SetConfigNotThreadSafe(config CommandProperties) {
+	for _, c := range r {
 		if cfg, ok := c.(Configurable); ok {
 			cfg.SetConfigNotThreadSafe(config)
 		}
 	}
 }
 
-func (r *multiFallbackMetricCollectors) SetConfigThreadSafe(config CommandProperties) {
-	for _, c := range r.FallbackMetricCollectors {
+// SetConfigThreadSafe passes the config to all sub-FallbackMetric
+func (r FallbackMetricsCollection) SetConfigThreadSafe(config CommandProperties) {
+	for _, c := range r {
 		if cfg, ok := c.(Configurable); ok {
 			cfg.SetConfigThreadSafe(config)
 		}
@@ -102,22 +102,22 @@ func (r *multiFallbackMetricCollectors) SetConfigThreadSafe(config CommandProper
 }
 
 // Success sends Success to all collectors
-func (r *multiFallbackMetricCollectors) Success(duration time.Duration) {
-	for _, c := range r.FallbackMetricCollectors {
+func (r FallbackMetricsCollection) Success(duration time.Duration) {
+	for _, c := range r {
 		c.Success(duration)
 	}
 }
 
 // ErrConcurrencyLimitReject sends ErrConcurrencyLimitReject to all collectors
-func (r *multiFallbackMetricCollectors) ErrConcurrencyLimitReject() {
-	for _, c := range r.FallbackMetricCollectors {
+func (r FallbackMetricsCollection) ErrConcurrencyLimitReject() {
+	for _, c := range r {
 		c.ErrConcurrencyLimitReject()
 	}
 }
 
 // ErrFailure sends ErrFailure to all collectors
-func (r *multiFallbackMetricCollectors) ErrFailure(duration time.Duration) {
-	for _, c := range r.FallbackMetricCollectors {
+func (r FallbackMetricsCollection) ErrFailure(duration time.Duration) {
+	for _, c := range r {
 		c.ErrFailure(duration)
 	}
 }

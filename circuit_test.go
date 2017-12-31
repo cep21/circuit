@@ -524,11 +524,11 @@ func TestFallbackAfterTimeout(t *testing.T) {
 
 func TestSleepDurationWorks(t *testing.T) {
 	concurrentThreads := 25
+	sleepWindow := time.Millisecond * 20
 	c := NewCircuitFromConfig("TestFailureBehavior", CommandProperties{
 		CircuitBreaker: CircuitBreakerConfig{
-			// This should allow a new request every 50 milliseconds
-			// This value needs to be large enough to let time.AfterFunc trigger
-			SleepWindow: time.Millisecond * 40,
+			// Add an extra ms to allow time between wakeups
+			SleepWindow: sleepWindow + time.Millisecond,
 
 			// The first failure should open the circuit
 			ErrorThresholdPercentage: 1,
@@ -544,7 +544,7 @@ func TestSleepDurationWorks(t *testing.T) {
 
 	// Once failing, c should never see more than one request every 40 ms
 	// If I wait 110 ms, I should see exactly 2 requests (the one at 40 and at 80)
-	doNotPassTime := time.Now().Add(time.Millisecond * 110)
+	doNotPassTime := time.Now().Add(sleepWindow * 4)
 	err := c.Execute(context.Background(), alwaysFails, alwaysPassesFallback)
 	if err != nil {
 		t.Errorf("I expect this to not fail since it has a fallback")
@@ -553,6 +553,13 @@ func TestSleepDurationWorks(t *testing.T) {
 	bc := behaviorCheck{
 		runFunc: alwaysFails,
 	}
+
+	c.OpenCircuit()
+	if !c.IsOpen() {
+		t.Errorf("circuit should be open after I open it")
+	}
+	var mu sync.Mutex
+	lastRequestTime := time.Now()
 
 	wg := sync.WaitGroup{}
 	for ct := 0; ct < concurrentThreads; ct++ {
@@ -563,7 +570,16 @@ func TestSleepDurationWorks(t *testing.T) {
 				if time.Now().After(doNotPassTime) {
 					break
 				}
-				err := c.Execute(context.Background(), bc.run, alwaysPassesFallback)
+				err := c.Execute(context.Background(), func(_ context.Context) error {
+					now := time.Now()
+					mu.Lock()
+					if time.Since(lastRequestTime) < sleepWindow {
+						t.Errorf("I am getting too many requests: %s", time.Since(lastRequestTime))
+					}
+					lastRequestTime = now
+					mu.Unlock()
+					return errFailure
+				}, alwaysPassesFallback)
 				if err != nil {
 					t.Errorf("The fallback was fine.  It should not fail (but should stay open): %s", err)
 				}
@@ -573,8 +589,8 @@ func TestSleepDurationWorks(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if bc.totalRuns != 2 {
-		t.Errorf("Circuit should pass thru exactly 2 requests: %d", bc.totalRuns)
+	if bc.totalRuns > 3 {
+		t.Error("Too many requests", bc.totalRuns)
 	}
 }
 

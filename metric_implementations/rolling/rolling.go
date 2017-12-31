@@ -19,7 +19,7 @@ func CollectRollingStats(_ string) hystrix.CommandProperties {
 }
 
 func FindCommandMetrics(c *hystrix.Circuit) *RunStats {
-	for _, r := range c.CmdMetricCollector.CmdMetricCollectors {
+	for _, r := range c.CmdMetricCollector {
 		if ret, ok := r.(*RunStats); ok {
 			return ret
 		}
@@ -28,7 +28,7 @@ func FindCommandMetrics(c *hystrix.Circuit) *RunStats {
 }
 
 func FindFallbackMetrics(c *hystrix.Circuit) *FallbackStats {
-	for _, r := range c.FallbackMetricCollector.FallbackMetricCollectors {
+	for _, r := range c.FallbackMetricCollector {
 		if ret, ok := r.(*FallbackStats); ok {
 			return ret
 		}

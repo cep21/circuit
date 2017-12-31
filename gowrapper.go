@@ -6,6 +6,8 @@ import (
 	"github.com/cep21/hystrix/internal/fastmath"
 )
 
+// goroutineWrapper contains logic to wrap normal run methods inside a goroutine so they can end early
+// if the goroutine continues to run
 type goroutineWrapper struct {
 	skipCatchPanics fastmath.AtomicBoolean
 	lostErrors      func(err error, panics interface{})

@@ -26,6 +26,8 @@ func (a *AtomicBoolean) String() string {
 }
 
 // AtomicInt64 is a helper struct to simulate atomic operations on an int64
+// Note that I could have used `type AtomicInt642 int64`, but I did not want to make it easy
+// to do + and - operations so easily without using atomic functions.
 type AtomicInt64 struct{ val int64 }
 
 func (a *AtomicInt64) Get() int64 {
