@@ -101,7 +101,6 @@ func (r *multiFallbackMetricCollectors) SetConfigThreadSafe(config CommandProper
 	}
 }
 
-
 // Success sends Success to all collectors
 func (r *multiFallbackMetricCollectors) Success(duration time.Duration) {
 	for _, c := range r.FallbackMetricCollectors {

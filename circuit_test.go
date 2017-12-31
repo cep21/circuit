@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
 	"github.com/cep21/hystrix/internal/fastmath"
 )
 
@@ -82,7 +83,7 @@ func alwaysFails(_ context.Context) error {
 func TestHappyCircuit(t *testing.T) {
 	c := NewCircuitFromConfig("TestHappyCircuit", CommandProperties{})
 	// Should work 100 times in a row
-	for i :=0;i<100;i++ {
+	for i := 0; i < 100; i++ {
 		err := c.Execute(context.Background(), alwaysPasses, func(_ context.Context, _ error) error {
 			panic("should never be called")
 		})
@@ -98,7 +99,7 @@ func TestHappyCircuit(t *testing.T) {
 func TestBadRequest(t *testing.T) {
 	c := NewCircuitFromConfig("TestBadRequest", CommandProperties{})
 	// Should work 100 times in a row
-	for i :=0;i<100;i++ {
+	for i := 0; i < 100; i++ {
 		err := c.Execute(context.Background(), func(_ context.Context) error {
 			return SimpleBadRequest{
 				errors.New("this request is bad"),
@@ -276,7 +277,7 @@ func TestFailingCircuit(t *testing.T) {
 func TestFallbackCircuit(t *testing.T) {
 	c := NewCircuitFromConfig("TestFallbackCircuit", CommandProperties{})
 	// Fallback circuit should consistently fail
-	for i:=0;i<100;i++ {
+	for i := 0; i < 100; i++ {
 		err := c.Execute(context.Background(), alwaysFails, alwaysPassesFallback)
 		if err != nil {
 			t.Error("saw error from circuit that has happy fallback", err)
@@ -295,7 +296,7 @@ func TestCircuitIgnoreContextFailures(t *testing.T) {
 			Timeout: time.Hour,
 		},
 	})
-	for i :=0;i<100;i++ {
+	for i := 0; i < 100; i++ {
 		rootCtx, cancel := context.WithTimeout(context.Background(), time.Millisecond*3)
 		err := c.Execute(rootCtx, sleepsForX(time.Second), nil)
 		if err == nil {

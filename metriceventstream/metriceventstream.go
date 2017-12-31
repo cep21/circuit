@@ -155,7 +155,7 @@ func collectCommandMetrics(cb *hystrix.Circuit) *streamCmdMetric {
 		// We still show the circuit, but everything shows up as zero
 		builtInRollingFallbackMetricCollector = &rolling.FallbackStats{}
 	}
-	now := time.Now()//cb.now()
+	now := time.Now() //cb.now()
 	snap := builtInRollingCmdMetricCollector.Latencies.SnapshotAt(now)
 	circuitConfig := cb.Config()
 	return &streamCmdMetric{

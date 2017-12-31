@@ -133,11 +133,12 @@ func (c *Circuit) Var() expvar.Var {
 
 // DebugValues is a random-ish map of interesting values to debug your circuit
 func (c *Circuit) DebugValues() interface{} {
-	return map[string]interface{}{
-		// TODO: Put stream stats back in
-		//"stream_stats": collectCommandMetrics(c),
-		"config":       c.Config(),
+	ret := map[string]interface{}{
+		"config": c.Config(),
+		"name": c.Name(),
 	}
+
+	return ret
 }
 
 // Name of this circuit

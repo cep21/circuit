@@ -1,17 +1,18 @@
 package rolling
 
 import (
+	"time"
+
 	"github.com/cep21/hystrix"
 	"github.com/cep21/hystrix/internal/fastmath"
-	"time"
 )
 
 // CollectRollingStats enables stats needed to display metric event streams on a hystrix dashboard, as well as it
 // gives easy access to rolling and total latency stats
 func CollectRollingStats(_ string) hystrix.CommandProperties {
-	return hystrix.CommandProperties {
+	return hystrix.CommandProperties{
 		MetricsCollectors: hystrix.MetricsCollectors{
-			Run: []hystrix.RunMetrics{&RunStats{}},
+			Run:      []hystrix.RunMetrics{&RunStats{}},
 			Fallback: []hystrix.FallbackMetric{&FallbackStats{}},
 		},
 	}
@@ -25,7 +26,6 @@ func FindCommandMetrics(c *hystrix.Circuit) *RunStats {
 	}
 	return nil
 }
-
 
 func FindFallbackMetrics(c *hystrix.Circuit) *FallbackStats {
 	for _, r := range c.FallbackMetricCollector.FallbackMetricCollectors {
@@ -63,12 +63,12 @@ func (r *RunStats) SetConfigNotThreadSafe(config hystrix.CommandProperties) {
 
 	r.Successes = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
 	r.ErrConcurrencyLimitRejects = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.ErrFailures =                fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.ErrShortCircuits =           fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.ErrTimeouts =                fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.ErrBadRequests =             fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.ErrInterrupts =              fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.Latencies =  fastmath.NewRollingPercentile(rollingPercentileBucketWidth, rollingPercentileNumBuckets, rollingPercentileBucketSize, now)
+	r.ErrFailures = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.ErrShortCircuits = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.ErrTimeouts = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.ErrBadRequests = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.ErrInterrupts = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.Latencies = fastmath.NewRollingPercentile(rollingPercentileBucketWidth, rollingPercentileNumBuckets, rollingPercentileBucketSize, now)
 }
 
 func (r *RunStats) Success(duration time.Duration) {
@@ -162,5 +162,5 @@ func (r *FallbackStats) SetConfigNotThreadSafe(config hystrix.CommandProperties)
 
 	r.Successes = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
 	r.ErrConcurrencyLimitRejects = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.ErrFailures =                fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.ErrFailures = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
 }

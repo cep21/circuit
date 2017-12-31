@@ -1,11 +1,12 @@
 package rolling
 
 import (
-	"testing"
-	"github.com/cep21/hystrix"
 	"context"
-	"time"
 	"errors"
+	"testing"
+	"time"
+
+	"github.com/cep21/hystrix"
 )
 
 func alwaysPasses(_ context.Context) error {
