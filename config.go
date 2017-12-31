@@ -132,15 +132,6 @@ type GoSpecificConfig struct {
 	// Normally if the parent context is canceled before a timeout is reached, we don't consider the circuit
 	// unhealth.  Set this to true to consider those circuits unhealthy.
 	IgnoreInterrputs bool
-	// If true, *all* internal stat tracking will not be enabled.  You cannot change this property at runtime, since it
-	// takes optimization steps that aren't allowed.  Only use this if you really need the extra ns
-	DisableAllStats bool
-	// Track to report an SLO similar to "99% of requests should respond correctly within 300 ms"
-	// This is the duration part.  Will allow metric reporting and gathering of the number of good requests <= that
-	// amount, compared to the number of requests not.
-	// This value should be much smaller than the timeout of the circuit, which is an upper bound on how long to wait.
-	// This metric is more around "how long to -should- you have to wait", not "what is the longest you will wait"
-	ResponseTimeSLO time.Duration
 
 	// ClosedToOpenFactory creates logic that determines if the circuit should go from Closed to Open state.
 	// By default, it uses the Hystrix model of opening a circuit after a threshold and % as reached.
@@ -193,9 +184,6 @@ func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
 	if !g.IgnoreInterrputs {
 		g.IgnoreInterrputs = other.IgnoreInterrputs
 	}
-	if g.ResponseTimeSLO == 0 {
-		g.ResponseTimeSLO = other.ResponseTimeSLO
-	}
 	if g.ClosedToOpenFactory == nil {
 		g.ClosedToOpenFactory = other.ClosedToOpenFactory
 	}
@@ -204,9 +192,6 @@ func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
 	}
 	g.mergeCustomConfig(other)
 
-	if !g.DisableAllStats {
-		g.DisableAllStats = other.DisableAllStats
-	}
 	if g.GoLostErrors == nil {
 		g.GoLostErrors = other.GoLostErrors
 	}
@@ -216,9 +201,8 @@ func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
 // MetricsCollectors can receive metrics during a circuit.  They should be fast, as they will
 // block circuit operation during function calls.
 type MetricsCollectors struct {
-	Run             []RunMetrics               `json:"-"`
-	Fallback        []FallbackMetric           `json:"-"`
-	ResponseTimeSLO []ResponseTimeSLOCollector `json:"-"`
+	Run      []RunMetrics     `json:"-"`
+	Fallback []FallbackMetric `json:"-"`
 }
 
 func (m *MetricsCollectors) merge(other MetricsCollectors) {
@@ -226,15 +210,16 @@ func (m *MetricsCollectors) merge(other MetricsCollectors) {
 	m.Fallback = append(m.Fallback, other.Fallback...)
 }
 
-// merge these properties with another command's properties.  Anything set to the zero value, will takes values from
+// Merge these properties with another command's properties.  Anything set to the zero value, will takes values from
 // other.
-func (c *CommandProperties) merge(other CommandProperties) {
+func (c *CommandProperties) Merge(other CommandProperties) *CommandProperties {
 	c.Execution.merge(other.Execution)
 	c.Fallback.merge(other.Fallback)
 	c.CircuitBreaker.merge(other.CircuitBreaker)
 	c.Metrics.merge(other.Metrics)
 	c.MetricsCollectors.merge(other.MetricsCollectors)
 	c.GoSpecific.merge(other.GoSpecific)
+	return c
 }
 
 // atomicCircuitConfig is used during circuit operations and allows atomic read/write operations.  This lets users
@@ -253,7 +238,6 @@ type atomicCircuitConfig struct {
 	}
 	GoSpecific struct {
 		IgnoreInterrputs fastmath.AtomicBoolean
-		ResponseTimeSLO  fastmath.AtomicInt64
 	}
 	Fallback struct {
 		Disabled              fastmath.AtomicBoolean
@@ -272,7 +256,6 @@ func (a *atomicCircuitConfig) reset(config CommandProperties) {
 	a.Execution.MaxConcurrentRequests.Set(config.Execution.MaxConcurrentRequests)
 
 	a.GoSpecific.IgnoreInterrputs.Set(config.GoSpecific.IgnoreInterrputs)
-	a.GoSpecific.ResponseTimeSLO.Set(config.GoSpecific.ResponseTimeSLO.Nanoseconds())
 
 	a.Fallback.Disabled.Set(config.Fallback.Disabled)
 	a.Fallback.MaxConcurrentRequests.Set(config.Fallback.MaxConcurrentRequests)
@@ -303,7 +286,6 @@ var defaultMetricsConfig = MetricsConfig{
 }
 
 var defaultGoSpecificConfig = GoSpecificConfig{
-	ResponseTimeSLO:     time.Millisecond * 300,
 	ClosedToOpenFactory: newErrorPercentageCheck,
 	OpenToClosedFactory: newSleepyOpenToClose,
 	TimeKeeper: TimeKeeper{

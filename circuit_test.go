@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/cep21/hystrix/internal/fastmath"
 )
 
 func alwaysPasses(_ context.Context) error {
@@ -80,41 +82,37 @@ func alwaysFails(_ context.Context) error {
 
 func TestHappyCircuit(t *testing.T) {
 	c := NewCircuitFromConfig("TestHappyCircuit", CommandProperties{})
-	err := c.Execute(context.Background(), alwaysPasses, nil)
-	if err != nil {
-		t.Error("saw error from circuit that always passes")
+	// Should work 100 times in a row
+	for i := 0; i < 100; i++ {
+		err := c.Execute(context.Background(), alwaysPasses, func(_ context.Context, _ error) error {
+			panic("should never be called")
+		})
+		if err != nil {
+			t.Error("saw error from circuit that always passes")
+		}
 	}
-	errCount := c.errorsCount.RollingSum(time.Now())
-	if errCount != 0 {
-		t.Error("Happy circuit shouldn't make errors")
-	}
-	requestCount := c.legitimateAttemptsCount.RollingSum(time.Now())
-	if requestCount != 1 {
-		t.Error("happy circuit should still count as a request")
+	if c.IsOpen() {
+		t.Error("happy circuits should not open")
 	}
 }
 
 func TestBadRequest(t *testing.T) {
 	c := NewCircuitFromConfig("TestBadRequest", CommandProperties{})
-	err := c.Execute(context.Background(), func(_ context.Context) error {
-		return SimpleBadRequest{
-			errors.New("this request is bad"),
+	// Should work 100 times in a row
+	for i := 0; i < 100; i++ {
+		err := c.Execute(context.Background(), func(_ context.Context) error {
+			return SimpleBadRequest{
+				errors.New("this request is bad"),
+			}
+		}, func(_ context.Context, _ error) error {
+			panic("fallbacks don't get called on bad requests")
+		})
+		if err == nil {
+			t.Error("I really expected an error here!")
 		}
-	}, nil)
-	if err == nil {
-		t.Error("I really expected an error here!")
 	}
-	errCount := c.errorsCount.RollingSum(time.Now())
-	if errCount != 0 {
-		t.Error("bad requests shouldn't be errors!")
-	}
-	requestCount := c.legitimateAttemptsCount.RollingSum(time.Now())
-	if requestCount != 0 {
-		t.Error("bad requests should not count as legit requests!")
-	}
-	requestCount = c.backedOutAttemptsCount.RollingSum(time.Now())
-	if requestCount != 1 {
-		t.Error("bad requests should count as backed out requests!")
+	if c.IsOpen() {
+		t.Error("bad requests should never break")
 	}
 }
 
@@ -278,15 +276,17 @@ func TestFailingCircuit(t *testing.T) {
 
 func TestFallbackCircuit(t *testing.T) {
 	c := NewCircuitFromConfig("TestFallbackCircuit", CommandProperties{})
-	err := c.Execute(context.Background(), alwaysFails, alwaysPassesFallback)
-	if err != nil {
-		t.Error("saw error from circuit that has happy fallback", err)
+	// Fallback circuit should consistently fail
+	for i := 0; i < 100; i++ {
+		err := c.Execute(context.Background(), alwaysFails, alwaysPassesFallback)
+		if err != nil {
+			t.Error("saw error from circuit that has happy fallback", err)
+		}
 	}
-	if c.errorsCount.RollingSum(time.Now()) != 1 {
-		t.Error("Even if fallback happens, and works ok, we should still count an error in the circuit")
-	}
-	if c.builtInRollingCmdMetricCollector.errFailure.RollingSum(time.Now()) != 1 {
-		t.Error("Even if fallback happens, and works ok, we should still increment an error in stats")
+
+	// By default, after 100 failures, we should be open
+	if !c.IsOpen() {
+		t.Error("I expected to be open after so many failures")
 	}
 }
 
@@ -296,20 +296,16 @@ func TestCircuitIgnoreContextFailures(t *testing.T) {
 			Timeout: time.Hour,
 		},
 	})
-	rootCtx, cancel := context.WithTimeout(context.Background(), time.Millisecond*3)
-	defer cancel()
-	err := c.Execute(rootCtx, sleepsForX(time.Second), nil)
-	if err == nil {
-		t.Error("saw no error from circuit that should end in an error")
+	for i := 0; i < 100; i++ {
+		rootCtx, cancel := context.WithTimeout(context.Background(), time.Millisecond*3)
+		err := c.Execute(rootCtx, sleepsForX(time.Second), nil)
+		if err == nil {
+			t.Error("saw no error from circuit that should end in an error")
+		}
+		cancel()
 	}
-	if c.errorsCount.TotalSum() != 0 {
-		t.Error("if the root context dies, it shouldn't be an error")
-	}
-	if c.builtInRollingCmdMetricCollector.errInterrupt.TotalSum() != 1 {
-		t.Error("Total sum should count the interrupt")
-	}
-	if c.builtInRollingCmdMetricCollector.errInterrupt.RollingSum(time.Now()) != 1 {
-		t.Error("rolling sum should count the interrupt")
+	if c.IsOpen() {
+		t.Error("Parent context cacelations should not close the circuit by default")
 	}
 }
 
@@ -321,11 +317,15 @@ func TestFallbackCircuitConcurrency(t *testing.T) {
 	})
 	wg := sync.WaitGroup{}
 	workingCircuitCount := int64(0)
+	var fallbackExecuted fastmath.AtomicInt64
+	var totalExecuted fastmath.AtomicInt64
 	for i := 0; i < 3; i++ {
 		wg.Add(1)
 		go func() {
+			totalExecuted.Add(1)
 			defer wg.Done()
 			err := c.Execute(context.Background(), alwaysFails, func(ctx context.Context, err error) error {
+				fallbackExecuted.Add(1)
 				return sleepsForX(time.Millisecond * 500)(ctx)
 			})
 			if err == nil {
@@ -334,8 +334,8 @@ func TestFallbackCircuitConcurrency(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if c.builtInRollingFallbackMetricCollector.errConcurrencyLimitReject.RollingSum(time.Now()) != 1 {
-		t.Error("At least one fallback call should fail")
+	if totalExecuted.Get() == fallbackExecuted.Get() {
+		t.Error("At least one fallback call should never happen due to concurrency")
 	}
 	if workingCircuitCount != 2 {
 		t.Error("Should see 2 working examples")
@@ -445,7 +445,7 @@ func TestLargeSleepWindow(t *testing.T) {
 	}
 
 	if !c.IsOpen() {
-		t.Errorf("I expect the circuit to now be open, since the previous failure happened")
+		t.Fatalf("I expect the circuit to now be open, since the previous failure happened")
 	}
 
 	wg := sync.WaitGroup{}
@@ -478,26 +478,26 @@ func TestFailingFallbackCircuit(t *testing.T) {
 	}
 }
 
-func TestSLO(t *testing.T) {
-	c := NewCircuitFromConfig("TestFailingCircuit", CommandProperties{
-		GoSpecific: GoSpecificConfig{
-			ResponseTimeSLO: time.Millisecond,
-		},
-	})
-	err := c.Execute(context.Background(), sleepsForX(time.Millisecond*5), nil)
-	if err != nil {
-		t.Error("This request should not fail")
-	}
-	if c.errorsCount.TotalSum() != 0 {
-		t.Error("the request should not be an error")
-	}
-	if c.responseTimeSLO.MeetsSLOCount.Get() != 0 {
-		t.Error("the request should not be healthy")
-	}
-	if c.responseTimeSLO.FailsSLOCount.Get() != 1 {
-		t.Error("the request should be failed")
-	}
-}
+//func TestSLO(t *testing.T) {
+//	c := NewCircuitFromConfig("TestFailingCircuit", CommandProperties{
+//		GoSpecific: GoSpecificConfig{
+//			ResponseTimeSLO: time.Millisecond,
+//		},
+//	})
+//	err := c.Execute(context.Background(), sleepsForX(time.Millisecond*5), nil)
+//	if err != nil {
+//		t.Error("This request should not fail")
+//	}
+//	if c.errorsCount.TotalSum() != 0 {
+//		t.Error("the request should not be an error")
+//	}
+//	if c.responseTimeSLO.MeetsSLOCount.Get() != 0 {
+//		t.Error("the request should not be healthy")
+//	}
+//	if c.responseTimeSLO.FailsSLOCount.Get() != 1 {
+//		t.Error("the request should be failed")
+//	}
+//}
 
 func TestFallbackAfterTimeout(t *testing.T) {
 	c := NewCircuitFromConfig("TestThrottled", CommandProperties{

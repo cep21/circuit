@@ -6,11 +6,15 @@ import (
 	"sync"
 )
 
+// CommandPropertiesConstructor is a generic function that can create command properties to configure a circuit by name
+// It is safe to leave not configured properties their empty value.
+type CommandPropertiesConstructor func(circuitName string) CommandProperties
+
 // Hystrix manages circuits with unique names
 type Hystrix struct {
 	// DefaultCircuitProperties is a list of CommandProperties constructors called, in reverse order,
 	// to append or modify configuration for your circuit.
-	DefaultCircuitProperties []func(circuitName string) CommandProperties
+	DefaultCircuitProperties []CommandPropertiesConstructor
 	circuitMap               map[string]*Circuit
 	mu                       sync.RWMutex
 }
@@ -71,7 +75,7 @@ func (h *Hystrix) CreateCircuit(name string, config CommandProperties) (*Circuit
 	}
 	// Merge in reverse order so the most recently appending constructor is more important
 	for i := len(h.DefaultCircuitProperties) - 1; i >= 0; i-- {
-		config.merge(h.DefaultCircuitProperties[i](name))
+		config.Merge(h.DefaultCircuitProperties[i](name))
 	}
 	_, exists := h.circuitMap[name]
 	if exists {

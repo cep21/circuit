@@ -147,7 +147,7 @@ func ExampleHystrix_DefaultCircuitProperties() {
 
 	// Hystrix manages circuits with unique names
 	h := hystrix.Hystrix{
-		DefaultCircuitProperties: []func(circuitName string) hystrix.CommandProperties{myFactory},
+		DefaultCircuitProperties: []hystrix.CommandPropertiesConstructor{myFactory},
 	}
 	h.MustCreateCircuit("v1", hystrix.CommandProperties{})
 	fmt.Println("The timeout of v1 is", h.GetCircuit("v1").Config().Execution.Timeout)
@@ -234,18 +234,5 @@ func ExampleCommandProperties() {
 		},
 	}
 	h.MustCreateCircuit("configured-circuit", circuitConfig)
-	// Output:
-}
-
-// This example creates an event stream handler, starts it, then later closes the handler
-func ExampleMetricEventStream() {
-	h := hystrix.Hystrix{}
-	es := hystrix.MetricEventStream{
-		Hystrix: &h,
-	}
-	go es.Start()
-	http.Handle("/hystrix.stream", &es)
-	// ...
-	es.Close()
 	// Output:
 }

@@ -1,4 +1,4 @@
-package hystrix
+package metriceventstream
 
 import (
 	"bytes"
@@ -7,13 +7,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cep21/hystrix"
 	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix/metric_implementations/rolling"
 )
 
 // MetricEventStream is a HTTP handler that supports hystrix's metric stream API
 // See https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#metrics-event-stream
 type MetricEventStream struct {
-	Hystrix      *Hystrix
+	Hystrix      *hystrix.Hystrix
 	TickDuration time.Duration
 
 	eventStreams map[*http.Request]chan []byte
@@ -142,9 +144,19 @@ func (m *MetricEventStream) Close() error {
 	return nil
 }
 
-func collectCommandMetrics(cb *Circuit) *streamCmdMetric {
-	now := cb.now()
-	snap := cb.circuitStats.builtInRollingCmdMetricCollector.rollingLatencyPercentile.Snapshot(now)
+func collectCommandMetrics(cb *hystrix.Circuit) *streamCmdMetric {
+	builtInRollingCmdMetricCollector := rolling.FindCommandMetrics(cb)
+	if builtInRollingCmdMetricCollector == nil {
+		// We still show the circuit, but everything shows up as zero
+		builtInRollingCmdMetricCollector = &rolling.RunStats{}
+	}
+	builtInRollingFallbackMetricCollector := rolling.FindFallbackMetrics(cb)
+	if builtInRollingFallbackMetricCollector == nil {
+		// We still show the circuit, but everything shows up as zero
+		builtInRollingFallbackMetricCollector = &rolling.FallbackStats{}
+	}
+	now := time.Now() //cb.now()
+	snap := builtInRollingCmdMetricCollector.Latencies.SnapshotAt(now)
 	circuitConfig := cb.Config()
 	return &streamCmdMetric{
 		Type:           "HystrixCommand",
@@ -153,41 +165,41 @@ func collectCommandMetrics(cb *Circuit) *streamCmdMetric {
 		ReportingHosts: 1,
 		Time:           now.UnixNano() / time.Millisecond.Nanoseconds(),
 
-		RequestCount:       cb.circuitStats.legitimateAttemptsCount.RollingSum(now) + cb.circuitStats.backedOutAttemptsCount.RollingSum(now),
-		ErrorCount:         cb.circuitStats.errorsCount.RollingSum(now),
-		ErrorPct:           int64(100 * cb.circuitStats.errorPercentage(now)),
+		RequestCount:       builtInRollingCmdMetricCollector.LegitimateAttemptsAt(now) + builtInRollingCmdMetricCollector.ErrInterrupts.RollingSumAt(now),
+		ErrorCount:         builtInRollingCmdMetricCollector.ErrorsAt(now),
+		ErrorPct:           int64(100 * builtInRollingCmdMetricCollector.ErrorPercentageAt(now)),
 		CircuitBreakerOpen: cb.IsOpen(),
 
-		RollingCountFallbackSuccess:   cb.circuitStats.builtInRollingFallbackMetricCollector.successCount.RollingSum(now),
-		RollingCountFallbackFailure:   cb.circuitStats.builtInRollingFallbackMetricCollector.errFailure.RollingSum(now),
-		RollingCountFallbackRejection: cb.circuitStats.builtInRollingFallbackMetricCollector.errConcurrencyLimitReject.RollingSum(now),
+		RollingCountFallbackSuccess:   builtInRollingFallbackMetricCollector.Successes.RollingSumAt(now),
+		RollingCountFallbackFailure:   builtInRollingFallbackMetricCollector.ErrFailures.RollingSumAt(now),
+		RollingCountFallbackRejection: builtInRollingFallbackMetricCollector.ErrConcurrencyLimitRejects.RollingSumAt(now),
 
-		RollingCountSuccess:           cb.circuitStats.builtInRollingCmdMetricCollector.successCount.RollingSum(now),
-		RollingCountSemaphoreRejected: cb.circuitStats.builtInRollingCmdMetricCollector.errConcurrencyLimitReject.RollingSum(now),
-		RollingCountFailure:           cb.circuitStats.builtInRollingCmdMetricCollector.errFailure.RollingSum(now),
-		RollingCountShortCircuited:    cb.circuitStats.builtInRollingCmdMetricCollector.errShortCircuit.RollingSum(now),
-		RollingCountTimeout:           cb.circuitStats.builtInRollingCmdMetricCollector.errTimeout.RollingSum(now),
+		RollingCountSuccess:           builtInRollingCmdMetricCollector.Successes.RollingSumAt(now),
+		RollingCountSemaphoreRejected: builtInRollingCmdMetricCollector.ErrConcurrencyLimitRejects.RollingSumAt(now),
+		RollingCountFailure:           builtInRollingCmdMetricCollector.ErrFailures.RollingSumAt(now),
+		RollingCountShortCircuited:    builtInRollingCmdMetricCollector.ErrShortCircuits.RollingSumAt(now),
+		RollingCountTimeout:           builtInRollingCmdMetricCollector.ErrTimeouts.RollingSumAt(now),
 		// Note: There is no errInterrupt field inside the dashboard, but i still want to expose these metrics there,
 		//       so I just roll them into BadRequests
-		RollingCountBadRequests: cb.circuitStats.builtInRollingCmdMetricCollector.errBadRequest.RollingSum(now) + cb.circuitStats.builtInRollingCmdMetricCollector.errInterrupt.RollingSum(now),
+		RollingCountBadRequests: builtInRollingCmdMetricCollector.ErrBadRequests.RollingSumAt(now) + builtInRollingCmdMetricCollector.ErrInterrupts.RollingSumAt(now),
 
-		TotalCountFallbackSuccess:   cb.circuitStats.builtInRollingFallbackMetricCollector.successCount.TotalSum(),
-		TotalCountFallbackFailure:   cb.circuitStats.builtInRollingFallbackMetricCollector.errFailure.TotalSum(),
-		TotalCountFallbackRejection: cb.circuitStats.builtInRollingFallbackMetricCollector.errConcurrencyLimitReject.TotalSum(),
+		TotalCountFallbackSuccess:   builtInRollingFallbackMetricCollector.Successes.TotalSum(),
+		TotalCountFallbackFailure:   builtInRollingFallbackMetricCollector.ErrFailures.TotalSum(),
+		TotalCountFallbackRejection: builtInRollingFallbackMetricCollector.ErrConcurrencyLimitRejects.TotalSum(),
 
-		TotalCountSuccess:           cb.circuitStats.builtInRollingCmdMetricCollector.successCount.TotalSum(),
-		TotalCountSemaphoreRejected: cb.circuitStats.builtInRollingCmdMetricCollector.errConcurrencyLimitReject.TotalSum(),
-		TotalCountFailure:           cb.circuitStats.builtInRollingCmdMetricCollector.errFailure.TotalSum(),
-		TotalCountShortCircuited:    cb.circuitStats.builtInRollingCmdMetricCollector.errShortCircuit.TotalSum(),
-		TotalCountTimeout:           cb.circuitStats.builtInRollingCmdMetricCollector.errTimeout.TotalSum(),
-		TotalCountBadRequests:       cb.circuitStats.builtInRollingCmdMetricCollector.errBadRequest.TotalSum() + cb.circuitStats.builtInRollingCmdMetricCollector.errInterrupt.TotalSum(),
+		TotalCountSuccess:           builtInRollingCmdMetricCollector.Successes.TotalSum(),
+		TotalCountSemaphoreRejected: builtInRollingCmdMetricCollector.ErrConcurrencyLimitRejects.TotalSum(),
+		TotalCountFailure:           builtInRollingCmdMetricCollector.ErrFailures.TotalSum(),
+		TotalCountShortCircuited:    builtInRollingCmdMetricCollector.ErrShortCircuits.TotalSum(),
+		TotalCountTimeout:           builtInRollingCmdMetricCollector.ErrTimeouts.TotalSum(),
+		TotalCountBadRequests:       builtInRollingCmdMetricCollector.ErrBadRequests.TotalSum() + builtInRollingCmdMetricCollector.ErrInterrupts.TotalSum(),
 
 		LatencyTotal:       generateLatencyTimings(snap),
 		LatencyTotalMean:   snap.Mean().Nanoseconds() / time.Millisecond.Nanoseconds(),
 		LatencyExecute:     generateLatencyTimings(snap),
 		LatencyExecuteMean: snap.Mean().Nanoseconds() / time.Millisecond.Nanoseconds(),
 
-		CurrentConcurrentExecutionCount: cb.concurrentCommands.Get(),
+		CurrentConcurrentExecutionCount: cb.ConcurrentCommands(),
 
 		ExecutionIsolationStrategy: "SEMAPHORE",
 

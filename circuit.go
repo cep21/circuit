@@ -11,7 +11,9 @@ import (
 
 // Circuit is a hystrix circuit that can accept commands and open/close on failures
 type Circuit struct {
-	circuitStats
+	//circuitStats
+	CmdMetricCollector      multiCmdMetricCollector
+	FallbackMetricCollector multiFallbackMetricCollectors
 	// This is used to help run `Go` calls in the background
 	goroutineWrapper goroutineWrapper
 	name             string
@@ -43,7 +45,7 @@ type Circuit struct {
 // NewCircuitFromConfig creates an inline circuit.  If you want to group all your circuits together, you should probably
 // just use Hystrix struct instead.
 func NewCircuitFromConfig(name string, config CommandProperties) *Circuit {
-	config.merge(defaultCommandProperties)
+	config.Merge(defaultCommandProperties)
 	ret := &Circuit{
 		name:                name,
 		notThreadSafeConfig: config,
@@ -52,17 +54,34 @@ func NewCircuitFromConfig(name string, config CommandProperties) *Circuit {
 	return ret
 }
 
+// ConcurrentCommands returns how many commands are currently running
+func (c *Circuit) ConcurrentCommands() int64 {
+	return c.concurrentCommands.Get()
+}
+
+// ConcurrentFallbacks returns how many fallbacks are currently running
+func (c *Circuit) ConcurrentFallbacks() int64 {
+	return c.concurrentFallbacks.Get()
+}
+
 // SetConfigThreadSafe changes the current configuration of this circuit. Note that many config parameters, specifically those
 // around creating stat tracking buckets, are not modifiable during runtime for efficiency reasons.  Those buckets
 // will stay the same.
 func (c *Circuit) SetConfigThreadSafe(config CommandProperties) {
 	c.notThreadSafeConfigMu.Lock()
 	defer c.notThreadSafeConfigMu.Unlock()
-	c.circuitStats.SetConfigThreadSafe(config)
+	//c.circuitStats.SetConfigThreadSafe(config)
 	c.threadSafeConfig.reset(c.notThreadSafeConfig)
 	c.notThreadSafeConfig = config
-	c.openToClose.SetConfigThreadSafe(config)
-	c.closedToOpen.SetConfigThreadSafe(config)
+	if cfg, ok := c.openToClose.(Configurable); ok {
+		cfg.SetConfigThreadSafe(config)
+	}
+	if cfg, ok := c.closedToOpen.(Configurable); ok {
+		cfg.SetConfigThreadSafe(config)
+	}
+
+	c.FallbackMetricCollector.SetConfigThreadSafe(config)
+	c.CmdMetricCollector.SetConfigThreadSafe(config)
 }
 
 // Config returns the circuit's configuration.  Modifications to this configuration are not reflected by the circuit.
@@ -87,11 +106,18 @@ func (c *Circuit) SetConfigNotThreadSafe(config CommandProperties) {
 
 	c.openToClose = config.GoSpecific.OpenToClosedFactory()
 	c.closedToOpen = config.GoSpecific.ClosedToOpenFactory()
-	c.openToClose.SetConfigNotThreadSafe(config)
-	c.closedToOpen.SetConfigNotThreadSafe(config)
+	if cfg, ok := c.openToClose.(Configurable); ok {
+		cfg.SetConfigNotThreadSafe(config)
+	}
+	if cfg, ok := c.closedToOpen.(Configurable); ok {
+		cfg.SetConfigNotThreadSafe(config)
+	}
+	c.CmdMetricCollector.CmdMetricCollectors = config.MetricsCollectors.Run
+	c.FallbackMetricCollector.FallbackMetricCollectors = config.MetricsCollectors.Fallback
+	c.FallbackMetricCollector.SetConfigNotThreadSafe(config)
+	c.CmdMetricCollector.SetConfigNotThreadSafe(config)
 
 	c.SetConfigThreadSafe(config)
-	c.circuitStats.SetConfigNotThreadSafe(config)
 }
 
 func (c *Circuit) now() time.Time {
@@ -107,25 +133,17 @@ func (c *Circuit) Var() expvar.Var {
 
 // DebugValues is a random-ish map of interesting values to debug your circuit
 func (c *Circuit) DebugValues() interface{} {
-	return map[string]interface{}{
-		"stream_stats": collectCommandMetrics(c),
-		"config":       c.Config(),
+	ret := map[string]interface{}{
+		"config": c.Config(),
+		"name":   c.Name(),
 	}
+
+	return ret
 }
 
 // Name of this circuit
 func (c *Circuit) Name() string {
 	return c.name
-}
-
-// ConcurrentCommands is the number of executions happening right now
-func (c *Circuit) ConcurrentCommands() int64 {
-	return c.concurrentCommands.Get()
-}
-
-// ConcurrentFallbacks is the number of fallbacks happening right now
-func (c *Circuit) ConcurrentFallbacks() int64 {
-	return c.concurrentFallbacks.Get()
 }
 
 // IsOpen returns true if the circuit should be considered 'open' (ie not allowing runFunc calls)
@@ -197,11 +215,6 @@ func (c *Circuit) Execute(ctx context.Context, runFunc func(context.Context) err
 	return c.fallback(ctx, err, fallbackFunc)
 }
 
-// ErrorPercentage returns [0.0 - 1.0] what % of request are considered failing in the rolling window.
-func (c *Circuit) ErrorPercentage() float64 {
-	return c.circuitStats.errorPercentage(time.Now())
-}
-
 // --------- only private functions below here
 
 func (c *Circuit) throttleConcurrentCommands(currentCommandCount int64) error {
@@ -222,7 +235,7 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 
 	if !c.allowNewRun(startTime) {
 		// Rather than make this inline, return a global reference (for memory optimization sake).
-		c.circuitStats.cmdMetricCollector.ErrShortCircuit()
+		c.CmdMetricCollector.ErrShortCircuit()
 		return errCircuitOpen
 	}
 
@@ -233,7 +246,7 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 	currentCommandCount := c.concurrentCommands.Add(1)
 	defer c.concurrentCommands.Add(-1)
 	if err := c.throttleConcurrentCommands(currentCommandCount); err != nil {
-		c.circuitStats.cmdMetricCollector.ErrConcurrencyLimitReject()
+		c.CmdMetricCollector.ErrConcurrencyLimitReject()
 		return err
 	}
 
@@ -262,9 +275,6 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 	// Even if there is no error (or if there is an error), if the request took too long it is always an error for the
 	// socket.  Note that ret *MAY* actually be nil.  In that case, we still want to return nil.
 	if c.checkErrTimeout(expectedDoneBy, runFuncDoneTime, totalCmdTime) {
-		// Timeouts are legit requests.  We must check this before interrupt.  Even if the parent context
-		// was interrupted, if we failed the timeout check, it is still a failure.
-		c.circuitStats.legitimateAttemptsCount.Inc(runFuncDoneTime)
 		// Note: ret could possibly be nil.  We will still return nil, but the circuit will consider it a failure.
 		return ret
 	}
@@ -274,9 +284,6 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 	if c.checkErrInterrupt(originalContext, ret, runFuncDoneTime, totalCmdTime) {
 		return ret
 	}
-
-	// Both failure and success are legitimate attempts
-	c.circuitStats.legitimateAttemptsCount.Inc(runFuncDoneTime)
 
 	if c.checkErrFailure(ret, runFuncDoneTime, totalCmdTime) {
 		return ret
@@ -295,7 +302,7 @@ func (c *Circuit) checkSuccess(runFuncDoneTime time.Time, totalCmdTime time.Dura
 	} else {
 		c.closedToOpen.SuccessfulAttempt(runFuncDoneTime, totalCmdTime)
 	}
-	c.circuitStats.cmdMetricCollector.Success(totalCmdTime)
+	c.CmdMetricCollector.Success(totalCmdTime)
 	c.close(runFuncDoneTime, false)
 }
 
@@ -306,8 +313,7 @@ func (c *Circuit) checkErrInterrupt(originalContext context.Context, ret error, 
 		} else {
 			c.closedToOpen.BackedOutAttempt(runFuncDoneTime)
 		}
-		c.circuitStats.backedOutAttemptsCount.Inc(runFuncDoneTime)
-		c.circuitStats.cmdMetricCollector.ErrInterrupt(totalCmdTime)
+		c.CmdMetricCollector.ErrInterrupt(totalCmdTime)
 		return true
 	}
 	return false
@@ -320,8 +326,7 @@ func (c *Circuit) checkErrBadRequest(ret error, runFuncDoneTime time.Time, total
 		} else {
 			c.closedToOpen.BackedOutAttempt(runFuncDoneTime)
 		}
-		c.circuitStats.backedOutAttemptsCount.Inc(runFuncDoneTime)
-		c.circuitStats.cmdMetricCollector.ErrBadRequest(totalCmdTime)
+		c.CmdMetricCollector.ErrBadRequest(totalCmdTime)
 		return true
 	}
 	return false
@@ -334,8 +339,7 @@ func (c *Circuit) checkErrFailure(ret error, runFuncDoneTime time.Time, totalCmd
 		} else {
 			c.closedToOpen.ErrorAttempt(runFuncDoneTime)
 		}
-		c.circuitStats.cmdMetricCollector.ErrFailure(totalCmdTime)
-		c.circuitStats.errorsCount.Inc(runFuncDoneTime)
+		c.CmdMetricCollector.ErrFailure(totalCmdTime)
 		c.attemptToOpen(runFuncDoneTime)
 		return true
 	}
@@ -349,8 +353,7 @@ func (c *Circuit) checkErrTimeout(expectedDoneBy time.Time, runFuncDoneTime time
 		} else {
 			c.closedToOpen.ErrorAttempt(runFuncDoneTime)
 		}
-		c.circuitStats.errorsCount.Inc(runFuncDoneTime)
-		c.circuitStats.cmdMetricCollector.ErrTimeout(totalCmdTime)
+		c.CmdMetricCollector.ErrTimeout(totalCmdTime)
 		c.attemptToOpen(runFuncDoneTime)
 		return true
 	}
@@ -369,7 +372,7 @@ func (c *Circuit) fallback(ctx context.Context, err error, fallbackFunc func(con
 	currentFallbackCount := c.concurrentFallbacks.Add(1)
 	defer c.concurrentFallbacks.Add(-1)
 	if c.threadSafeConfig.Fallback.MaxConcurrentRequests.Get() >= 0 && currentFallbackCount > c.threadSafeConfig.Fallback.MaxConcurrentRequests.Get() {
-		c.circuitStats.fallbackMetricCollector.ErrConcurrencyLimitReject()
+		c.FallbackMetricCollector.ErrConcurrencyLimitReject()
 		return &hystrixError{concurrencyLimitReached: true, msg: "throttling concurrency to fallbacks"}
 	}
 
@@ -377,10 +380,10 @@ func (c *Circuit) fallback(ctx context.Context, err error, fallbackFunc func(con
 	retErr := fallbackFunc(ctx, err)
 	totalCmdTime := c.now().Sub(startTime)
 	if retErr != nil {
-		c.circuitStats.fallbackMetricCollector.ErrFailure(totalCmdTime)
+		c.FallbackMetricCollector.ErrFailure(totalCmdTime)
 		return retErr
 	}
-	c.circuitStats.fallbackMetricCollector.Success(totalCmdTime)
+	c.FallbackMetricCollector.Success(totalCmdTime)
 	return nil
 }
 

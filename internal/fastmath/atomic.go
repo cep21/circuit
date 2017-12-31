@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// AtomicBoolean is an atomic boolean
+// AtomicBoolean is a helper struct to simulate atomic operations on a boolean
 type AtomicBoolean struct{ flag uint32 }
 
 func (a *AtomicBoolean) Get() bool {
@@ -25,7 +25,7 @@ func (a *AtomicBoolean) String() string {
 	return strconv.FormatBool(a.Get())
 }
 
-// AtomicInt64 is an atomic int64
+// AtomicInt64 is a helper struct to simulate atomic operations on an int64
 type AtomicInt64 struct{ val int64 }
 
 func (a *AtomicInt64) Get() int64 {

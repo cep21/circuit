@@ -41,7 +41,7 @@ func (r *RollingCounter) StringAt(now time.Time) string {
 	for _, v := range b {
 		parts = append(parts, strconv.FormatInt(v, 10))
 	}
-	return fmt.Sprintf("rolling_sum=%d total_sum=%d parts=(%s)", r.RollingSum(now), r.TotalSum(), strings.Join(parts, ","))
+	return fmt.Sprintf("rolling_sum=%d total_sum=%d parts=(%s)", r.RollingSumAt(now), r.TotalSum(), strings.Join(parts, ","))
 }
 
 // Inc adds a single event to the current bucket
@@ -58,13 +58,19 @@ func (r *RollingCounter) Inc(now time.Time) {
 	r.rollingSum.Add(1)
 }
 
-// RollingSum returns the total number of events in the rolling time window
-func (r *RollingCounter) RollingSum(now time.Time) int64 {
+// RollingSumAt returns the total number of events in the rolling time window
+func (r *RollingCounter) RollingSumAt(now time.Time) int64 {
 	r.rollingBucket.Advance(now, r.clearBucket)
 	return r.rollingSum.Get()
 }
 
-// RollingSum returns the total number of events of all time
+// RollingSum returns the total number of events in the rolling time window (With time time.Now())
+func (r *RollingCounter) RollingSum() int64 {
+	r.rollingBucket.Advance(time.Now(), r.clearBucket)
+	return r.rollingSum.Get()
+}
+
+// RollingSumAt returns the total number of events of all time
 func (r *RollingCounter) TotalSum() int64 {
 	return r.totalSum.Get()
 }

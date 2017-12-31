@@ -27,7 +27,6 @@ type ClosedToOpen interface {
 	// AttemptToOpen a circuit that is currently closed, after a bad request comes in.  Only called after bad requests,
 	// never called after a successful request
 	AttemptToOpen(now time.Time) bool
-	Configurable
 }
 
 // OpenToClosed controls logic that tries to close an open circuit
@@ -46,7 +45,6 @@ type OpenToClosed interface {
 	ErrorAttempt(now time.Time)
 	// AttemptToOpen a circuit that is currently closed, after a bad request comes in
 	AttemptToClose(now time.Time) bool
-	Configurable
 }
 
 // errorPercentageCheck is ClosedToOpen that opens a circuit after a threshold and % error has been
@@ -90,13 +88,13 @@ func (e *errorPercentageCheck) ErrorAttempt(now time.Time) {
 // AttemptToOpen returns true if rolling count >= threshold and
 // error % is high enough.
 func (e *errorPercentageCheck) AttemptToOpen(now time.Time) bool {
-	attemptCount := e.legitimateAttemptsCount.RollingSum(now)
+	attemptCount := e.legitimateAttemptsCount.RollingSumAt(now)
 	if attemptCount == 0 || attemptCount < e.requestVolumeThreshold.Get() {
 		// not enough requests. Will not open circuit
 		return false
 	}
 
-	errCount := e.errorsCount.RollingSum(now)
+	errCount := e.errorsCount.RollingSumAt(now)
 	errPercentage := int64(float64(errCount) / float64(attemptCount) * 100)
 	return errPercentage >= e.errorPercentage.Get()
 }
