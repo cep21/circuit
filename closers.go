@@ -118,16 +118,6 @@ func newErrorPercentageCheck() ClosedToOpen {
 	return &errorPercentageCheck{}
 }
 
-// Configurable is anything that can receive configuration changes while live
-type Configurable interface {
-	// SetConfigThreadSafe can be called while the circuit is currently being used and will modify things that are
-	// safe to change live.
-	SetConfigThreadSafe(props CommandProperties)
-	// SetConfigNotThreadSafe should only be called when the circuit is not in use: otherwise it will fail -race
-	// detection
-	SetConfigNotThreadSafe(props CommandProperties)
-}
-
 // sleepyOpenToClose is hystrix's default half-open logic: try again ever X ms
 type sleepyOpenToClose struct {
 	// Tracks when we should try to close an open circuit again

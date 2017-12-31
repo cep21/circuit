@@ -6,12 +6,121 @@ import (
 	"github.com/cep21/hystrix/internal/fastmath"
 )
 
+// CommandProperties is https://github.com/Netflix/Hystrix/wiki/Configuration#command-properties
+type CommandProperties struct {
+	Execution         ExecutionConfig
+	Fallback          FallbackConfig
+	CircuitBreaker    CircuitBreakerConfig
+	Metrics           MetricsConfig
+	MetricsCollectors MetricsCollectors
+	GoSpecific        GoSpecificConfig
+}
+
 // ExecutionConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#execution
 type ExecutionConfig struct {
 	// ExecutionTimeout is https://github.com/Netflix/Hystrix/wiki/Configuration#execution.isolation.thread.timeoutInMilliseconds
 	Timeout time.Duration
 	// MaxConcurrentRequests is https://github.com/Netflix/Hystrix/wiki/Configuration#executionisolationsemaphoremaxconcurrentrequests
 	MaxConcurrentRequests int64
+}
+
+// FallbackConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#fallback
+type FallbackConfig struct {
+	// Enabled is opposite of https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerenabled
+	// Note: Java Hystrix calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
+	Disabled bool `json:",omitempty"`
+	// MaxConcurrentRequests is https://github.com/Netflix/Hystrix/wiki/Configuration#fallback.isolation.semaphore.maxConcurrentRequests
+	MaxConcurrentRequests int64
+}
+
+// MetricsConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#metrics
+type MetricsConfig struct {
+	// Rolling Stats size is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatstimeinmilliseconds
+	RollingStatsDuration time.Duration
+	// RollingStatsNumBuckets is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatsnumbuckets
+	RollingStatsNumBuckets int
+
+	// RollingPercentileEnabled is opposite of https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentileenabled
+	RollingPercentileDisabled bool
+	// RollingPercentileDuration is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentiletimeinmilliseconds
+	RollingPercentileDuration time.Duration
+	// RollingPercentileNumBuckets is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentilenumbuckets
+	RollingPercentileNumBuckets int
+	// RollingPercentileBucketSize is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentilebucketsize
+	RollingPercentileBucketSize int
+}
+
+// MetricsCollectors can receive metrics during a circuit.  They should be fast, as they will
+// block circuit operation during function calls.
+type MetricsCollectors struct {
+	Run      []RunMetrics     `json:"-"`
+	Fallback []FallbackMetric `json:"-"`
+}
+
+// CircuitBreakerConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#circuit-breaker
+type CircuitBreakerConfig struct {
+	// RequestVolumeThreshold is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerrequestvolumethreshold
+	RequestVolumeThreshold int64
+	// SleepWindow is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakersleepwindowinmilliseconds
+	SleepWindow time.Duration
+	// ErrorThresholdPercentage is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakererrorthresholdpercentage
+	ErrorThresholdPercentage int64
+	// if disabled, Execute functions pass to just calling runFunc and do no tracking or fallbacks
+	// Note: Java Hystrix calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
+	Disabled bool `json:",omitempty"`
+	// ForceOpen is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceopen
+	ForceOpen bool `json:",omitempty"`
+	// ForcedClosed is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceclosed
+	ForcedClosed bool `json:",omitempty"`
+}
+
+// GoSpecificConfig is settings that aren't in the Java Hystrix implementation.
+type GoSpecificConfig struct {
+	// Normally if the parent context is canceled before a timeout is reached, we don't consider the circuit
+	// unhealth.  Set this to true to consider those circuits unhealthy.
+	IgnoreInterrputs bool `json:",omitempty"`
+	// ClosedToOpenFactory creates logic that determines if the circuit should go from Closed to Open state.
+	// By default, it uses the Hystrix model of opening a circuit after a threshold and % as reached.
+	ClosedToOpenFactory func() ClosedToOpen `json:"-"`
+	// OpenToClosedFactory creates logic that determines if the circuit should go from Open to Closed state.
+	// By default, it uses the Hystrix model of allowing a single connection and switching if the connection is
+	// Successful
+	OpenToClosedFactory func() OpenToClosed `json:"-"`
+	// CustomConfig is anything you want.  It is passed along the circuit to create logic for ClosedToOpenFactory
+	// and OpenToClosedFactory configuration.  These maps are merged.
+	CustomConfig map[interface{}]interface{} `json:"-"`
+	// TimeKeeper returns the current way to keep time.  You only want to modify this for testing.
+	TimeKeeper TimeKeeper `json:"-"`
+	// GoLostErrors can receive errors that would otherwise be lost by `Go` executions.  For example, if Go returns
+	// early but some long time later an error or panic eventually happens.
+	GoLostErrors func(err error, panics interface{}) `json:"-"`
+}
+
+// TimeKeeper allows overriding time to test the circuit
+type TimeKeeper struct {
+	// Now should simulate time.Now
+	Now func() time.Time
+	// AfterFunc should simulate time.AfterFunc
+	AfterFunc func(time.Duration, func()) *time.Timer
+}
+
+// Configurable is anything that can receive configuration changes while live
+type Configurable interface {
+	// SetConfigThreadSafe can be called while the circuit is currently being used and will modify things that are
+	// safe to change live.
+	SetConfigThreadSafe(props CommandProperties)
+	// SetConfigNotThreadSafe should only be called when the circuit is not in use: otherwise it will fail -race
+	// detection
+	SetConfigNotThreadSafe(props CommandProperties)
+}
+
+func (t *TimeKeeper) merge(other TimeKeeper) {
+	if t.Now == nil {
+		t.Now = other.Now
+	}
+	if t.AfterFunc == nil {
+		t.AfterFunc = other.AfterFunc
+	}
 }
 
 func (c *ExecutionConfig) merge(other ExecutionConfig) {
@@ -23,13 +132,26 @@ func (c *ExecutionConfig) merge(other ExecutionConfig) {
 	}
 }
 
-// FallbackConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#fallback
-type FallbackConfig struct {
-	// Enabled is opposite of https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerenabled
-	// Note: Java Hystrix calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
-	Disabled bool `json:",omitempty"`
-	// MaxConcurrentRequests is https://github.com/Netflix/Hystrix/wiki/Configuration#fallback.isolation.semaphore.maxConcurrentRequests
-	MaxConcurrentRequests int64
+
+func (c *MetricsConfig) merge(other MetricsConfig) {
+	if c.RollingStatsDuration == 0 {
+		c.RollingStatsDuration = other.RollingStatsDuration
+	}
+	if c.RollingStatsNumBuckets == 0 {
+		c.RollingStatsNumBuckets = other.RollingStatsNumBuckets
+	}
+	if !c.RollingPercentileDisabled {
+		c.RollingPercentileDisabled = other.RollingPercentileDisabled
+	}
+	if c.RollingPercentileDuration == 0 {
+		c.RollingPercentileDuration = other.RollingPercentileDuration
+	}
+	if c.RollingPercentileNumBuckets == 0 {
+		c.RollingPercentileNumBuckets = other.RollingPercentileNumBuckets
+	}
+	if c.RollingPercentileBucketSize == 0 {
+		c.RollingPercentileBucketSize = other.RollingPercentileBucketSize
+	}
 }
 
 func (c *FallbackConfig) merge(other FallbackConfig) {
@@ -62,111 +184,6 @@ func (c *CircuitBreakerConfig) merge(other CircuitBreakerConfig) {
 	}
 }
 
-// MetricsConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#metrics
-type MetricsConfig struct {
-	// Rolling Stats size is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatstimeinmilliseconds
-	RollingStatsDuration time.Duration
-	// RollingStatsNumBuckets is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatsnumbuckets
-	RollingStatsNumBuckets int
-
-	// RollingPercentileEnabled is opposite of https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentileenabled
-	RollingPercentileDisabled bool
-	// RollingPercentileDuration is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentiletimeinmilliseconds
-	RollingPercentileDuration time.Duration
-	// RollingPercentileNumBuckets is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentilenumbuckets
-	RollingPercentileNumBuckets int
-	// RollingPercentileBucketSize is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentilebucketsize
-	RollingPercentileBucketSize int
-}
-
-func (c *MetricsConfig) merge(other MetricsConfig) {
-	if c.RollingStatsDuration == 0 {
-		c.RollingStatsDuration = other.RollingStatsDuration
-	}
-	if c.RollingStatsNumBuckets == 0 {
-		c.RollingStatsNumBuckets = other.RollingStatsNumBuckets
-	}
-	if !c.RollingPercentileDisabled {
-		c.RollingPercentileDisabled = other.RollingPercentileDisabled
-	}
-	if c.RollingPercentileDuration == 0 {
-		c.RollingPercentileDuration = other.RollingPercentileDuration
-	}
-	if c.RollingPercentileNumBuckets == 0 {
-		c.RollingPercentileNumBuckets = other.RollingPercentileNumBuckets
-	}
-	if c.RollingPercentileBucketSize == 0 {
-		c.RollingPercentileBucketSize = other.RollingPercentileBucketSize
-	}
-}
-
-// CircuitBreakerConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#circuit-breaker
-type CircuitBreakerConfig struct {
-	// RequestVolumeThreshold is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerrequestvolumethreshold
-	RequestVolumeThreshold int64
-	// SleepWindow is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakersleepwindowinmilliseconds
-	SleepWindow time.Duration
-	// ErrorThresholdPercentage is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakererrorthresholdpercentage
-	ErrorThresholdPercentage int64
-	// if disabled, Execute functions pass to just calling runFunc and do no tracking or fallbacks
-	// Note: Java Hystrix calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
-	Disabled bool `json:",omitempty"`
-	// ForceOpen is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceopen
-	ForceOpen bool `json:",omitempty"`
-	// ForcedClosed is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceclosed
-	ForcedClosed bool `json:",omitempty"`
-}
-
-// CommandProperties is https://github.com/Netflix/Hystrix/wiki/Configuration#command-properties
-type CommandProperties struct {
-	Execution         ExecutionConfig
-	Fallback          FallbackConfig
-	CircuitBreaker    CircuitBreakerConfig
-	Metrics           MetricsConfig
-	MetricsCollectors MetricsCollectors
-	GoSpecific        GoSpecificConfig
-}
-
-// GoSpecificConfig is settings that aren't in the Java Hystrix implementation.
-type GoSpecificConfig struct {
-	// Normally if the parent context is canceled before a timeout is reached, we don't consider the circuit
-	// unhealth.  Set this to true to consider those circuits unhealthy.
-	IgnoreInterrputs bool `json:",omitempty"`
-
-	// ClosedToOpenFactory creates logic that determines if the circuit should go from Closed to Open state.
-	// By default, it uses the Hystrix model of opening a circuit after a threshold and % as reached.
-	ClosedToOpenFactory func() ClosedToOpen `json:"-"`
-	// OpenToClosedFactory creates logic that determines if the circuit should go from Open to Closed state.
-	// By default, it uses the Hystrix model of allowing a single connection and switching if the connection is
-	// Successful
-	OpenToClosedFactory func() OpenToClosed `json:"-"`
-	// CustomConfig is anything you want.  It is passed along the circuit to create logic for ClosedToOpenFactory
-	// and OpenToClosedFactory configuration.  These maps are merged.
-	CustomConfig map[interface{}]interface{} `json:"-"`
-	// TimeKeeper returns the current way to keep time.  You only want to modify this for testing.
-	TimeKeeper TimeKeeper `json:"-"`
-	// GoLostErrors can receive errors that would otherwise be lost by `Go` executions.  For example, if Go returns
-	// early but some long time later an error or panic eventually happens.
-	GoLostErrors func(err error, panics interface{}) `json:"-"`
-}
-
-// TimeKeeper allows overriding time to test the circuit
-type TimeKeeper struct {
-	// Now should simulate time.Now
-	Now func() time.Time
-	// AfterFunc should simulate time.AfterFunc
-	AfterFunc func(time.Duration, func()) *time.Timer
-}
-
-func (t *TimeKeeper) merge(other TimeKeeper) {
-	if t.Now == nil {
-		t.Now = other.Now
-	}
-	if t.AfterFunc == nil {
-		t.AfterFunc = other.AfterFunc
-	}
-}
-
 func (g *GoSpecificConfig) mergeCustomConfig(other GoSpecificConfig) {
 	if len(other.CustomConfig) != 0 {
 		if g.CustomConfig == nil {
@@ -196,13 +213,6 @@ func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
 		g.GoLostErrors = other.GoLostErrors
 	}
 	g.TimeKeeper.merge(other.TimeKeeper)
-}
-
-// MetricsCollectors can receive metrics during a circuit.  They should be fast, as they will
-// block circuit operation during function calls.
-type MetricsCollectors struct {
-	Run      []RunMetrics     `json:"-"`
-	Fallback []FallbackMetric `json:"-"`
 }
 
 func (m *MetricsCollectors) merge(other MetricsCollectors) {
