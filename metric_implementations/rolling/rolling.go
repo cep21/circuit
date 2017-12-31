@@ -119,7 +119,7 @@ func (r *RunStats) LegitimateAttemptsAt(now time.Time) int64 {
 }
 
 func (r *RunStats) ErrorsAt(now time.Time) int64 {
-	return r.Successes.RollingSumAt(now)
+	return r.ErrFailures.RollingSumAt(now) + r.ErrTimeouts.RollingSumAt(now)
 }
 
 func (r *RunStats) ErrorPercentageAt(now time.Time) float64 {

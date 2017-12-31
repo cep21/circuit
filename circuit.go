@@ -107,11 +107,13 @@ func (c *Circuit) SetConfigNotThreadSafe(config CommandProperties) {
 	c.openToClose = config.GoSpecific.OpenToClosedFactory()
 	c.closedToOpen = config.GoSpecific.ClosedToOpenFactory()
 	if cfg, ok := c.openToClose.(Configurable); ok {
-		cfg.SetConfigThreadSafe(config)
+		cfg.SetConfigNotThreadSafe(config)
 	}
 	if cfg, ok := c.closedToOpen.(Configurable); ok {
-		cfg.SetConfigThreadSafe(config)
+		cfg.SetConfigNotThreadSafe(config)
 	}
+	c.CmdMetricCollector.CmdMetricCollectors = config.MetricsCollectors.Run
+	c.FallbackMetricCollector.FallbackMetricCollectors = config.MetricsCollectors.Fallback
 	c.FallbackMetricCollector.SetConfigNotThreadSafe(config)
 	c.CmdMetricCollector.SetConfigNotThreadSafe(config)
 

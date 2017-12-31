@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 
 	"github.com/cep21/hystrix"
+	"github.com/cep21/hystrix/metriceventstream"
 )
 
 // This is a full example of using a circuit around HTTP requests.
@@ -147,7 +148,7 @@ func ExampleHystrix_DefaultCircuitProperties() {
 
 	// Hystrix manages circuits with unique names
 	h := hystrix.Hystrix{
-		DefaultCircuitProperties: []func(circuitName string) hystrix.CommandProperties{myFactory},
+		DefaultCircuitProperties: []hystrix.CommandPropertiesConstructor{myFactory},
 	}
 	h.MustCreateCircuit("v1", hystrix.CommandProperties{})
 	fmt.Println("The timeout of v1 is", h.GetCircuit("v1").Config().Execution.Timeout)
@@ -240,7 +241,7 @@ func ExampleCommandProperties() {
 // This example creates an event stream handler, starts it, then later closes the handler
 func ExampleMetricEventStream() {
 	h := hystrix.Hystrix{}
-	es := hystrix.MetricEventStream{
+	es := metriceventstream.MetricEventStream{
 		Hystrix: &h,
 	}
 	go es.Start()

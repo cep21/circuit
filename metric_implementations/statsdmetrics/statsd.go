@@ -59,28 +59,9 @@ func (c *CommandFactory) CommandProperties(circuitName string) hystrix.CommandPr
 					SampleRate: c.sampleRate(),
 				},
 			},
-			ResponseTimeSLO: []hystrix.ResponseTimeSLOCollector{
-				&SLOMetricCollector{
-					SendTo: c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "slo")),
-				},
-			},
 		},
 	}
 }
-
-type SLOMetricCollector struct {
-	SendTo     statsd.StatSender
-	SampleRate float32
-}
-
-func (s *SLOMetricCollector) Failed() {
-	s.SendTo.Inc("fail", 1, s.SampleRate)
-}
-func (s *SLOMetricCollector) Passed() {
-	s.SendTo.Inc("pass", 1, s.SampleRate)
-}
-
-var _ hystrix.ResponseTimeSLOCollector = &SLOMetricCollector{}
 
 type CmdMetricCollector struct {
 	SendTo     statsd.StatSender
