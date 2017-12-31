@@ -42,7 +42,10 @@ func (h *Hystrix) Var() expvar.Var {
 		defer h.mu.RUnlock()
 		ret := make(map[string]interface{})
 		for k, v := range h.circuitMap {
-			ret[k] = v.DebugValues()
+			ev := expvarToVal(v.Var())
+			if ev != nil {
+				ret[k] = ev
+			}
 		}
 		return ret
 	})

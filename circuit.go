@@ -127,18 +127,17 @@ func (c *Circuit) now() time.Time {
 // Var exports that help diagnose the circuit
 func (c *Circuit) Var() expvar.Var {
 	return expvar.Func(func() interface{} {
-		return c.DebugValues()
+		ret := map[string]interface{}{
+			"config":               c.Config(),
+			"is_open":              c.IsOpen(),
+			"name":                 c.Name(),
+			"run_metrics":          expvarToVal(c.CmdMetricCollector.Var()),
+			"concurrent_commands":  c.ConcurrentCommands(),
+			"concurrent_fallbacks": c.ConcurrentFallbacks(),
+			"fallback_metrics":     expvarToVal(c.FallbackMetricCollector.Var()),
+		}
+		return ret
 	})
-}
-
-// DebugValues is a random-ish map of interesting values to debug your circuit
-func (c *Circuit) DebugValues() interface{} {
-	ret := map[string]interface{}{
-		"config": c.Config(),
-		"name":   c.Name(),
-	}
-
-	return ret
 }
 
 // Name of this circuit
