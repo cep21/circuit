@@ -3,6 +3,8 @@ package rolling
 import (
 	"time"
 
+	"expvar"
+
 	"github.com/cep21/hystrix"
 	"github.com/cep21/hystrix/internal/fastmath"
 )
@@ -47,6 +49,28 @@ type RunStats struct {
 
 	// It is analogous to https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#latency-percentiles-hystrixcommandrun-execution-gauge
 	Latencies fastmath.RollingPercentile
+}
+
+func (r *RunStats) Var() expvar.Var {
+	return expvar.Func(func() interface{} {
+		snap := r.Latencies.Snapshot()
+		return map[string]interface{}{
+			"Successes":                  r.Successes.TotalSum(),
+			"ErrConcurrencyLimitRejects": r.ErrConcurrencyLimitRejects.TotalSum(),
+			"ErrFailures":                r.ErrFailures.TotalSum(),
+			"ErrShortCircuits":           r.ErrShortCircuits.TotalSum(),
+			"ErrTimeouts":                r.ErrTimeouts.TotalSum(),
+			"ErrBadRequests":             r.ErrBadRequests.TotalSum(),
+			"ErrInterrupts":              r.ErrInterrupts.TotalSum(),
+			"Latencies": map[string]string{
+				"p25":  snap.Percentile(.25).String(),
+				"p50":  snap.Percentile(.5).String(),
+				"p90":  snap.Percentile(.9).String(),
+				"p99":  snap.Percentile(.99).String(),
+				"mean": snap.Mean().String(),
+			},
+		}
+	})
 }
 
 func (r *RunStats) SetConfigThreadSafe(config hystrix.CommandProperties) {
@@ -137,6 +161,16 @@ type FallbackStats struct {
 	ErrFailures                fastmath.RollingCounter
 }
 
+func (r *FallbackStats) Var() expvar.Var {
+	return expvar.Func(func() interface{} {
+		return map[string]interface{}{
+			"Successes":                  r.Successes.TotalSum(),
+			"ErrConcurrencyLimitRejects": r.ErrConcurrencyLimitRejects.TotalSum(),
+			"ErrFailures":                r.ErrFailures.TotalSum(),
+		}
+	})
+}
+
 func (r *FallbackStats) Success(duration time.Duration) {
 	r.Successes.Inc(time.Now())
 }
@@ -152,7 +186,6 @@ func (r *FallbackStats) ErrFailure(duration time.Duration) {
 var _ hystrix.FallbackMetric = &FallbackStats{}
 
 func (r *FallbackStats) SetConfigThreadSafe(config hystrix.CommandProperties) {
-
 }
 
 func (r *FallbackStats) SetConfigNotThreadSafe(config hystrix.CommandProperties) {

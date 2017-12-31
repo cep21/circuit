@@ -1,6 +1,7 @@
 package hystrix
 
 import (
+	"expvar"
 	"time"
 )
 
@@ -9,6 +10,36 @@ type RunMetricsCollection []RunMetrics
 
 var _ RunMetrics = &RunMetricsCollection{}
 var _ Configurable = &RunMetricsCollection{}
+
+type varable interface {
+	Var() expvar.Var
+}
+
+func expvarToVal(in expvar.Var) interface{} {
+	type iv interface {
+		Value() interface{}
+	}
+	if rawVal, ok := in.(iv); ok {
+		return rawVal.Value()
+	}
+	return nil
+}
+
+// Var exposes run collectors as expvar
+func (r RunMetricsCollection) Var() expvar.Var {
+	return expvar.Func(func() interface{} {
+		ret := make([]interface{}, 0, len(r))
+		for _, c := range r {
+			if v, ok := c.(varable); ok {
+				asVal := expvarToVal(v.Var())
+				if asVal != nil {
+					ret = append(ret, asVal)
+				}
+			}
+		}
+		return ret
+	})
+}
 
 // SetConfigNotThreadSafe passes the config to all sub-RunMetrics
 func (r RunMetricsCollection) SetConfigNotThreadSafe(config CommandProperties) {
@@ -120,6 +151,22 @@ func (r FallbackMetricsCollection) ErrFailure(duration time.Duration) {
 	for _, c := range r {
 		c.ErrFailure(duration)
 	}
+}
+
+// Var exposes run collectors as expvar
+func (r FallbackMetricsCollection) Var() expvar.Var {
+	return expvar.Func(func() interface{} {
+		ret := make([]interface{}, 0, len(r))
+		for _, c := range r {
+			if v, ok := c.(varable); ok {
+				asVal := expvarToVal(v.Var())
+				if asVal != nil {
+					ret = append(ret, asVal)
+				}
+			}
+		}
+		return ret
+	})
 }
 
 // RunMetrics is guaranteed to execute one (and only one) of the following functions each time the circuit

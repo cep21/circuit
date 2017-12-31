@@ -27,7 +27,7 @@ func (c *ExecutionConfig) merge(other ExecutionConfig) {
 type FallbackConfig struct {
 	// Enabled is opposite of https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerenabled
 	// Note: Java Hystrix calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
-	Disabled bool
+	Disabled bool `json:",omitempty"`
 	// MaxConcurrentRequests is https://github.com/Netflix/Hystrix/wiki/Configuration#fallback.isolation.semaphore.maxConcurrentRequests
 	MaxConcurrentRequests int64
 }
@@ -110,11 +110,11 @@ type CircuitBreakerConfig struct {
 	ErrorThresholdPercentage int64
 	// if disabled, Execute functions pass to just calling runFunc and do no tracking or fallbacks
 	// Note: Java Hystrix calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
-	Disabled bool
+	Disabled bool `json:",omitempty"`
 	// ForceOpen is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceopen
-	ForceOpen bool
+	ForceOpen bool `json:",omitempty"`
 	// ForcedClosed is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceclosed
-	ForcedClosed bool
+	ForcedClosed bool `json:",omitempty"`
 }
 
 // CommandProperties is https://github.com/Netflix/Hystrix/wiki/Configuration#command-properties
@@ -131,7 +131,7 @@ type CommandProperties struct {
 type GoSpecificConfig struct {
 	// Normally if the parent context is canceled before a timeout is reached, we don't consider the circuit
 	// unhealth.  Set this to true to consider those circuits unhealthy.
-	IgnoreInterrputs bool
+	IgnoreInterrputs bool `json:",omitempty"`
 
 	// ClosedToOpenFactory creates logic that determines if the circuit should go from Closed to Open state.
 	// By default, it uses the Hystrix model of opening a circuit after a threshold and % as reached.
