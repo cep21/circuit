@@ -457,7 +457,7 @@ func TestLargeSleepWindow(t *testing.T) {
 			for i := 0; i < 20*2; i++ {
 				err := c.Execute(context.Background(), sleepsForX(time.Millisecond/10), nil)
 				if err == nil {
-					t.Fatalf("I expect this to always fail, now that it's in the failure state")
+					t.Errorf("I expect this to always fail, now that it's in the failure state")
 				}
 				time.Sleep(time.Millisecond / 10)
 			}

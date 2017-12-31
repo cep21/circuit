@@ -6,6 +6,8 @@ import (
 	"sync"
 )
 
+// CommandPropertiesConstructor is a generic function that can create command properties to configure a circuit by name
+// It is safe to leave not configured properties their empty value.
 type CommandPropertiesConstructor func(circuitName string) CommandProperties
 
 // Hystrix manages circuits with unique names

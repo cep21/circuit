@@ -135,7 +135,7 @@ func (c *Circuit) Var() expvar.Var {
 func (c *Circuit) DebugValues() interface{} {
 	ret := map[string]interface{}{
 		"config": c.Config(),
-		"name": c.Name(),
+		"name":   c.Name(),
 	}
 
 	return ret

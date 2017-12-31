@@ -10,11 +10,11 @@ import (
 
 	gohystrix "github.com/afex/hystrix-go/hystrix"
 	"github.com/cep21/hystrix"
+	"github.com/cep21/hystrix/metric_implementations/rolling"
 	iandCircuit "github.com/iand/circuit"
 	"github.com/rubyist/circuitbreaker"
 	"github.com/sony/gobreaker"
 	"github.com/streadway/handy/breaker"
-	"github.com/cep21/hystrix/metric_implementations/rolling"
 )
 
 type circuitConfigs struct {
@@ -45,7 +45,7 @@ func BenchmarkCiruits(b *testing.B) {
 			configs: []circuitConfigs{
 				{
 					name:   "Metrics",
-					config:	rollingTimeoutStats,
+					config: rollingTimeoutStats,
 				}, {
 					name: "Minimal",
 					config: hystrix.CommandProperties{
