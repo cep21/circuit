@@ -1,4 +1,4 @@
-PROFILE_RUN ?= BenchmarkCiruits/Hystrix/passing/NoTimeout/75
+PROFILE_RUN ?= BenchmarkCiruits/Hystrix/Minimal/passing/75
 BENCH_RUN ?= .
 # Run unit tests
 test:
