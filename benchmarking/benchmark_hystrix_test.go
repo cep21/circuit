@@ -14,6 +14,7 @@ import (
 	"github.com/rubyist/circuitbreaker"
 	"github.com/sony/gobreaker"
 	"github.com/streadway/handy/breaker"
+	"github.com/cep21/hystrix/metric_implementations/rolling"
 )
 
 type circuitConfigs struct {
@@ -29,6 +30,12 @@ type circuitImpls struct {
 }
 
 func BenchmarkCiruits(b *testing.B) {
+	rollingTimeoutStats := rolling.CollectRollingStats("")
+	rollingTimeoutStats.Merge(hystrix.CommandProperties{
+		Execution: hystrix.ExecutionConfig{
+			Timeout: -1,
+		},
+	})
 	concurrents := []int{1, 75}
 	passesParam := []bool{true, false}
 	impls := []circuitImpls{
@@ -37,8 +44,8 @@ func BenchmarkCiruits(b *testing.B) {
 			runner: hystrixRunner,
 			configs: []circuitConfigs{
 				{
-					name:   "DefaultConfig",
-					config: hystrix.CommandProperties{},
+					name:   "Metrics",
+					config:	rollingTimeoutStats,
 				}, {
 					name: "Minimal",
 					config: hystrix.CommandProperties{
@@ -128,20 +135,20 @@ func BenchmarkCiruits(b *testing.B) {
 	}
 	for _, impl := range impls {
 		b.Run(impl.name, func(b *testing.B) {
-			for _, pass := range passesParam {
-				pass := pass
-				var f interface{}
-				var name string
-				if pass {
-					f = impl.funcTypes[0]
-					name = "passing"
-				} else {
-					f = impl.funcTypes[1]
-					name = "failing"
-				}
-				b.Run(name, func(b *testing.B) {
-					for _, config := range impl.configs {
-						b.Run(config.name, func(b *testing.B) {
+			for _, config := range impl.configs {
+				b.Run(config.name, func(b *testing.B) {
+					for _, pass := range passesParam {
+						pass := pass
+						var f interface{}
+						var name string
+						if pass {
+							f = impl.funcTypes[0]
+							name = "passing"
+						} else {
+							f = impl.funcTypes[1]
+							name = "failing"
+						}
+						b.Run(name, func(b *testing.B) {
 							for _, concurrent := range concurrents {
 								b.Run(strconv.Itoa(concurrent), func(b *testing.B) {
 									impl.runner(b, config.config, concurrent, f, pass)

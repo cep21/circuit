@@ -210,15 +210,16 @@ func (m *MetricsCollectors) merge(other MetricsCollectors) {
 	m.Fallback = append(m.Fallback, other.Fallback...)
 }
 
-// merge these properties with another command's properties.  Anything set to the zero value, will takes values from
+// Merge these properties with another command's properties.  Anything set to the zero value, will takes values from
 // other.
-func (c *CommandProperties) merge(other CommandProperties) {
+func (c *CommandProperties) Merge(other CommandProperties) *CommandProperties {
 	c.Execution.merge(other.Execution)
 	c.Fallback.merge(other.Fallback)
 	c.CircuitBreaker.merge(other.CircuitBreaker)
 	c.Metrics.merge(other.Metrics)
 	c.MetricsCollectors.merge(other.MetricsCollectors)
 	c.GoSpecific.merge(other.GoSpecific)
+	return c
 }
 
 // atomicCircuitConfig is used during circuit operations and allows atomic read/write operations.  This lets users

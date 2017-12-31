@@ -73,7 +73,7 @@ func (h *Hystrix) CreateCircuit(name string, config CommandProperties) (*Circuit
 	}
 	// Merge in reverse order so the most recently appending constructor is more important
 	for i := len(h.DefaultCircuitProperties) - 1; i >= 0; i-- {
-		config.merge(h.DefaultCircuitProperties[i](name))
+		config.Merge(h.DefaultCircuitProperties[i](name))
 	}
 	_, exists := h.circuitMap[name]
 	if exists {
