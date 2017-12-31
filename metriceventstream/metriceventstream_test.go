@@ -1,4 +1,4 @@
-package hystrix
+package metriceventstream
 
 import (
 	"context"
@@ -6,12 +6,15 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"github.com/cep21/hystrix"
 )
 
 func TestMetricEventStream(t *testing.T) {
-	h := &Hystrix{}
-	c := h.MustCreateCircuit("hello-world", CommandProperties{})
-	if err := c.Execute(context.Background(), alwaysPasses, nil); err != nil {
+	h := &hystrix.Hystrix{}
+	c := h.MustCreateCircuit("hello-world", hystrix.CommandProperties{})
+	if err := c.Execute(context.Background(), func(_ context.Context) error {
+		return nil
+	}, nil); err != nil {
 		t.Error("no error expected from always passes")
 	}
 

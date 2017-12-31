@@ -6,11 +6,13 @@ import (
 	"sync"
 )
 
+type CommandPropertiesConstructor func(circuitName string) CommandProperties
+
 // Hystrix manages circuits with unique names
 type Hystrix struct {
 	// DefaultCircuitProperties is a list of CommandProperties constructors called, in reverse order,
 	// to append or modify configuration for your circuit.
-	DefaultCircuitProperties []func(circuitName string) CommandProperties
+	DefaultCircuitProperties []CommandPropertiesConstructor
 	circuitMap               map[string]*Circuit
 	mu                       sync.RWMutex
 }

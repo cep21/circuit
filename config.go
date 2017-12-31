@@ -218,7 +218,6 @@ func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
 type MetricsCollectors struct {
 	Run             []RunMetrics               `json:"-"`
 	Fallback        []FallbackMetric           `json:"-"`
-	ResponseTimeSLO []ResponseTimeSLOCollector `json:"-"`
 }
 
 func (m *MetricsCollectors) merge(other MetricsCollectors) {

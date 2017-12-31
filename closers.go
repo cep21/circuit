@@ -27,7 +27,6 @@ type ClosedToOpen interface {
 	// AttemptToOpen a circuit that is currently closed, after a bad request comes in.  Only called after bad requests,
 	// never called after a successful request
 	AttemptToOpen(now time.Time) bool
-	Configurable
 }
 
 // OpenToClosed controls logic that tries to close an open circuit
@@ -46,7 +45,6 @@ type OpenToClosed interface {
 	ErrorAttempt(now time.Time)
 	// AttemptToOpen a circuit that is currently closed, after a bad request comes in
 	AttemptToClose(now time.Time) bool
-	Configurable
 }
 
 // errorPercentageCheck is ClosedToOpen that opens a circuit after a threshold and % error has been
