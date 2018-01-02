@@ -8,10 +8,8 @@ import (
 
 // CommandProperties is https://github.com/Netflix/Hystrix/wiki/Configuration#command-properties
 type CommandProperties struct {
-	Execution ExecutionConfig
-	Fallback  FallbackConfig
-	//CircuitBreaker    CircuitBreakerConfig
-	//Metrics           MetricsConfig
+	Execution         ExecutionConfig
+	Fallback          FallbackConfig
 	MetricsCollectors MetricsCollectors
 	GoSpecific        GoSpecificConfig
 }
@@ -40,40 +38,12 @@ type FallbackConfig struct {
 	MaxConcurrentRequests int64
 }
 
-// MetricsConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#metrics
-//type MetricsConfig struct {
-// Rolling Stats size is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatstimeinmilliseconds
-//RollingStatsDuration time.Duration
-// RollingStatsNumBuckets is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatsnumbuckets
-//RollingStatsNumBuckets int
-
-// RollingPercentileEnabled is opposite of https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentileenabled
-//RollingPercentileDisabled bool
-// RollingPercentileDuration is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentiletimeinmilliseconds
-//RollingPercentileDuration time.Duration
-// RollingPercentileNumBuckets is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentilenumbuckets
-//RollingPercentileNumBuckets int
-// RollingPercentileBucketSize is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentilebucketsize
-//RollingPercentileBucketSize int
-//}
-
 // MetricsCollectors can receive metrics during a circuit.  They should be fast, as they will
 // block circuit operation during function calls.
 type MetricsCollectors struct {
 	Run      []RunMetrics     `json:"-"`
 	Fallback []FallbackMetric `json:"-"`
 }
-
-// CircuitBreakerConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#circuit-breaker
-//type CircuitBreakerConfig struct {
-// if disabled, Execute functions pass to just calling runFunc and do no tracking or fallbacks
-// Note: Java Hystrix calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
-//Disabled bool `json:",omitempty"`
-// ForceOpen is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceopen
-//ForceOpen bool `json:",omitempty"`
-// ForcedClosed is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceclosed
-//ForcedClosed bool `json:",omitempty"`
-//}
 
 // GoSpecificConfig is settings that aren't in the Java Hystrix implementation.
 type GoSpecificConfig struct {
@@ -133,27 +103,6 @@ func (c *ExecutionConfig) merge(other ExecutionConfig) {
 	}
 }
 
-//func (c *MetricsConfig) merge(other MetricsConfig) {
-//	if c.RollingStatsDuration == 0 {
-//		c.RollingStatsDuration = other.RollingStatsDuration
-//	}
-//	if c.RollingStatsNumBuckets == 0 {
-//		c.RollingStatsNumBuckets = other.RollingStatsNumBuckets
-//	}
-//	if !c.RollingPercentileDisabled {
-//		c.RollingPercentileDisabled = other.RollingPercentileDisabled
-//	}
-//	if c.RollingPercentileDuration == 0 {
-//		c.RollingPercentileDuration = other.RollingPercentileDuration
-//	}
-//	if c.RollingPercentileNumBuckets == 0 {
-//		c.RollingPercentileNumBuckets = other.RollingPercentileNumBuckets
-//	}
-//	if c.RollingPercentileBucketSize == 0 {
-//		c.RollingPercentileBucketSize = other.RollingPercentileBucketSize
-//	}
-//}
-
 func (c *FallbackConfig) merge(other FallbackConfig) {
 	if c.MaxConcurrentRequests == 0 {
 		c.MaxConcurrentRequests = other.MaxConcurrentRequests
@@ -162,27 +111,6 @@ func (c *FallbackConfig) merge(other FallbackConfig) {
 		c.Disabled = other.Disabled
 	}
 }
-
-//func (c *CircuitBreakerConfig) merge(other CircuitBreakerConfig) {
-//	if !c.Disabled {
-//		c.Disabled = other.Disabled
-//	}
-//	if c.RequestVolumeThreshold == 0 {
-//		c.RequestVolumeThreshold = other.RequestVolumeThreshold
-//	}
-//	if c.SleepWindow == 0 {
-//		c.SleepWindow = other.SleepWindow
-//	}
-//	if c.ErrorThresholdPercentage == 0 {
-//		c.ErrorThresholdPercentage = other.ErrorThresholdPercentage
-//	}
-//	if !c.ForcedClosed {
-//		c.ForcedClosed = other.ForcedClosed
-//	}
-//	if !c.ForceOpen {
-//		c.ForceOpen = other.ForceOpen
-//	}
-//}
 
 func (g *GoSpecificConfig) mergeCustomConfig(other GoSpecificConfig) {
 	if len(other.CustomConfig) != 0 {
@@ -225,8 +153,6 @@ func (m *MetricsCollectors) merge(other MetricsCollectors) {
 func (c *CommandProperties) Merge(other CommandProperties) *CommandProperties {
 	c.Execution.merge(other.Execution)
 	c.Fallback.merge(other.Fallback)
-	//c.CircuitBreaker.merge(other.CircuitBreaker)
-	//c.Metrics.merge(other.Metrics)
 	c.MetricsCollectors.merge(other.MetricsCollectors)
 	c.GoSpecific.merge(other.GoSpecific)
 	return c
@@ -276,21 +202,6 @@ var defaultFallbackConfig = FallbackConfig{
 	MaxConcurrentRequests: 10,
 }
 
-//var defaultCircuitBreakerConfig = CircuitBreakerConfig{
-//	RequestVolumeThreshold:   20,
-//	SleepWindow:              5 * time.Second,
-//	ErrorThresholdPercentage: 50,
-//}
-
-//var defaultMetricsConfig = MetricsConfig{
-//	RollingStatsDuration:        10 * time.Second,
-//	RollingStatsNumBuckets:      10,
-//	RollingPercentileDisabled:   true,
-//	RollingPercentileDuration:   60 * time.Second,
-//	RollingPercentileNumBuckets: 6,
-//	RollingPercentileBucketSize: 100,
-//}
-
 var defaultGoSpecificConfig = GoSpecificConfig{
 	ClosedToOpenFactory: neverOpensFactory,
 	OpenToClosedFactory: neverClosesFactory,
@@ -301,9 +212,7 @@ var defaultGoSpecificConfig = GoSpecificConfig{
 }
 
 var defaultCommandProperties = CommandProperties{
-	Execution: defaultExecutionConfig,
-	Fallback:  defaultFallbackConfig,
-	//CircuitBreaker: defaultCircuitBreakerConfig,
-	//Metrics:        defaultMetricsConfig,
+	Execution:  defaultExecutionConfig,
+	Fallback:   defaultFallbackConfig,
 	GoSpecific: defaultGoSpecificConfig,
 }

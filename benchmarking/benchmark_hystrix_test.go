@@ -50,7 +50,7 @@ func BenchmarkCiruits(b *testing.B) {
 					name: "Minimal",
 					config: hystrix.CommandProperties{
 						Execution: hystrix.ExecutionConfig{
-							MaxConcurrentRequests: int64(12),
+							MaxConcurrentRequests: int64(-1),
 							Timeout:               -1,
 						},
 					},

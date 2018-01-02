@@ -296,23 +296,23 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 }
 
 func (c *Circuit) checkSuccess(runFuncDoneTime time.Time, totalCmdTime time.Duration) {
+	c.CmdMetricCollector.Success(totalCmdTime)
 	if c.IsOpen() {
 		c.openToClose.SuccessfulAttempt(runFuncDoneTime, totalCmdTime)
+		c.close(runFuncDoneTime, false)
 	} else {
 		c.closedToOpen.SuccessfulAttempt(runFuncDoneTime, totalCmdTime)
 	}
-	c.CmdMetricCollector.Success(totalCmdTime)
-	c.close(runFuncDoneTime, false)
 }
 
 func (c *Circuit) checkErrInterrupt(originalContext context.Context, ret error, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
 	if !c.threadSafeConfig.GoSpecific.IgnoreInterrputs.Get() && ret != nil && originalContext.Err() != nil {
+		c.CmdMetricCollector.ErrInterrupt(totalCmdTime)
 		if c.IsOpen() {
 			c.openToClose.BackedOutAttempt(runFuncDoneTime)
 		} else {
 			c.closedToOpen.BackedOutAttempt(runFuncDoneTime)
 		}
-		c.CmdMetricCollector.ErrInterrupt(totalCmdTime)
 		return true
 	}
 	return false
@@ -320,12 +320,12 @@ func (c *Circuit) checkErrInterrupt(originalContext context.Context, ret error, 
 
 func (c *Circuit) checkErrBadRequest(ret error, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
 	if IsBadRequest(ret) {
+		c.CmdMetricCollector.ErrBadRequest(totalCmdTime)
 		if c.IsOpen() {
 			c.openToClose.BackedOutAttempt(runFuncDoneTime)
 		} else {
 			c.closedToOpen.BackedOutAttempt(runFuncDoneTime)
 		}
-		c.CmdMetricCollector.ErrBadRequest(totalCmdTime)
 		return true
 	}
 	return false
@@ -333,13 +333,13 @@ func (c *Circuit) checkErrBadRequest(ret error, runFuncDoneTime time.Time, total
 
 func (c *Circuit) checkErrFailure(ret error, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
 	if ret != nil {
+		c.CmdMetricCollector.ErrFailure(totalCmdTime)
 		if c.IsOpen() {
 			c.openToClose.ErrorAttempt(runFuncDoneTime)
 		} else {
 			c.closedToOpen.ErrorAttempt(runFuncDoneTime)
+			c.attemptToOpen(runFuncDoneTime)
 		}
-		c.CmdMetricCollector.ErrFailure(totalCmdTime)
-		c.attemptToOpen(runFuncDoneTime)
 		return true
 	}
 	return false
@@ -347,13 +347,13 @@ func (c *Circuit) checkErrFailure(ret error, runFuncDoneTime time.Time, totalCmd
 
 func (c *Circuit) checkErrTimeout(expectedDoneBy time.Time, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
 	if !expectedDoneBy.IsZero() && expectedDoneBy.Before(runFuncDoneTime) {
+		c.CmdMetricCollector.ErrTimeout(totalCmdTime)
 		if c.IsOpen() {
 			c.openToClose.ErrorAttempt(runFuncDoneTime)
 		} else {
 			c.closedToOpen.ErrorAttempt(runFuncDoneTime)
+			c.attemptToOpen(runFuncDoneTime)
 		}
-		c.CmdMetricCollector.ErrTimeout(totalCmdTime)
-		c.attemptToOpen(runFuncDoneTime)
 		return true
 	}
 	return false
