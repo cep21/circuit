@@ -47,34 +47,36 @@ type OpenToClosed interface {
 }
 
 func neverOpensFactory() ClosedToOpen {
-	return &neverOpens{}
+	return neverOpens{}
 }
 
 type neverOpens struct{}
 
+var _ ClosedToOpen = neverOpens{}
+
 func (c neverOpens) Closed(now time.Time) {}
 
-func (c *neverOpens) Prevent(now time.Time) bool {
+func (c neverOpens) Prevent(now time.Time) bool {
 	return false
 }
 
-func (c *neverOpens) SuccessfulAttempt(now time.Time, duration time.Duration) {}
+func (c neverOpens) SuccessfulAttempt(now time.Time, duration time.Duration) {}
 
-func (c *neverOpens) BackedOutAttempt(now time.Time) {}
+func (c neverOpens) BackedOutAttempt(now time.Time) {}
 
-func (c *neverOpens) ErrorAttempt(now time.Time) {}
+func (c neverOpens) ErrorAttempt(now time.Time) {}
 
-func (c *neverOpens) AttemptToOpen(now time.Time) bool {
+func (c neverOpens) AttemptToOpen(now time.Time) bool {
 	return false
 }
-
-var _ ClosedToOpen = &neverOpens{}
 
 func neverClosesFactory() OpenToClosed {
 	return neverCloses{}
 }
 
 type neverCloses struct{}
+
+var _ OpenToClosed = neverCloses{}
 
 func (c neverCloses) Opened(now time.Time) {}
 
@@ -91,5 +93,3 @@ func (c neverCloses) ErrorAttempt(now time.Time) {}
 func (c neverCloses) AttemptToClose(now time.Time) bool {
 	return false
 }
-
-var _ OpenToClosed = neverCloses{}

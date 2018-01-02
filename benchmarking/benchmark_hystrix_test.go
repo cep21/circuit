@@ -11,6 +11,7 @@ import (
 	gohystrix "github.com/afex/hystrix-go/hystrix"
 	"github.com/cep21/hystrix"
 	"github.com/cep21/hystrix/metric_implementations/rolling"
+	"github.com/cep21/hystrix/simplelogic"
 	iandCircuit "github.com/iand/circuit"
 	"github.com/rubyist/circuitbreaker"
 	"github.com/sony/gobreaker"
@@ -52,6 +53,9 @@ func BenchmarkCiruits(b *testing.B) {
 						Execution: hystrix.ExecutionConfig{
 							MaxConcurrentRequests: int64(-1),
 							Timeout:               -1,
+						},
+						GoSpecific: hystrix.GoSpecificConfig{
+							ClosedToOpenFactory: simplelogic.ConsecutiveErrOpenerFactory(simplelogic.ConfigConsecutiveErrOpener{}),
 						},
 					},
 				}, {
