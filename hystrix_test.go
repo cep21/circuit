@@ -14,7 +14,7 @@ func TestHystrix_Empty(t *testing.T) {
 
 func TestHystrix_Var(t *testing.T) {
 	h := Hystrix{}
-	c := h.MustCreateCircuit("hello-world", CommandProperties{})
+	c := h.MustCreateCircuit("hello-world", CircuitConfig{})
 	if !strings.Contains(h.Var().String(), "hello-world") {
 		t.Error("Var() does not seem to work for hystrix", h.Var())
 	}
@@ -25,7 +25,7 @@ func TestHystrix_Var(t *testing.T) {
 
 func TestSimpleCreate(t *testing.T) {
 	h := Hystrix{}
-	c := h.MustCreateCircuit("hello-world", CommandProperties{})
+	c := h.MustCreateCircuit("hello-world", CircuitConfig{})
 	if c.Name() != "hello-world" {
 		t.Error("unexpeted name")
 	}
@@ -37,13 +37,13 @@ func TestSimpleCreate(t *testing.T) {
 
 func TestDoubleCreate(t *testing.T) {
 	h := Hystrix{}
-	h.MustCreateCircuit("hello-world", CommandProperties{})
+	h.MustCreateCircuit("hello-world", CircuitConfig{})
 	var foundErr interface{}
 	func() {
 		defer func() {
 			foundErr = recover()
 		}()
-		h.MustCreateCircuit("hello-world", CommandProperties{})
+		h.MustCreateCircuit("hello-world", CircuitConfig{})
 	}()
 	if foundErr == nil {
 		t.Error("Expect panic when must creating twice")

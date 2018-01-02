@@ -12,7 +12,7 @@ import (
 
 func TestMetricEventStream(t *testing.T) {
 	h := &hystrix.Hystrix{}
-	c := h.MustCreateCircuit("hello-world", hystrix.CommandProperties{})
+	c := h.MustCreateCircuit("hello-world", hystrix.CircuitConfig{})
 	if err := c.Execute(context.Background(), func(_ context.Context) error {
 		return nil
 	}, nil); err != nil {

@@ -32,7 +32,7 @@ type circuitImpls struct {
 
 func BenchmarkCiruits(b *testing.B) {
 	rollingTimeoutStats := rolling.CollectRollingStats(rolling.RunStatsConfig{}, rolling.FallbackStatsConfig{})("")
-	rollingTimeoutStats.Merge(hystrix.CommandProperties{
+	rollingTimeoutStats.Merge(hystrix.CircuitConfig{
 		Execution: hystrix.ExecutionConfig{
 			Timeout: -1,
 		},
@@ -49,22 +49,22 @@ func BenchmarkCiruits(b *testing.B) {
 					config: rollingTimeoutStats,
 				}, {
 					name: "Minimal",
-					config: hystrix.CommandProperties{
+					config: hystrix.CircuitConfig{
 						Execution: hystrix.ExecutionConfig{
 							MaxConcurrentRequests: int64(-1),
 							Timeout:               -1,
 						},
-						GoSpecific: hystrix.GoSpecificConfig{
+						General: hystrix.GeneralConfig{
 							ClosedToOpenFactory: simplelogic.ConsecutiveErrOpenerFactory(simplelogic.ConfigConsecutiveErrOpener{}),
 						},
 					},
 				}, {
 					name: "UseGo",
-					config: hystrix.CommandProperties{
+					config: hystrix.CircuitConfig{
 						Execution: hystrix.ExecutionConfig{
 							MaxConcurrentRequests: int64(12),
 							Timeout:               -1,
-						}, GoSpecific: hystrix.GoSpecificConfig{
+						}, General: hystrix.GeneralConfig{
 							CustomConfig: map[interface{}]interface{}{
 								"use-go": true,
 							},
@@ -169,11 +169,11 @@ func BenchmarkCiruits(b *testing.B) {
 func hystrixRunner(b *testing.B, configIn interface{}, concurrent int, funcToRun interface{}, pass bool) {
 	f := funcToRun.(func(context.Context) error)
 	h := hystrix.Hystrix{}
-	config := configIn.(hystrix.CommandProperties)
+	config := configIn.(hystrix.CircuitConfig)
 	config.Execution.MaxConcurrentRequests = int64(concurrent)
 	c := h.MustCreateCircuit("hello-world", config)
 	ctx := context.Background()
-	useExecute := config.GoSpecific.CustomConfig == nil
+	useExecute := config.General.CustomConfig == nil
 	genericBenchmarkTesting(b, concurrent, func() error {
 		if useExecute {
 			return c.Execute(ctx, f, nil)

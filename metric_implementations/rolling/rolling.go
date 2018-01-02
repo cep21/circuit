@@ -10,16 +10,16 @@ import (
 
 // CollectRollingStats enables stats needed to display metric event streams on a hystrix dashboard, as well as it
 // gives easy access to rolling and total latency stats
-func CollectRollingStats(runConfig RunStatsConfig, fallbackConfig FallbackStatsConfig) func(string) hystrix.CommandProperties {
-	return func(_ string) hystrix.CommandProperties {
+func CollectRollingStats(runConfig RunStatsConfig, fallbackConfig FallbackStatsConfig) func(string) hystrix.CircuitConfig {
+	return func(_ string) hystrix.CircuitConfig {
 		rs := RunStats{}
 		runConfig.Merge(defaultRunStatsConfig)
 		rs.SetConfigNotThreadSafe(runConfig)
 		fs := FallbackStats{}
 		fallbackConfig.Merge(defaultFallbackStatsConfig)
 		fs.SetConfigNotThreadSafe(fallbackConfig)
-		return hystrix.CommandProperties{
-			MetricsCollectors: hystrix.MetricsCollectors{
+		return hystrix.CircuitConfig{
+			Metrics: hystrix.MetricsCollectors{
 				Run:      []hystrix.RunMetrics{&rs},
 				Fallback: []hystrix.FallbackMetrics{&fs},
 			},

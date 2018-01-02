@@ -213,9 +213,9 @@ func collectCommandMetrics(cb *hystrix.Circuit) *streamCmdMetric {
 		ExecutionIsolationStrategy: "SEMAPHORE",
 
 		// Circuit config
-		CircuitBreakerEnabled:     !circuitConfig.Execution.Disabled,
-		CircuitBreakerForceClosed: circuitConfig.Execution.ForcedClosed,
-		CircuitBreakerForceOpen:   circuitConfig.Execution.ForceOpen,
+		CircuitBreakerEnabled:     !circuitConfig.General.Disabled,
+		CircuitBreakerForceClosed: circuitConfig.General.ForcedClosed,
+		CircuitBreakerForceOpen:   circuitConfig.General.ForceOpen,
 		//CircuitBreakerErrorThresholdPercent:  circuitConfig.CircuitBreaker.ErrorThresholdPercentage,
 		//CircuitBreakerSleepWindow:            circuitConfig.CircuitBreaker.SleepWindow.Nanoseconds() / time.Millisecond.Nanoseconds(),
 		//CircuitBreakerRequestVolumeThreshold: circuitConfig.CircuitBreaker.RequestVolumeThreshold,

@@ -45,10 +45,10 @@ func appendStatsdParts(parts ...string) string {
 	return strings.Join(nonEmpty, ".")
 }
 
-// CommandProperties creates statsd metrics for a circuit
-func (c *CommandFactory) CommandProperties(circuitName string) hystrix.CommandProperties {
-	return hystrix.CommandProperties{
-		MetricsCollectors: hystrix.MetricsCollectors{
+// CircuitConfig creates statsd metrics for a circuit
+func (c *CommandFactory) CommandProperties(circuitName string) hystrix.CircuitConfig {
+	return hystrix.CircuitConfig{
+		Metrics: hystrix.MetricsCollectors{
 			Run: []hystrix.RunMetrics{
 				&RunMetricsCollector{
 					SendTo:     c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "cmd")),
