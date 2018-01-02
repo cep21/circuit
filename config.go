@@ -235,21 +235,21 @@ func (c *CommandProperties) Merge(other CommandProperties) *CommandProperties {
 // atomicCircuitConfig is used during circuit operations and allows atomic read/write operations.  This lets users
 // change config at runtime without requiring locks on common operations
 type atomicCircuitConfig struct {
+	Execution struct {
+		ExecutionTimeout      fastmath.AtomicInt64
+		MaxConcurrentRequests fastmath.AtomicInt64
+	}
+	Fallback struct {
+		Disabled              fastmath.AtomicBoolean
+		MaxConcurrentRequests fastmath.AtomicInt64
+	}
 	CircuitBreaker struct {
 		ForceOpen    fastmath.AtomicBoolean
 		ForcedClosed fastmath.AtomicBoolean
 		Disabled     fastmath.AtomicBoolean
 	}
-	Execution struct {
-		ExecutionTimeout      fastmath.AtomicInt64
-		MaxConcurrentRequests fastmath.AtomicInt64
-	}
 	GoSpecific struct {
 		IgnoreInterrputs fastmath.AtomicBoolean
-	}
-	Fallback struct {
-		Disabled              fastmath.AtomicBoolean
-		MaxConcurrentRequests fastmath.AtomicInt64
 	}
 }
 
@@ -292,8 +292,8 @@ var defaultFallbackConfig = FallbackConfig{
 //}
 
 var defaultGoSpecificConfig = GoSpecificConfig{
-	ClosedToOpenFactory: NeverOpensFactory,
-	OpenToClosedFactory: NeverClosesFactory,
+	ClosedToOpenFactory: neverOpensFactory,
+	OpenToClosedFactory: neverClosesFactory,
 	TimeKeeper: TimeKeeper{
 		Now:       time.Now,
 		AfterFunc: time.AfterFunc,

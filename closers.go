@@ -46,50 +46,50 @@ type OpenToClosed interface {
 	AttemptToClose(now time.Time) bool
 }
 
-func NeverOpensFactory() ClosedToOpen {
-	return NeverOpens{}
+func neverOpensFactory() ClosedToOpen {
+	return neverOpens{}
 }
 
-type NeverOpens struct{}
+type neverOpens struct{}
 
-func (c NeverOpens) Closed(now time.Time) {}
+func (c neverOpens) Closed(now time.Time) {}
 
-func (c NeverOpens) Prevent(now time.Time) bool {
+func (c neverOpens) Prevent(now time.Time) bool {
 	return false
 }
 
-func (c NeverOpens) SuccessfulAttempt(now time.Time, duration time.Duration) {}
+func (c neverOpens) SuccessfulAttempt(now time.Time, duration time.Duration) {}
 
-func (c NeverOpens) BackedOutAttempt(now time.Time) {}
+func (c neverOpens) BackedOutAttempt(now time.Time) {}
 
-func (c NeverOpens) ErrorAttempt(now time.Time) {}
+func (c neverOpens) ErrorAttempt(now time.Time) {}
 
-func (c NeverOpens) AttemptToOpen(now time.Time) bool {
+func (c neverOpens) AttemptToOpen(now time.Time) bool {
 	return false
 }
 
-var _ ClosedToOpen = NeverOpens{}
+var _ ClosedToOpen = neverOpens{}
 
-func NeverClosesFactory() OpenToClosed {
-	return NeverCloses{}
+func neverClosesFactory() OpenToClosed {
+	return neverCloses{}
 }
 
-type NeverCloses struct{}
+type neverCloses struct{}
 
-func (c NeverCloses) Opened(now time.Time) {}
+func (c neverCloses) Opened(now time.Time) {}
 
-func (c NeverCloses) Allow(now time.Time) (shouldAllow bool) {
+func (c neverCloses) Allow(now time.Time) (shouldAllow bool) {
 	return false
 }
 
-func (c NeverCloses) SuccessfulAttempt(now time.Time, duration time.Duration) {}
+func (c neverCloses) SuccessfulAttempt(now time.Time, duration time.Duration) {}
 
-func (c NeverCloses) BackedOutAttempt(now time.Time) {}
+func (c neverCloses) BackedOutAttempt(now time.Time) {}
 
-func (c NeverCloses) ErrorAttempt(now time.Time) {}
+func (c neverCloses) ErrorAttempt(now time.Time) {}
 
-func (c NeverCloses) AttemptToClose(now time.Time) bool {
+func (c neverCloses) AttemptToClose(now time.Time) bool {
 	return false
 }
 
-var _ OpenToClosed = NeverCloses{}
+var _ OpenToClosed = neverCloses{}
