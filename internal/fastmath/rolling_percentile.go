@@ -1,17 +1,20 @@
 package fastmath
 
 import (
+	"expvar"
 	"math"
 	"sort"
 	"strings"
 	"time"
 )
 
+// RollingPercentile is a bucketed array of time.Duration that cycles over time
 type RollingPercentile struct {
 	buckets       []durationsBucket
 	rollingBucket RollingBuckets
 }
 
+// SortedDurations is a sorted list of time.Duration that allows fast Percentile operations
 type SortedDurations []time.Duration
 
 func (s SortedDurations) String() string {
@@ -22,6 +25,7 @@ func (s SortedDurations) String() string {
 	return "(" + strings.Join(ret, ",") + ")"
 }
 
+// Mean (average) of the current list
 func (s SortedDurations) Mean() time.Duration {
 	if len(s) == 0 {
 		// A meaningless value for a meaningless list
@@ -34,6 +38,20 @@ func (s SortedDurations) Mean() time.Duration {
 	return time.Duration(sum / int64(len(s)))
 }
 
+// Var allows exposing the durations on expvar
+func (s SortedDurations) Var() expvar.Var {
+	return expvar.Func(func() interface{} {
+		return map[string]time.Duration{
+			"p25":  s.Percentile(.25),
+			"p50":  s.Percentile(.5),
+			"p90":  s.Percentile(.9),
+			"p99":  s.Percentile(.99),
+			"mean": s.Mean(),
+		}
+	})
+}
+
+// Percentile returns a p [0.0 - 1.0] percentile of the list
 func (s SortedDurations) Percentile(p float64) time.Duration {
 	if len(s) == 0 {
 		// A meaningless value for a meaningless list
@@ -80,6 +98,7 @@ func makeBuckets(numBuckets int, bucketSize int) []durationsBucket {
 	return ret
 }
 
+// SortedDurations creates a raw []time.Duration in sorted order that is stored in these buckets
 func (r *RollingPercentile) SortedDurations(now time.Time) []time.Duration {
 	if len(r.buckets) == 0 {
 		return nil
@@ -95,10 +114,12 @@ func (r *RollingPercentile) SortedDurations(now time.Time) []time.Duration {
 	return ret
 }
 
+// Snapshot the current rolling buckets, allowing easy p99 calculations
 func (r *RollingPercentile) Snapshot() SortedDurations {
 	return r.SnapshotAt(time.Now())
 }
 
+// SnapshotAt is an optimization on Snapshot that takes the current time
 func (r *RollingPercentile) SnapshotAt(now time.Time) SortedDurations {
 	return SortedDurations(r.SortedDurations(now))
 }
@@ -107,6 +128,7 @@ func (r *RollingPercentile) clearBucket(idx int) {
 	r.buckets[idx].clear()
 }
 
+// AddDuration adds a duration to the rolling buckets
 func (r *RollingPercentile) AddDuration(d time.Duration, now time.Time) {
 	if len(r.buckets) == 0 {
 		return
@@ -148,7 +170,9 @@ func (b *durationsBucket) Durations() []time.Duration {
 	return ret
 }
 
-func (b *durationsBucket) iterateDurations(startingIndex int64, callback func(time.Duration)) int64 {
+// IterateDurations allows executing a callback on the rolling durations bucket, returning a cursor you can pass into
+// future iteration calls
+func (b *durationsBucket) IterateDurations(startingIndex int64, callback func(time.Duration)) int64 {
 	lastAbsoluteIndex := b.currentIndex.Get() - 1
 	// work backwards from this value till we get to starting index
 	for i := lastAbsoluteIndex; i >= startingIndex; i-- {

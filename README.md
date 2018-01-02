@@ -17,16 +17,15 @@ There are a large number of examples on the [godoc](https://godoc.org/github.com
 * recoverable panic()
 * Integrated with context.Context
 * Comprehensive metric tracking
-* Efficient implementation
+* Efficient implementation with Benchmarks
 * Low/zero memory allocation costs
 * Support for Netflix Hystrix dashboards
 * Multiple error handling features
 * Expose circuit health and configuration on expvar
-* Built in SLO tracking
+* SLO tracking
 * Customizable state transition logic, allowing complex circuit state changes
 * Live configuration changes
-* Many tests
-* Benchmarks
+* Many tests and examples
 * Good inline documentation
 
 # Comparison to go-hystrix

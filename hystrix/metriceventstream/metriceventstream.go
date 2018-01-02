@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"io"
+
 	"github.com/cep21/hystrix"
 	"github.com/cep21/hystrix/internal/fastmath"
 	"github.com/cep21/hystrix/metric_implementations/rolling"
@@ -108,6 +110,13 @@ func (m *MetricEventStream) sendEvent(event []byte) {
 	}
 }
 
+func mustWrite(w io.Writer, s string) {
+	_, err := io.WriteString(w, s)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // Start should be called once per MetricEventStream.  It runs forever, until Close is called.
 func (m *MetricEventStream) Start() error {
 	m.once.Do(m.doOnce)
@@ -120,7 +129,7 @@ func (m *MetricEventStream) Start() error {
 			}
 			for _, circuit := range m.Hystrix.AllCircuits() {
 				buf := &bytes.Buffer{}
-				buf.Write([]byte("data:"))
+				mustWrite(buf, "data:")
 				commandMetrics := collectCommandMetrics(circuit)
 				encoder := json.NewEncoder(buf)
 				err := encoder.Encode(commandMetrics)
@@ -128,7 +137,7 @@ func (m *MetricEventStream) Start() error {
 					continue
 				}
 
-				buf.Write([]byte("\n"))
+				mustWrite(buf, "\n")
 				m.sendEvent(buf.Bytes())
 			}
 		case <-m.closeChan:
@@ -204,12 +213,12 @@ func collectCommandMetrics(cb *hystrix.Circuit) *streamCmdMetric {
 		ExecutionIsolationStrategy: "SEMAPHORE",
 
 		// Circuit config
-		CircuitBreakerEnabled:                !circuitConfig.CircuitBreaker.Disabled,
-		CircuitBreakerForceClosed:            circuitConfig.CircuitBreaker.ForcedClosed,
-		CircuitBreakerForceOpen:              circuitConfig.CircuitBreaker.ForceOpen,
-		CircuitBreakerErrorThresholdPercent:  circuitConfig.CircuitBreaker.ErrorThresholdPercentage,
-		CircuitBreakerSleepWindow:            circuitConfig.CircuitBreaker.SleepWindow.Nanoseconds() / time.Millisecond.Nanoseconds(),
-		CircuitBreakerRequestVolumeThreshold: circuitConfig.CircuitBreaker.RequestVolumeThreshold,
+		CircuitBreakerEnabled:     !circuitConfig.Execution.Disabled,
+		CircuitBreakerForceClosed: circuitConfig.Execution.ForcedClosed,
+		CircuitBreakerForceOpen:   circuitConfig.Execution.ForceOpen,
+		//CircuitBreakerErrorThresholdPercent:  circuitConfig.CircuitBreaker.ErrorThresholdPercentage,
+		//CircuitBreakerSleepWindow:            circuitConfig.CircuitBreaker.SleepWindow.Nanoseconds() / time.Millisecond.Nanoseconds(),
+		//CircuitBreakerRequestVolumeThreshold: circuitConfig.CircuitBreaker.RequestVolumeThreshold,
 
 		// Execution config
 		ExecutionIsolationSemaphoreMaxConcurrentRequests: circuitConfig.Execution.MaxConcurrentRequests,
@@ -218,7 +227,7 @@ func collectCommandMetrics(cb *hystrix.Circuit) *streamCmdMetric {
 		// Fallback config
 		FallbackIsolationSemaphoreMaxConcurrentRequests: circuitConfig.Fallback.MaxConcurrentRequests,
 
-		RollingStatsWindow: circuitConfig.Metrics.RollingStatsDuration.Nanoseconds() / time.Millisecond.Nanoseconds(),
+		//RollingStatsWindow: circuitConfig.Metrics.RollingStatsDuration.Nanoseconds() / time.Millisecond.Nanoseconds(),
 	}
 }
 

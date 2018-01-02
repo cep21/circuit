@@ -4,6 +4,7 @@ import (
 	"time"
 )
 
+// RollingBuckets simulates a time rolling list of buckets of items
 type RollingBuckets struct {
 	NumBuckets  int
 	StartTime   time.Time
@@ -12,12 +13,14 @@ type RollingBuckets struct {
 	lastAbsIndex AtomicInt64
 }
 
+// Init the current values of the rolling bucket
 func (r *RollingBuckets) Init(numBuckets int, bucketWidth time.Duration, now time.Time) {
 	r.NumBuckets = numBuckets
 	r.BucketWidth = bucketWidth
 	r.StartTime = now
 }
 
+// Advance to now, clearing buckets as needed
 func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 	if r.NumBuckets == 0 {
 		return -1
