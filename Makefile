@@ -33,7 +33,7 @@ profile_blocking:
 
 # Lint the code
 lint:
-	gometalinter --enable-all -D lll --dupl-threshold=100 ./...
+	gometalinter --deadline=5m --enable-all -D lll --dupl-threshold=100 ./...
 
 setup:
 	go get -u github.com/alecthomas/gometalinter
