@@ -8,9 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
-
 	"net/http/httptest"
+	"time"
 
 	"github.com/cep21/hystrix"
 )
@@ -26,7 +25,7 @@ func Example_http() {
 	})
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		rw.Write([]byte("hello world"))
+		_, _ = io.WriteString(rw, "hello world")
 	}))
 	defer testServer.Close()
 
@@ -178,7 +177,7 @@ func ExampleCircuit_Go_panics() {
 			fmt.Println("I recovered from a panic", r)
 		}
 	}()
-	circuit.Go(context.Background(), func(ctx context.Context) error {
+	_ = circuit.Go(context.Background(), func(ctx context.Context) error {
 		panic("oh no")
 	}, nil)
 	// Output: I recovered from a panic oh no
@@ -214,25 +213,25 @@ func ExampleHystrix_Var() {
 	// Output:
 }
 
-func ExampleCommandProperties() {
-	h := hystrix.Hystrix{}
-
-	circuitConfig := hystrix.CommandProperties{
-		CircuitBreaker: hystrix.CircuitBreakerConfig{
-			// This should allow a new request every 10 milliseconds
-			SleepWindow: time.Millisecond * 5,
-			// The first failure should open the circuit
-			ErrorThresholdPercentage: 1,
-			// Only one request is required to fail the circuit
-			RequestVolumeThreshold: 1,
-		},
-		Execution: hystrix.ExecutionConfig{
-			// Allow at most 2 requests at a time
-			MaxConcurrentRequests: 2,
-			// Time out the context after one second
-			Timeout: time.Second,
-		},
-	}
-	h.MustCreateCircuit("configured-circuit", circuitConfig)
-	// Output:
-}
+//func ExampleCommandProperties() {
+//	h := hystrix.Hystrix{}
+//
+//	circuitConfig := hystrix.CommandProperties{
+//		CircuitBreaker: hystrix.CircuitBreakerConfig{
+//			// This should allow a new request every 10 milliseconds
+//			SleepWindow: time.Millisecond * 5,
+//			// The first failure should open the circuit
+//			ErrorThresholdPercentage: 1,
+//			// Only one request is required to fail the circuit
+//			RequestVolumeThreshold: 1,
+//		},
+//		Execution: hystrix.ExecutionConfig{
+//			// Allow at most 2 requests at a time
+//			MaxConcurrentRequests: 2,
+//			// Time out the context after one second
+//			Timeout: time.Second,
+//		},
+//	}
+//	h.MustCreateCircuit("configured-circuit", circuitConfig)
+//	// Output:
+//}

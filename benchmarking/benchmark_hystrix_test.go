@@ -11,6 +11,7 @@ import (
 	gohystrix "github.com/afex/hystrix-go/hystrix"
 	"github.com/cep21/hystrix"
 	"github.com/cep21/hystrix/metric_implementations/rolling"
+	"github.com/cep21/hystrix/simplelogic"
 	iandCircuit "github.com/iand/circuit"
 	"github.com/rubyist/circuitbreaker"
 	"github.com/sony/gobreaker"
@@ -30,7 +31,7 @@ type circuitImpls struct {
 }
 
 func BenchmarkCiruits(b *testing.B) {
-	rollingTimeoutStats := rolling.CollectRollingStats("")
+	rollingTimeoutStats := rolling.CollectRollingStats(rolling.RunStatsConfig{}, rolling.FallbackStatsConfig{})("")
 	rollingTimeoutStats.Merge(hystrix.CommandProperties{
 		Execution: hystrix.ExecutionConfig{
 			Timeout: -1,
@@ -50,8 +51,11 @@ func BenchmarkCiruits(b *testing.B) {
 					name: "Minimal",
 					config: hystrix.CommandProperties{
 						Execution: hystrix.ExecutionConfig{
-							MaxConcurrentRequests: int64(12),
+							MaxConcurrentRequests: int64(-1),
 							Timeout:               -1,
+						},
+						GoSpecific: hystrix.GoSpecificConfig{
+							ClosedToOpenFactory: simplelogic.ConsecutiveErrOpenerFactory(simplelogic.ConfigConsecutiveErrOpener{}),
 						},
 					},
 				}, {
@@ -125,7 +129,7 @@ func BenchmarkCiruits(b *testing.B) {
 			configs: []circuitConfigs{
 				{
 					name: "Default",
-					config: iandCircuit.Breaker{
+					config: &iandCircuit.Breaker{
 						Concurrency: 75,
 					},
 				},
@@ -223,7 +227,7 @@ func handyRunner(b *testing.B, _ interface{}, concurrent int, _ interface{}, pas
 }
 
 func iandCircuitRunner(b *testing.B, breakerIn interface{}, concurrent int, funcToRun interface{}, pass bool) {
-	bc := breakerIn.(iandCircuit.Breaker)
+	bc := breakerIn.(*iandCircuit.Breaker)
 	ctx := context.Background()
 	f := funcToRun.(func() error)
 	genericBenchmarkTesting(b, concurrent, func() error {

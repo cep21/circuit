@@ -16,6 +16,7 @@ type TimedCheck struct {
 	TimeAfterFunc              func(time.Duration, func()) *time.Timer
 	nextOpenTime               time.Time
 	currentlyAllowedEventCount int64
+	lastSetTimer               *time.Timer
 	mu                         sync.RWMutex
 }
 
@@ -41,11 +42,14 @@ func (c *TimedCheck) SetEventCountToAllow(newCount int64) {
 // SleepStart resets the checker to trigger after now + sleepDuration
 func (c *TimedCheck) SleepStart(now time.Time) {
 	c.mu.Lock()
+	if c.lastSetTimer != nil {
+		c.lastSetTimer.Stop()
+	}
 	c.nextOpenTime = now.Add(c.sleepDuration.Duration())
 	c.currentlyAllowedEventCount = 0
 	c.isFastFail.Set(true)
 	currentVersion := c.isFailFastVersion.Add(1)
-	c.afterFunc(c.sleepDuration.Duration(), func() {
+	c.lastSetTimer = c.afterFunc(c.sleepDuration.Duration(), func() {
 		// If sleep start is called again, don't reset from an old version
 		if currentVersion == c.isFailFastVersion.Get() {
 			c.isFastFail.Set(false)
