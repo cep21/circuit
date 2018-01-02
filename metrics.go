@@ -9,7 +9,6 @@ import (
 type RunMetricsCollection []RunMetrics
 
 var _ RunMetrics = &RunMetricsCollection{}
-var _ Configurable = &RunMetricsCollection{}
 
 type varable interface {
 	Var() expvar.Var
@@ -41,70 +40,52 @@ func (r RunMetricsCollection) Var() expvar.Var {
 	})
 }
 
-// SetConfigNotThreadSafe passes the config to all sub-RunMetrics
-func (r RunMetricsCollection) SetConfigNotThreadSafe(config CommandProperties) {
-	for _, c := range r {
-		if cfg, ok := c.(Configurable); ok {
-			cfg.SetConfigNotThreadSafe(config)
-		}
-	}
-}
-
-// SetConfigThreadSafe passes the config to all sub-RunMetrics
-func (r RunMetricsCollection) SetConfigThreadSafe(config CommandProperties) {
-	for _, c := range r {
-		if cfg, ok := c.(Configurable); ok {
-			cfg.SetConfigThreadSafe(config)
-		}
-	}
-}
-
 // Success sends Success to all collectors
-func (r RunMetricsCollection) Success(duration time.Duration) {
+func (r RunMetricsCollection) Success(now time.Time, duration time.Duration) {
 	for _, c := range r {
-		c.Success(duration)
+		c.Success(now, duration)
 	}
 }
 
 // ErrConcurrencyLimitReject sends ErrConcurrencyLimitReject to all collectors
-func (r RunMetricsCollection) ErrConcurrencyLimitReject() {
+func (r RunMetricsCollection) ErrConcurrencyLimitReject(now time.Time) {
 	for _, c := range r {
-		c.ErrConcurrencyLimitReject()
+		c.ErrConcurrencyLimitReject(now)
 	}
 }
 
 // ErrFailure sends ErrFailure to all collectors
-func (r RunMetricsCollection) ErrFailure(duration time.Duration) {
+func (r RunMetricsCollection) ErrFailure(now time.Time, duration time.Duration) {
 	for _, c := range r {
-		c.ErrFailure(duration)
+		c.ErrFailure(now, duration)
 	}
 }
 
 // ErrShortCircuit sends ErrShortCircuit to all collectors
-func (r RunMetricsCollection) ErrShortCircuit() {
+func (r RunMetricsCollection) ErrShortCircuit(now time.Time) {
 	for _, c := range r {
-		c.ErrShortCircuit()
+		c.ErrShortCircuit(now)
 	}
 }
 
 // ErrTimeout sends ErrTimeout to all collectors
-func (r RunMetricsCollection) ErrTimeout(duration time.Duration) {
+func (r RunMetricsCollection) ErrTimeout(now time.Time, duration time.Duration) {
 	for _, c := range r {
-		c.ErrTimeout(duration)
+		c.ErrTimeout(now, duration)
 	}
 }
 
 // ErrBadRequest sends ErrBadRequest to all collectors
-func (r RunMetricsCollection) ErrBadRequest(duration time.Duration) {
+func (r RunMetricsCollection) ErrBadRequest(now time.Time, duration time.Duration) {
 	for _, c := range r {
-		c.ErrBadRequest(duration)
+		c.ErrBadRequest(now, duration)
 	}
 }
 
 // ErrInterrupt sends ErrInterrupt to all collectors
-func (r RunMetricsCollection) ErrInterrupt(duration time.Duration) {
+func (r RunMetricsCollection) ErrInterrupt(now time.Time, duration time.Duration) {
 	for _, c := range r {
-		c.ErrInterrupt(duration)
+		c.ErrInterrupt(now, duration)
 	}
 }
 
@@ -112,44 +93,25 @@ func (r RunMetricsCollection) ErrInterrupt(duration time.Duration) {
 type FallbackMetricsCollection []FallbackMetric
 
 var _ FallbackMetric = &FallbackMetricsCollection{}
-var _ Configurable = &FallbackMetricsCollection{}
-
-// SetConfigNotThreadSafe passes the config to all sub-FallbackMetric
-func (r FallbackMetricsCollection) SetConfigNotThreadSafe(config CommandProperties) {
-	for _, c := range r {
-		if cfg, ok := c.(Configurable); ok {
-			cfg.SetConfigNotThreadSafe(config)
-		}
-	}
-}
-
-// SetConfigThreadSafe passes the config to all sub-FallbackMetric
-func (r FallbackMetricsCollection) SetConfigThreadSafe(config CommandProperties) {
-	for _, c := range r {
-		if cfg, ok := c.(Configurable); ok {
-			cfg.SetConfigThreadSafe(config)
-		}
-	}
-}
 
 // Success sends Success to all collectors
-func (r FallbackMetricsCollection) Success(duration time.Duration) {
+func (r FallbackMetricsCollection) Success(now time.Time, duration time.Duration) {
 	for _, c := range r {
-		c.Success(duration)
+		c.Success(now, duration)
 	}
 }
 
 // ErrConcurrencyLimitReject sends ErrConcurrencyLimitReject to all collectors
-func (r FallbackMetricsCollection) ErrConcurrencyLimitReject() {
+func (r FallbackMetricsCollection) ErrConcurrencyLimitReject(now time.Time) {
 	for _, c := range r {
-		c.ErrConcurrencyLimitReject()
+		c.ErrConcurrencyLimitReject(now)
 	}
 }
 
 // ErrFailure sends ErrFailure to all collectors
-func (r FallbackMetricsCollection) ErrFailure(duration time.Duration) {
+func (r FallbackMetricsCollection) ErrFailure(now time.Time, duration time.Duration) {
 	for _, c := range r {
-		c.ErrFailure(duration)
+		c.ErrFailure(now, duration)
 	}
 }
 
@@ -169,19 +131,46 @@ func (r FallbackMetricsCollection) Var() expvar.Var {
 	})
 }
 
+// CircuitMetricsCollection allows reporting multiple circuit metrics at once
+type CircuitMetricsCollection []CircuitMetrics
+
+var _ CircuitMetrics = &CircuitMetricsCollection{}
+
+// Closed sends Closed to all collectors
+func (r CircuitMetricsCollection) Closed(now time.Time) {
+	for _, c := range r {
+		c.Closed(now)
+	}
+}
+
+// Opened sends Opened to all collectors
+func (r CircuitMetricsCollection) Opened(now time.Time) {
+	for _, c := range r {
+		c.Opened(now)
+	}
+}
+
+// CircuitMetrics reports internal circuit metric events
+type CircuitMetrics interface {
+	// Closed is called when the circuit transitions from Open to Closed.
+	Closed(now time.Time)
+	// Opened is called when the circuit transitions from Closed to Opened.
+	Opened(now time.Time)
+}
+
 // RunMetrics is guaranteed to execute one (and only one) of the following functions each time the circuit
 // attempts to call a run function. Methods with durations are when run was actually executed.  Methods without
 // durations never called run, probably because of the circuit.
 type RunMetrics interface {
 	// Success each time `Execute` does not return an error
-	Success(duration time.Duration)
+	Success(now time.Time, duration time.Duration)
 	// ErrFailure each time a runFunc (the circuit part) ran, but failed
-	ErrFailure(duration time.Duration)
+	ErrFailure(now time.Time, duration time.Duration)
 	// ErrTimeout increments the number of timeouts that occurred in the circuit breaker.
-	ErrTimeout(duration time.Duration)
+	ErrTimeout(now time.Time, duration time.Duration)
 	// ErrBadRequest is counts of http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/exception/HystrixBadRequestException.html
 	// See https://github.com/Netflix/Hystrix/wiki/How-To-Use#error-propagation
-	ErrBadRequest(duration time.Duration)
+	ErrBadRequest(now time.Time, duration time.Duration)
 	// ErrInterrupt means the request ended, not because the runFunc failed, but probably because the original
 	// context canceled.  Your circuit returned an error, but it's probably because someone else killed the context,
 	// and not that your circuit is broken.  Java Hystrix doesn't have an equivalent for this, but it would be like if
@@ -190,13 +179,13 @@ type RunMetrics interface {
 	// A note on stat tracking: you may or may not consider this duration valid.  Yes, that's how long it executed,
 	// but the circuit never finished correctly since it was asked to end early, so the value is smaller than the
 	// circuit would have otherwise taken.
-	ErrInterrupt(duration time.Duration)
+	ErrInterrupt(now time.Time, duration time.Duration)
 
 	// If `Execute` returns an error, it will increment one of the following metrics
 	// ErrConcurrencyLimitReject each time a circuit is rejected due to concurrency limits
-	ErrConcurrencyLimitReject()
+	ErrConcurrencyLimitReject(now time.Time)
 	// ErrShortCircuit each time runFunc is not called because the circuit was open.
-	ErrShortCircuit()
+	ErrShortCircuit(now time.Time)
 }
 
 // FallbackMetric is guaranteed to execute one (and only one) of the following functions each time a fallback is executed.
@@ -205,9 +194,11 @@ type RunMetrics interface {
 type FallbackMetric interface {
 	// All `fallback` calls will implement one of the following metrics
 	// Success each time fallback is called and succeeds.
-	Success(duration time.Duration)
+	Success(now time.Time, duration time.Duration)
 	// ErrFailure each time fallback callback fails.
-	ErrFailure(duration time.Duration)
+	ErrFailure(now time.Time, duration time.Duration)
 	// ErrConcurrencyLimitReject each time fallback fails due to concurrency limit
-	ErrConcurrencyLimitReject()
+	ErrConcurrencyLimitReject(now time.Time)
 }
+
+var _ FallbackMetric = RunMetrics(nil)

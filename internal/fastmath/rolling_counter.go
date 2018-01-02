@@ -70,7 +70,7 @@ func (r *RollingCounter) RollingSum() int64 {
 	return r.rollingSum.Get()
 }
 
-// RollingSumAt returns the total number of events of all time
+// TotalSum returns the total number of events of all time
 func (r *RollingCounter) TotalSum() int64 {
 	return r.totalSum.Get()
 }

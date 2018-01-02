@@ -14,6 +14,7 @@ type Circuit struct {
 	//circuitStats
 	CmdMetricCollector      RunMetricsCollection
 	FallbackMetricCollector FallbackMetricsCollection
+	CircuitMetricsCollector CircuitMetricsCollection
 	// This is used to help run `Go` calls in the background
 	goroutineWrapper goroutineWrapper
 	name             string
@@ -79,9 +80,6 @@ func (c *Circuit) SetConfigThreadSafe(config CommandProperties) {
 	if cfg, ok := c.closedToOpen.(Configurable); ok {
 		cfg.SetConfigThreadSafe(config)
 	}
-
-	c.FallbackMetricCollector.SetConfigThreadSafe(config)
-	c.CmdMetricCollector.SetConfigThreadSafe(config)
 }
 
 // Config returns the circuit's configuration.  Modifications to this configuration are not reflected by the circuit.
@@ -112,10 +110,21 @@ func (c *Circuit) SetConfigNotThreadSafe(config CommandProperties) {
 	if cfg, ok := c.closedToOpen.(Configurable); ok {
 		cfg.SetConfigNotThreadSafe(config)
 	}
-	c.CmdMetricCollector = config.MetricsCollectors.Run
-	c.FallbackMetricCollector = config.MetricsCollectors.Fallback
-	c.FallbackMetricCollector.SetConfigNotThreadSafe(config)
-	c.CmdMetricCollector.SetConfigNotThreadSafe(config)
+	c.CmdMetricCollector = append(
+		make([]RunMetrics, 0, len(config.MetricsCollectors.Run)+2),
+		c.openToClose,
+		c.closedToOpen)
+	c.CmdMetricCollector = append(c.CmdMetricCollector, config.MetricsCollectors.Run...)
+
+	c.FallbackMetricCollector = append(
+		make([]FallbackMetric, 0, len(config.MetricsCollectors.Fallback)+2),
+		config.MetricsCollectors.Fallback...)
+
+	c.CircuitMetricsCollector = append(
+		make([]CircuitMetrics, 0, len(config.MetricsCollectors.Circuit)+2),
+		c.openToClose,
+		c.closedToOpen)
+	c.CircuitMetricsCollector = append(c.CircuitMetricsCollector, config.MetricsCollectors.Circuit...)
 
 	c.SetConfigThreadSafe(config)
 }
@@ -178,7 +187,7 @@ func (c *Circuit) openCircuit(now time.Time) {
 		// Don't bother opening a circuit that is already open
 		return
 	}
-	c.openToClose.Opened(now)
+	c.CircuitMetricsCollector.Opened(now)
 	c.isOpen.Set(true)
 }
 
@@ -234,7 +243,7 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 
 	if !c.allowNewRun(startTime) {
 		// Rather than make this inline, return a global reference (for memory optimization sake).
-		c.CmdMetricCollector.ErrShortCircuit()
+		c.CmdMetricCollector.ErrShortCircuit(startTime)
 		return errCircuitOpen
 	}
 
@@ -245,7 +254,7 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 	currentCommandCount := c.concurrentCommands.Add(1)
 	defer c.concurrentCommands.Add(-1)
 	if err := c.throttleConcurrentCommands(currentCommandCount); err != nil {
-		c.CmdMetricCollector.ErrConcurrencyLimitReject()
+		c.CmdMetricCollector.ErrConcurrencyLimitReject(startTime)
 		return err
 	}
 
@@ -296,23 +305,15 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 }
 
 func (c *Circuit) checkSuccess(runFuncDoneTime time.Time, totalCmdTime time.Duration) {
+	c.CmdMetricCollector.Success(runFuncDoneTime, totalCmdTime)
 	if c.IsOpen() {
-		c.openToClose.SuccessfulAttempt(runFuncDoneTime, totalCmdTime)
-	} else {
-		c.closedToOpen.SuccessfulAttempt(runFuncDoneTime, totalCmdTime)
+		c.close(runFuncDoneTime, false)
 	}
-	c.CmdMetricCollector.Success(totalCmdTime)
-	c.close(runFuncDoneTime, false)
 }
 
 func (c *Circuit) checkErrInterrupt(originalContext context.Context, ret error, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
 	if !c.threadSafeConfig.GoSpecific.IgnoreInterrputs.Get() && ret != nil && originalContext.Err() != nil {
-		if c.IsOpen() {
-			c.openToClose.BackedOutAttempt(runFuncDoneTime)
-		} else {
-			c.closedToOpen.BackedOutAttempt(runFuncDoneTime)
-		}
-		c.CmdMetricCollector.ErrInterrupt(totalCmdTime)
+		c.CmdMetricCollector.ErrInterrupt(runFuncDoneTime, totalCmdTime)
 		return true
 	}
 	return false
@@ -320,12 +321,7 @@ func (c *Circuit) checkErrInterrupt(originalContext context.Context, ret error, 
 
 func (c *Circuit) checkErrBadRequest(ret error, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
 	if IsBadRequest(ret) {
-		if c.IsOpen() {
-			c.openToClose.BackedOutAttempt(runFuncDoneTime)
-		} else {
-			c.closedToOpen.BackedOutAttempt(runFuncDoneTime)
-		}
-		c.CmdMetricCollector.ErrBadRequest(totalCmdTime)
+		c.CmdMetricCollector.ErrBadRequest(runFuncDoneTime, totalCmdTime)
 		return true
 	}
 	return false
@@ -333,27 +329,22 @@ func (c *Circuit) checkErrBadRequest(ret error, runFuncDoneTime time.Time, total
 
 func (c *Circuit) checkErrFailure(ret error, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
 	if ret != nil {
-		if c.IsOpen() {
-			c.openToClose.ErrorAttempt(runFuncDoneTime)
-		} else {
-			c.closedToOpen.ErrorAttempt(runFuncDoneTime)
+		c.CmdMetricCollector.ErrFailure(runFuncDoneTime, totalCmdTime)
+		if !c.IsOpen() {
+			c.attemptToOpen(runFuncDoneTime)
 		}
-		c.CmdMetricCollector.ErrFailure(totalCmdTime)
-		c.attemptToOpen(runFuncDoneTime)
 		return true
 	}
 	return false
 }
 
 func (c *Circuit) checkErrTimeout(expectedDoneBy time.Time, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
+	// I don't use the deadline from the context because it could be a smaller timeout from the parent context
 	if !expectedDoneBy.IsZero() && expectedDoneBy.Before(runFuncDoneTime) {
-		if c.IsOpen() {
-			c.openToClose.ErrorAttempt(runFuncDoneTime)
-		} else {
-			c.closedToOpen.ErrorAttempt(runFuncDoneTime)
+		c.CmdMetricCollector.ErrTimeout(runFuncDoneTime, totalCmdTime)
+		if !c.IsOpen() {
+			c.attemptToOpen(runFuncDoneTime)
 		}
-		c.CmdMetricCollector.ErrTimeout(totalCmdTime)
-		c.attemptToOpen(runFuncDoneTime)
 		return true
 	}
 	return false
@@ -371,7 +362,7 @@ func (c *Circuit) fallback(ctx context.Context, err error, fallbackFunc func(con
 	currentFallbackCount := c.concurrentFallbacks.Add(1)
 	defer c.concurrentFallbacks.Add(-1)
 	if c.threadSafeConfig.Fallback.MaxConcurrentRequests.Get() >= 0 && currentFallbackCount > c.threadSafeConfig.Fallback.MaxConcurrentRequests.Get() {
-		c.FallbackMetricCollector.ErrConcurrencyLimitReject()
+		c.FallbackMetricCollector.ErrConcurrencyLimitReject(c.now())
 		return &hystrixError{concurrencyLimitReached: true, msg: "throttling concurrency to fallbacks"}
 	}
 
@@ -379,10 +370,10 @@ func (c *Circuit) fallback(ctx context.Context, err error, fallbackFunc func(con
 	retErr := fallbackFunc(ctx, err)
 	totalCmdTime := c.now().Sub(startTime)
 	if retErr != nil {
-		c.FallbackMetricCollector.ErrFailure(totalCmdTime)
+		c.FallbackMetricCollector.ErrFailure(startTime, totalCmdTime)
 		return retErr
 	}
-	c.FallbackMetricCollector.Success(totalCmdTime)
+	c.FallbackMetricCollector.Success(startTime, totalCmdTime)
 	return nil
 }
 
@@ -407,7 +398,8 @@ func (c *Circuit) close(now time.Time, forceClosed bool) {
 	if c.threadSafeConfig.CircuitBreaker.ForceOpen.Get() {
 		return
 	}
-	if forceClosed || c.openToClose.AttemptToClose(now) {
+	if forceClosed || c.openToClose.ShouldClose(now) {
+		c.CircuitMetricsCollector.Closed(now)
 		c.isOpen.Set(false)
 	}
 }
@@ -428,7 +420,7 @@ func (c *Circuit) attemptToOpen(now time.Time) {
 		return
 	}
 
-	if c.closedToOpen.AttemptToOpen(now) {
+	if c.closedToOpen.ShouldOpen(now) {
 		c.openCircuit(now)
 	}
 }

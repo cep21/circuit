@@ -3,8 +3,10 @@ package metriceventstream_test
 import (
 	"net/http"
 
+	"log"
+
 	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/metriceventstream"
+	"github.com/cep21/hystrix/hystrix/metriceventstream"
 )
 
 // This example creates an event stream handler, starts it, then later closes the handler
@@ -13,9 +15,15 @@ func ExampleMetricEventStream() {
 	es := metriceventstream.MetricEventStream{
 		Hystrix: &h,
 	}
-	go es.Start()
+	go func() {
+		if err := es.Start(); err != nil {
+			log.Fatal(err)
+		}
+	}()
 	http.Handle("/hystrix.stream", &es)
 	// ...
-	es.Close()
+	if err := es.Close(); err != nil {
+		log.Fatal(err)
+	}
 	// Output:
 }
