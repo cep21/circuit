@@ -262,7 +262,7 @@ type streamCmdMetric struct {
 	RollingCountExceptionsThrown   int64 `json:"rollingCountExceptionsThrown"`
 	RollingCountResponsesFromCache int64 `json:"rollingCountResponsesFromCache"`
 
-	// All from FallbackMetric
+	// All from FallbackMetrics
 	RollingCountFallbackFailure   int64 `json:"rollingCountFallbackFailure"`
 	RollingCountFallbackRejection int64 `json:"rollingCountFallbackRejection"`
 	RollingCountFallbackSuccess   int64 `json:"rollingCountFallbackSuccess"`

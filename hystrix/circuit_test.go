@@ -149,8 +149,8 @@ func TestLargeSleepWindow(t *testing.T) {
 }
 
 func TestSleepDurationWorks(t *testing.T) {
-	concurrentThreads := 25
-	sleepWindow := time.Millisecond * 20
+	concurrentThreads := 10
+	sleepWindow := time.Millisecond * 25
 	c := hystrix.NewCircuitFromConfig("TestSleepDurationWorks", hystrix.CommandProperties{
 		Execution: hystrix.ExecutionConfig{
 			MaxConcurrentRequests: int64(concurrentThreads),
@@ -200,7 +200,7 @@ func TestSleepDurationWorks(t *testing.T) {
 				err := c.Execute(context.Background(), func(_ context.Context) error {
 					now := time.Now()
 					mu.Lock()
-					if time.Since(lastRequestTime) < sleepWindow {
+					if now.Sub(lastRequestTime) < sleepWindow {
 						t.Errorf("I am getting too many requests: %s", time.Since(lastRequestTime))
 					}
 					lastRequestTime = now

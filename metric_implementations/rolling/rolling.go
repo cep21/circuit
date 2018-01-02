@@ -21,7 +21,7 @@ func CollectRollingStats(runConfig RunStatsConfig, fallbackConfig FallbackStatsC
 		return hystrix.CommandProperties{
 			MetricsCollectors: hystrix.MetricsCollectors{
 				Run:      []hystrix.RunMetrics{&rs},
-				Fallback: []hystrix.FallbackMetric{&fs},
+				Fallback: []hystrix.FallbackMetrics{&fs},
 			},
 		}
 	}
@@ -285,7 +285,7 @@ var defaultFallbackStatsConfig = FallbackStatsConfig{
 	RollingStatsNumBuckets: 10,
 }
 
-var _ hystrix.FallbackMetric = &FallbackStats{}
+var _ hystrix.FallbackMetrics = &FallbackStats{}
 
 // SetConfigNotThreadSafe sets the configuration for fallback stats
 func (r *FallbackStats) SetConfigNotThreadSafe(config FallbackStatsConfig) {

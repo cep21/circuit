@@ -44,6 +44,7 @@ func (c *TimedCheck) SleepStart(now time.Time) {
 	c.mu.Lock()
 	if c.lastSetTimer != nil {
 		c.lastSetTimer.Stop()
+		c.lastSetTimer = nil
 	}
 	c.nextOpenTime = now.Add(c.sleepDuration.Duration())
 	c.currentlyAllowedEventCount = 0

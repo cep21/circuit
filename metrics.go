@@ -90,9 +90,9 @@ func (r RunMetricsCollection) ErrInterrupt(now time.Time, duration time.Duration
 }
 
 // FallbackMetricsCollection sends fallback metrics to all collectors
-type FallbackMetricsCollection []FallbackMetric
+type FallbackMetricsCollection []FallbackMetrics
 
-var _ FallbackMetric = &FallbackMetricsCollection{}
+var _ FallbackMetrics = &FallbackMetricsCollection{}
 
 // Success sends Success to all collectors
 func (r FallbackMetricsCollection) Success(now time.Time, duration time.Duration) {
@@ -188,10 +188,10 @@ type RunMetrics interface {
 	ErrShortCircuit(now time.Time)
 }
 
-// FallbackMetric is guaranteed to execute one (and only one) of the following functions each time a fallback is executed.
+// FallbackMetrics is guaranteed to execute one (and only one) of the following functions each time a fallback is executed.
 // Methods with durations are when the fallback is actually executed.  Methods without durations are when the fallback was
 // never called, probably because of some circuit condition.
-type FallbackMetric interface {
+type FallbackMetrics interface {
 	// All `fallback` calls will implement one of the following metrics
 	// Success each time fallback is called and succeeds.
 	Success(now time.Time, duration time.Duration)
@@ -201,4 +201,4 @@ type FallbackMetric interface {
 	ErrConcurrencyLimitReject(now time.Time)
 }
 
-var _ FallbackMetric = RunMetrics(nil)
+var _ FallbackMetrics = RunMetrics(nil)

@@ -50,13 +50,13 @@ func (c *CommandFactory) CommandProperties(circuitName string) hystrix.CommandPr
 	return hystrix.CommandProperties{
 		MetricsCollectors: hystrix.MetricsCollectors{
 			Run: []hystrix.RunMetrics{
-				&CmdMetricCollector{
+				&RunMetricsCollector{
 					SendTo:     c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "cmd")),
 					SampleRate: c.sampleRate(),
 				},
 			},
-			Fallback: []hystrix.FallbackMetric{
-				&FallbackMetricCollector{
+			Fallback: []hystrix.FallbackMetrics{
+				&FallbackMetricsCollector{
 					SendTo:     c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "fallback")),
 					SampleRate: c.sampleRate(),
 				},
@@ -65,87 +65,87 @@ func (c *CommandFactory) CommandProperties(circuitName string) hystrix.CommandPr
 	}
 }
 
-// CmdMetricCollector collects command metrics
-type CmdMetricCollector struct {
+// RunMetricsCollector collects command metrics
+type RunMetricsCollector struct {
 	SendTo       statsd.StatSender
 	SampleRate   float32
 	StatsdErrors func(err error)
 }
 
-func (c *CmdMetricCollector) check(err error) {
+func (c *RunMetricsCollector) check(err error) {
 	if err != nil && c.StatsdErrors != nil {
 		c.StatsdErrors(err)
 	}
 }
 
 // Success sends a success to statsd
-func (c *CmdMetricCollector) Success(now time.Time, duration time.Duration) {
+func (c *RunMetricsCollector) Success(now time.Time, duration time.Duration) {
 	c.check(c.SendTo.Inc("success", 1, c.SampleRate))
 	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrFailure sends a failure to statsd
-func (c *CmdMetricCollector) ErrFailure(now time.Time, duration time.Duration) {
+func (c *RunMetricsCollector) ErrFailure(now time.Time, duration time.Duration) {
 	c.check(c.SendTo.Inc("err_failure", 1, c.SampleRate))
 	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrTimeout sends a timeout to statsd
-func (c *CmdMetricCollector) ErrTimeout(now time.Time, duration time.Duration) {
+func (c *RunMetricsCollector) ErrTimeout(now time.Time, duration time.Duration) {
 	c.check(c.SendTo.Inc("err_timeout", 1, c.SampleRate))
 	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrBadRequest sends a bad request error to statsd
-func (c *CmdMetricCollector) ErrBadRequest(now time.Time, duration time.Duration) {
+func (c *RunMetricsCollector) ErrBadRequest(now time.Time, duration time.Duration) {
 	c.check(c.SendTo.Inc("err_bad_request", 1, c.SampleRate))
 	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrInterrupt sends an interrupt error to statsd
-func (c *CmdMetricCollector) ErrInterrupt(now time.Time, duration time.Duration) {
+func (c *RunMetricsCollector) ErrInterrupt(now time.Time, duration time.Duration) {
 	c.check(c.SendTo.Inc("err_interrupt", 1, c.SampleRate))
 	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrShortCircuit sends a short circuit to statsd
-func (c *CmdMetricCollector) ErrShortCircuit(now time.Time) {
+func (c *RunMetricsCollector) ErrShortCircuit(now time.Time) {
 	c.check(c.SendTo.Inc("err_short_circuit", 1, c.SampleRate))
 }
 
 // ErrConcurrencyLimitReject sends a concurrency limit error to statsd
-func (c *CmdMetricCollector) ErrConcurrencyLimitReject(now time.Time) {
+func (c *RunMetricsCollector) ErrConcurrencyLimitReject(now time.Time) {
 	c.check(c.SendTo.Inc("err_concurrency_limit_reject", 1, c.SampleRate))
 }
 
-var _ hystrix.RunMetrics = &CmdMetricCollector{}
+var _ hystrix.RunMetrics = &RunMetricsCollector{}
 
-// FallbackMetricCollector collects fallback metrics
-type FallbackMetricCollector struct {
+// FallbackMetricsCollector collects fallback metrics
+type FallbackMetricsCollector struct {
 	SendTo       statsd.StatSender
 	SampleRate   float32
 	StatsdErrors func(err error)
 }
 
-func (c *FallbackMetricCollector) check(err error) {
+func (c *FallbackMetricsCollector) check(err error) {
 	if err != nil && c.StatsdErrors != nil {
 		c.StatsdErrors(err)
 	}
 }
 
 // Success sends a success to statsd
-func (c *FallbackMetricCollector) Success(now time.Time, duration time.Duration) {
+func (c *FallbackMetricsCollector) Success(now time.Time, duration time.Duration) {
 	c.check(c.SendTo.Inc("success", 1, c.SampleRate))
 }
 
 // ErrConcurrencyLimitReject sends a concurrency-limit to statsd
-func (c *FallbackMetricCollector) ErrConcurrencyLimitReject(now time.Time) {
+func (c *FallbackMetricsCollector) ErrConcurrencyLimitReject(now time.Time) {
 	c.check(c.SendTo.Inc("err_concurrency_limit_reject", 1, c.SampleRate))
 }
 
 // ErrFailure sends a failure to statsd
-func (c *FallbackMetricCollector) ErrFailure(now time.Time, duration time.Duration) {
+func (c *FallbackMetricsCollector) ErrFailure(now time.Time, duration time.Duration) {
 	c.check(c.SendTo.Inc("err_failure", 1, c.SampleRate))
 }
 
-var _ hystrix.FallbackMetric = &FallbackMetricCollector{}
+var _ hystrix.FallbackMetrics = &FallbackMetricsCollector{}

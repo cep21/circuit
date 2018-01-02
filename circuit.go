@@ -117,7 +117,7 @@ func (c *Circuit) SetConfigNotThreadSafe(config CommandProperties) {
 	c.CmdMetricCollector = append(c.CmdMetricCollector, config.MetricsCollectors.Run...)
 
 	c.FallbackMetricCollector = append(
-		make([]FallbackMetric, 0, len(config.MetricsCollectors.Fallback)+2),
+		make([]FallbackMetrics, 0, len(config.MetricsCollectors.Fallback)+2),
 		config.MetricsCollectors.Fallback...)
 
 	c.CircuitMetricsCollector = append(

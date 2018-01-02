@@ -41,9 +41,9 @@ type FallbackConfig struct {
 // MetricsCollectors can receive metrics during a circuit.  They should be fast, as they will
 // block circuit operation during function calls.
 type MetricsCollectors struct {
-	Run      []RunMetrics     `json:"-"`
-	Fallback []FallbackMetric `json:"-"`
-	Circuit  []CircuitMetrics `json:"-"`
+	Run      []RunMetrics      `json:"-"`
+	Fallback []FallbackMetrics `json:"-"`
+	Circuit  []CircuitMetrics  `json:"-"`
 }
 
 // GoSpecificConfig is settings that aren't in the Java Hystrix implementation.
