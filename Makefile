@@ -37,7 +37,7 @@ lint:
 
 setup:
 	go get -u github.com/alecthomas/gometalinter
-	go get -t -d ./benchmarking/... ./metric_implementations/...
+	go get -t -d ./...
 	gometalinter --install
 
 # Run the example
