@@ -131,6 +131,7 @@ func (r FallbackMetricsCollection) Var() expvar.Var {
 	})
 }
 
+// CircuitMetricsCollection allows reporting multiple circuit metrics at once
 type CircuitMetricsCollection []CircuitMetrics
 
 var _ CircuitMetrics = &CircuitMetricsCollection{}

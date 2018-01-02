@@ -102,7 +102,7 @@ func (e *OpenOnErrPercentage) ErrBadRequest(now time.Time, duration time.Duratio
 // ErrInterrupt is ignored
 func (e *OpenOnErrPercentage) ErrInterrupt(now time.Time, duration time.Duration) {}
 
-// ErrorAttempt increases error count for the circuit
+// ErrFailure increases error count for the circuit
 func (e *OpenOnErrPercentage) ErrFailure(now time.Time, duration time.Duration) {
 	e.legitimateAttemptsCount.Inc(now)
 	e.errorsCount.Inc(now)
@@ -120,7 +120,7 @@ func (e *OpenOnErrPercentage) ErrConcurrencyLimitReject(now time.Time) {}
 // ErrShortCircuit is ignored
 func (e *OpenOnErrPercentage) ErrShortCircuit(now time.Time) {}
 
-// AttemptToOpen returns true if rolling count >= threshold and
+// ShouldOpen returns true if rolling count >= threshold and
 // error % is high enough.
 func (e *OpenOnErrPercentage) ShouldOpen(now time.Time) bool {
 	attemptCount := e.legitimateAttemptsCount.RollingSumAt(now)

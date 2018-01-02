@@ -49,7 +49,7 @@ func (c *ConsecutiveErrOpener) Prevent(now time.Time) bool {
 	return false
 }
 
-// SuccessfulAttempt resets the consecutive error count
+// Success resets the consecutive error count
 func (c *ConsecutiveErrOpener) Success(now time.Time, duration time.Duration) {
 	c.consecutiveCount.Set(0)
 }
@@ -62,23 +62,26 @@ func (c *ConsecutiveErrOpener) ErrInterrupt(now time.Time, duration time.Duratio
 
 // ErrConcurrencyLimitReject is ignored
 func (c *ConsecutiveErrOpener) ErrConcurrencyLimitReject(now time.Time) {}
-func (c *ConsecutiveErrOpener) ErrShortCircuit(now time.Time)           {}
+
+// ErrShortCircuit is ignored
+func (c *ConsecutiveErrOpener) ErrShortCircuit(now time.Time) {}
 
 // ErrFailure increments the consecutive error counter
 func (c *ConsecutiveErrOpener) ErrFailure(now time.Time, duration time.Duration) {
 	c.consecutiveCount.Add(1)
 }
 
-// ErrFailure increments the consecutive error counter
+// ErrTimeout increments the consecutive error counter
 func (c *ConsecutiveErrOpener) ErrTimeout(now time.Time, duration time.Duration) {
 	c.consecutiveCount.Add(1)
 }
 
+// Opened resets the error counter
 func (c *ConsecutiveErrOpener) Opened(now time.Time) {
 	c.consecutiveCount.Set(0)
 }
 
-// AttemptToOpen returns true if enough consecutive errors have returned
+// ShouldOpen returns true if enough consecutive errors have returned
 func (c *ConsecutiveErrOpener) ShouldOpen(now time.Time) bool {
 	return c.consecutiveCount.Get() >= c.closeThreshold.Get()
 }

@@ -81,7 +81,7 @@ func (s *SleepyCloseCheck) Allow(now time.Time) (shouldAllow bool) {
 	return s.reopenCircuitCheck.Check(now)
 }
 
-// SuccessfulAttempt any time runFunc was called and appeared healthy
+// Success any time runFunc was called and appeared healthy
 func (s *SleepyCloseCheck) Success(now time.Time, duration time.Duration) {
 	s.concurrentSuccessfulAttempts.Add(1)
 }
@@ -112,7 +112,7 @@ func (s *SleepyCloseCheck) ErrTimeout(now time.Time, duration time.Duration) {
 	s.concurrentSuccessfulAttempts.Set(0)
 }
 
-// AttemptToClose is true if we hav enough successful attempts in a row.
+// ShouldClose is true if we hav enough successful attempts in a row.
 func (s *SleepyCloseCheck) ShouldClose(now time.Time) bool {
 	return s.concurrentSuccessfulAttempts.Get() > s.closeOnCurrentCount.Get()
 }
