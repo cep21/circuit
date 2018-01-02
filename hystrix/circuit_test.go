@@ -160,7 +160,7 @@ func TestSleepDurationWorks(t *testing.T) {
 		},
 		GoSpecific: hystrix.GoSpecificConfig{
 			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
-				SleepWindow: sleepWindow + time.Millisecond,
+				SleepWindow: sleepWindow + time.Millisecond*5,
 			}),
 			ClosedToOpenFactory: OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
 				RequestVolumeThreshold:   1,
@@ -181,12 +181,12 @@ func TestSleepDurationWorks(t *testing.T) {
 		RunFunc: testhelp.AlwaysFails,
 	}
 
+	lastRequestTime := time.Now()
 	c.OpenCircuit()
 	if !c.IsOpen() {
 		t.Errorf("circuit should be open after I open it")
 	}
 	var mu sync.Mutex
-	lastRequestTime := time.Now()
 
 	wg := sync.WaitGroup{}
 	for ct := 0; ct < concurrentThreads; ct++ {
