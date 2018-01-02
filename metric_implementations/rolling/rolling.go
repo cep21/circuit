@@ -28,6 +28,7 @@ func CollectRollingStats(runConfig RunStatsConfig, fallbackConfig FallbackStatsC
 	}
 }
 
+// FindCommandMetrics searches a circuit for the previously stored run stats.  Returns nil if never set.
 func FindCommandMetrics(c *hystrix.Circuit) *RunStats {
 	for _, r := range c.CmdMetricCollector {
 		if ret, ok := r.(*RunStats); ok {
@@ -37,6 +38,7 @@ func FindCommandMetrics(c *hystrix.Circuit) *RunStats {
 	return nil
 }
 
+// FindFallbackMetrics searches a circuit for the previously stored fallback stats.  Returns nil if never set.
 func FindFallbackMetrics(c *hystrix.Circuit) *FallbackStats {
 	for _, r := range c.FallbackMetricCollector {
 		if ret, ok := r.(*FallbackStats); ok {
@@ -46,6 +48,7 @@ func FindFallbackMetrics(c *hystrix.Circuit) *FallbackStats {
 	return nil
 }
 
+// RunStats tracks rolling windows of callback counts
 type RunStats struct {
 	Successes                  fastmath.RollingCounter
 	ErrConcurrencyLimitRejects fastmath.RollingCounter
@@ -59,10 +62,6 @@ type RunStats struct {
 	Latencies fastmath.RollingPercentile
 }
 
-type varable interface {
-	Var() expvar.Var
-}
-
 func expvarToVal(in expvar.Var) interface{} {
 	type iv interface {
 		Value() interface{}
@@ -73,6 +72,7 @@ func expvarToVal(in expvar.Var) interface{} {
 	return nil
 }
 
+// Var allows exposing RunStats on expvar
 func (r *RunStats) Var() expvar.Var {
 	return expvar.Func(func() interface{} {
 		snap := r.Latencies.Snapshot()
@@ -93,9 +93,7 @@ func (r *RunStats) Var() expvar.Var {
 	})
 }
 
-func (r *RunStats) SetConfigThreadSafe(config hystrix.CommandProperties) {
-}
-
+// RunStatsConfig configures a RunStats
 type RunStatsConfig struct {
 	// Now should simulate time.Now
 	Now func() time.Time
@@ -111,6 +109,7 @@ type RunStatsConfig struct {
 	RollingPercentileBucketSize int
 }
 
+// Merge this config with another
 func (r *RunStatsConfig) Merge(other RunStatsConfig) {
 	if r.Now == nil {
 		r.Now = other.Now
@@ -141,6 +140,7 @@ var defaultRunStatsConfig = RunStatsConfig{
 	RollingPercentileBucketSize: 100,
 }
 
+// SetConfigNotThreadSafe updates the RunStats buckets
 func (r *RunStats) SetConfigNotThreadSafe(config RunStatsConfig) {
 	now := config.Now()
 	bucketWidth := time.Duration(config.RollingStatsDuration.Nanoseconds() / int64(config.RollingStatsNumBuckets))
@@ -159,38 +159,45 @@ func (r *RunStats) SetConfigNotThreadSafe(config RunStatsConfig) {
 	r.Latencies = fastmath.NewRollingPercentile(rollingPercentileBucketWidth, rollingPercentileNumBuckets, rollingPercentileBucketSize, now)
 }
 
+// Success increments the Successes bucket
 func (r *RunStats) Success(duration time.Duration) {
 	now := time.Now()
 	r.Successes.Inc(now)
 	r.Latencies.AddDuration(duration, now)
 }
 
+// ErrInterrupt increments the ErrInterrupts bucket
 func (r *RunStats) ErrInterrupt(duration time.Duration) {
 	now := time.Now()
 	r.ErrInterrupts.Inc(now)
 	r.Latencies.AddDuration(duration, now)
 }
 
+// ErrConcurrencyLimitReject increments the ErrConcurrencyLimitReject bucket
 func (r *RunStats) ErrConcurrencyLimitReject() {
 	r.ErrConcurrencyLimitRejects.Inc(time.Now())
 }
 
+// ErrFailure increments the ErrFailure bucket
 func (r *RunStats) ErrFailure(duration time.Duration) {
 	now := time.Now()
 	r.ErrFailures.Inc(now)
 	r.Latencies.AddDuration(duration, now)
 }
 
+// ErrShortCircuit increments the ErrShortCircuit bucket
 func (r *RunStats) ErrShortCircuit() {
 	r.ErrShortCircuits.Inc(time.Now())
 }
 
+// ErrTimeout increments the ErrTimeout bucket
 func (r *RunStats) ErrTimeout(duration time.Duration) {
 	now := time.Now()
 	r.ErrTimeouts.Inc(now)
 	r.Latencies.AddDuration(duration, now)
 }
 
+// ErrBadRequest increments the ErrBadRequest bucket
 func (r *RunStats) ErrBadRequest(duration time.Duration) {
 	now := time.Now()
 	r.ErrBadRequests.Inc(now)
@@ -202,14 +209,17 @@ func (r *RunStats) ErrorPercentage() float64 {
 	return r.ErrorPercentageAt(time.Now())
 }
 
+// LegitimateAttemptsAt returns the sum of errors and successes
 func (r *RunStats) LegitimateAttemptsAt(now time.Time) int64 {
 	return r.Successes.RollingSumAt(now) + r.ErrorsAt(now)
 }
 
+// ErrorsAt returns the # of errors at a moment in time (errors are timeouts and failures)
 func (r *RunStats) ErrorsAt(now time.Time) int64 {
 	return r.ErrFailures.RollingSumAt(now) + r.ErrTimeouts.RollingSumAt(now)
 }
 
+// ErrorPercentageAt is [0.0 - 1.0] errors/legitimate
 func (r *RunStats) ErrorPercentageAt(now time.Time) float64 {
 	attemptCount := r.LegitimateAttemptsAt(now)
 	if attemptCount == 0 {
@@ -219,12 +229,14 @@ func (r *RunStats) ErrorPercentageAt(now time.Time) float64 {
 	return float64(errCount) / float64(attemptCount)
 }
 
+// FallbackStats tracks fallback metrics in rolling buckets
 type FallbackStats struct {
 	Successes                  fastmath.RollingCounter
 	ErrConcurrencyLimitRejects fastmath.RollingCounter
 	ErrFailures                fastmath.RollingCounter
 }
 
+// Var allows FallbackStats on expvar
 func (r *FallbackStats) Var() expvar.Var {
 	return expvar.Func(func() interface{} {
 		return map[string]interface{}{
@@ -235,18 +247,22 @@ func (r *FallbackStats) Var() expvar.Var {
 	})
 }
 
+// Success increments the Success bucket
 func (r *FallbackStats) Success(duration time.Duration) {
 	r.Successes.Inc(time.Now())
 }
 
+// ErrConcurrencyLimitReject increments the ErrConcurrencyLimitReject bucket
 func (r *FallbackStats) ErrConcurrencyLimitReject() {
 	r.ErrConcurrencyLimitRejects.Inc(time.Now())
 }
 
+// ErrFailure increments the ErrFailure bucket
 func (r *FallbackStats) ErrFailure(duration time.Duration) {
 	r.ErrFailures.Inc(time.Now())
 }
 
+// FallbackStatsConfig configures how to track fallback stats
 type FallbackStatsConfig struct {
 	// Rolling Stats size is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatstimeinmilliseconds
 	RollingStatsDuration time.Duration
@@ -256,6 +272,7 @@ type FallbackStatsConfig struct {
 	RollingStatsNumBuckets int
 }
 
+// Merge this config with another
 func (r *FallbackStatsConfig) Merge(other FallbackStatsConfig) {
 	if r.Now == nil {
 		r.Now = other.Now
@@ -276,6 +293,7 @@ var defaultFallbackStatsConfig = FallbackStatsConfig{
 
 var _ hystrix.FallbackMetric = &FallbackStats{}
 
+// SetConfigNotThreadSafe sets the configuration for fallback stats
 func (r *FallbackStats) SetConfigNotThreadSafe(config FallbackStatsConfig) {
 	now := config.Now()
 	bucketWidth := time.Duration(config.RollingStatsDuration.Nanoseconds() / int64(config.RollingStatsNumBuckets))

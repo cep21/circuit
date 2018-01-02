@@ -103,7 +103,8 @@ func TestDoForwardsPanics(t *testing.T) {
 			t.Fatal("should recover")
 		}
 	}()
-	c.Execute(ctx, func(_ context.Context) error {
+	// Is never returned
+	_ = c.Execute(ctx, func(_ context.Context) error {
 		if true {
 			panic(1)
 		}
@@ -126,7 +127,8 @@ func TestCircuit_Go_ForwardsPanic(t *testing.T) {
 		}
 	}()
 	var x []int
-	c.Go(ctx, func(ctx2 context.Context) error {
+	// Go never returns
+	_ = c.Go(ctx, func(ctx2 context.Context) error {
 		x[0] = 0 // will panic
 		return nil
 	}, nil)
@@ -335,10 +337,10 @@ func TestVariousRaceConditions(t *testing.T) {
 	concurrentThreads := 5
 	c := NewCircuitFromConfig("TestVariousRaceConditions", CommandProperties{
 		Execution: ExecutionConfig{
-			MaxConcurrentRequests: int64(concurrentThreads),
+			MaxConcurrentRequests: int64(-1),
 		},
 		Fallback: FallbackConfig{
-			MaxConcurrentRequests: int64(concurrentThreads),
+			MaxConcurrentRequests: int64(-1),
 		},
 	})
 
@@ -362,16 +364,17 @@ func TestVariousRaceConditions(t *testing.T) {
 			c.Name()
 		})
 		testhelp.DoTillTime(doNotPassTime, &wg, func() {
-			c.Execute(context.Background(), testhelp.AlwaysPasses, nil)
+			// Circuit could be forced open
+			_ = c.Execute(context.Background(), testhelp.AlwaysPasses, nil)
 		})
 		testhelp.DoTillTime(doNotPassTime, &wg, func() {
-			c.Execute(context.Background(), testhelp.AlwaysFails, nil)
+			testhelp.MustNotTesting(t, c.Execute(context.Background(), testhelp.AlwaysFails, nil))
 		})
 		testhelp.DoTillTime(doNotPassTime, &wg, func() {
-			c.Execute(context.Background(), testhelp.AlwaysFails, testhelp.AlwaysPassesFallback)
+			testhelp.MustTesting(t, c.Execute(context.Background(), testhelp.AlwaysFails, testhelp.AlwaysPassesFallback))
 		})
 		testhelp.DoTillTime(doNotPassTime, &wg, func() {
-			c.Execute(context.Background(), testhelp.AlwaysFails, testhelp.AlwaysFailsFallback)
+			testhelp.MustNotTesting(t, c.Execute(context.Background(), testhelp.AlwaysFails, testhelp.AlwaysFailsFallback))
 		})
 	}
 	wg.Wait()

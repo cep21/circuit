@@ -244,7 +244,7 @@ func TestCircuitRecovers(t *testing.T) {
 	})
 
 	// This is when the circuit starts working again
-	startWorkingTime := time.Now().Add(time.Millisecond * 11)
+	startWorkingTime := time.Now().Add(sleepWindow * 2)
 	// This is the latest that the circuit should keep failing requests
 	circuitOkTime := startWorkingTime.Add(sleepWindow).Add(time.Millisecond * 200)
 
@@ -254,11 +254,18 @@ func TestCircuitRecovers(t *testing.T) {
 	if err != nil {
 		t.Errorf("I expect this to not fail since it has a fallback")
 	}
+	if !c.IsOpen() {
+		t.Errorf("I expect the circuit to open after that one, first failure")
+	}
+
+	workingAtThisTime := func(t time.Time) bool {
+		return t.After(startWorkingTime)
+	}
 
 	failure := errors.New("a failure")
 	bc := testhelp.BehaviorCheck{
 		RunFunc: func(_ context.Context) error {
-			if time.Now().After(startWorkingTime) {
+			if workingAtThisTime(time.Now()) {
 				return nil
 			}
 			return failure
@@ -267,15 +274,15 @@ func TestCircuitRecovers(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 	for ct := 0; ct < concurrentThreads; ct++ {
-		hasHealed := false
 		testhelp.DoTillTime(doNotPassTime, &wg, func() {
 			isCircuitOk := time.Now().After(circuitOkTime)
+			justBeforeTime := time.Now()
 			err := c.Execute(context.Background(), bc.Run, nil)
 			if err != nil {
 				if isCircuitOk {
 					t.Fatalf("Should not get an error after this time: The circuit should be ok: %s", err)
 				}
-				if hasHealed {
+				if circuitOkTime.Before(justBeforeTime) {
 					t.Fatalf("Should not get an error after the circuit healed itself")
 				}
 			}
@@ -283,7 +290,6 @@ func TestCircuitRecovers(t *testing.T) {
 				if time.Now().Before(startWorkingTime) {
 					t.Fatalf("The circuit should not work before I correct the service")
 				}
-				hasHealed = true
 			}
 		})
 	}

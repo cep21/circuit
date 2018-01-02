@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// MockClock allows mocking time for testing
 type MockClock struct {
 	currentTime time.Time
 	callbacks   []timedCallbacks
@@ -16,6 +17,7 @@ type timedCallbacks struct {
 	f    func()
 }
 
+// Set the current time
 func (m *MockClock) Set(t time.Time) time.Time {
 	// Note: do this after the lock is released
 	defer m.triggerCallbacks()
@@ -25,6 +27,7 @@ func (m *MockClock) Set(t time.Time) time.Time {
 	return m.currentTime
 }
 
+// Add some time, triggering sleeping callbacks
 func (m *MockClock) Add(d time.Duration) time.Time {
 	return m.Set(m.Now().Add(d))
 }
@@ -47,12 +50,14 @@ func (m *MockClock) triggerCallbacks() {
 	}
 }
 
+// Now simulates time.Now()
 func (m *MockClock) Now() time.Time {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.currentTime
 }
 
+// AfterFunc simulates time.AfterFunc
 func (m *MockClock) AfterFunc(d time.Duration, f func()) *time.Timer {
 	m.mu.Lock()
 	defer m.mu.Unlock()

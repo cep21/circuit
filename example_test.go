@@ -8,9 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
-
 	"net/http/httptest"
+	"time"
 
 	"github.com/cep21/hystrix"
 )
@@ -26,7 +25,7 @@ func Example_http() {
 	})
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		rw.Write([]byte("hello world"))
+		_, _ = io.WriteString(rw, "hello world")
 	}))
 	defer testServer.Close()
 
@@ -178,7 +177,7 @@ func ExampleCircuit_Go_panics() {
 			fmt.Println("I recovered from a panic", r)
 		}
 	}()
-	circuit.Go(context.Background(), func(ctx context.Context) error {
+	_ = circuit.Go(context.Background(), func(ctx context.Context) error {
 		panic("oh no")
 	}, nil)
 	// Output: I recovered from a panic oh no

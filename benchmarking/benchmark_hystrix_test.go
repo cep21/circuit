@@ -129,7 +129,7 @@ func BenchmarkCiruits(b *testing.B) {
 			configs: []circuitConfigs{
 				{
 					name: "Default",
-					config: iandCircuit.Breaker{
+					config: &iandCircuit.Breaker{
 						Concurrency: 75,
 					},
 				},
@@ -227,7 +227,7 @@ func handyRunner(b *testing.B, _ interface{}, concurrent int, _ interface{}, pas
 }
 
 func iandCircuitRunner(b *testing.B, breakerIn interface{}, concurrent int, funcToRun interface{}, pass bool) {
-	bc := breakerIn.(iandCircuit.Breaker)
+	bc := breakerIn.(*iandCircuit.Breaker)
 	ctx := context.Background()
 	f := funcToRun.(func() error)
 	genericBenchmarkTesting(b, concurrent, func() error {

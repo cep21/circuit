@@ -20,9 +20,11 @@ type SleepyCloseCheck struct {
 	config ConfigureSleepyCloseCheck
 }
 
+// SleepyCloseCheckFactory creates SleepyCloseCheck closer
 func SleepyCloseCheckFactory(config ConfigureSleepyCloseCheck) func() hystrix.OpenToClosed {
 	return func() hystrix.OpenToClosed {
 		s := SleepyCloseCheck{}
+		config.Merge(defaultConfigureSleepyCloseCheck)
 		s.SetConfigNotThreadSafe(config)
 		return &s
 	}
@@ -30,6 +32,7 @@ func SleepyCloseCheckFactory(config ConfigureSleepyCloseCheck) func() hystrix.Op
 
 var _ hystrix.OpenToClosed = &SleepyCloseCheck{}
 
+// ConfigureSleepyCloseCheck configures values for SleepyCloseCheck
 type ConfigureSleepyCloseCheck struct {
 	// SleepWindow is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakersleepwindowinmilliseconds
 	SleepWindow time.Duration
@@ -39,6 +42,7 @@ type ConfigureSleepyCloseCheck struct {
 	RequiredConcurrentSuccessful int64
 }
 
+// Merge this configuration with another
 func (c *ConfigureSleepyCloseCheck) Merge(other ConfigureSleepyCloseCheck) {
 	if c.SleepWindow == 0 {
 		c.SleepWindow = other.SleepWindow

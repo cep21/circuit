@@ -23,6 +23,7 @@ type OpenOnErrPercentage struct {
 
 var _ hystrix.ClosedToOpen = &OpenOnErrPercentage{}
 
+// OpenOnErrPercentageFactory creates a err % opener
 func OpenOnErrPercentageFactory(config ConfigureOpenOnErrPercentage) func() hystrix.ClosedToOpen {
 	return func() hystrix.ClosedToOpen {
 		s := OpenOnErrPercentage{}
@@ -46,6 +47,7 @@ type ConfigureOpenOnErrPercentage struct {
 	NumBuckets int
 }
 
+// Merge this configuration with another
 func (c *ConfigureOpenOnErrPercentage) Merge(other ConfigureOpenOnErrPercentage) {
 	if c.ErrorThresholdPercentage == 0 {
 		c.ErrorThresholdPercentage = other.ErrorThresholdPercentage
