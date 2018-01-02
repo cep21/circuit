@@ -1,10 +1,11 @@
 package hystrix
 
 import (
-	"github.com/cep21/hystrix/internal/fastmath"
-	"time"
-	"github.com/cep21/hystrix"
 	"sync"
+	"time"
+
+	"github.com/cep21/hystrix"
+	"github.com/cep21/hystrix/internal/fastmath"
 )
 
 // OpenOnErrPercentage is ClosedToOpen that opens a circuit after a threshold and % error has been
@@ -16,7 +17,7 @@ type OpenOnErrPercentage struct {
 	errorPercentage        fastmath.AtomicInt64
 	requestVolumeThreshold fastmath.AtomicInt64
 
-	mu sync.Mutex
+	mu     sync.Mutex
 	config ConfigureOpenOnErrPercentage
 }
 
@@ -38,7 +39,7 @@ type ConfigureOpenOnErrPercentage struct {
 	// RequestVolumeThreshold is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerrequestvolumethreshold
 	RequestVolumeThreshold int64
 	// Now should simulate time.Now
-	Now func()time.Time
+	Now func() time.Time
 	// RollingDuration is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatstimeinmilliseconds
 	RollingDuration time.Duration
 	// NumBuckets is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatsnumbuckets
@@ -63,12 +64,12 @@ func (c *ConfigureOpenOnErrPercentage) Merge(other ConfigureOpenOnErrPercentage)
 	}
 }
 
-var defaultConfigureOpenOnErrPercentage = ConfigureOpenOnErrPercentage {
+var defaultConfigureOpenOnErrPercentage = ConfigureOpenOnErrPercentage{
 	RequestVolumeThreshold:   20,
 	ErrorThresholdPercentage: 50,
-	Now: time.Now,
+	Now:             time.Now,
 	NumBuckets:      10,
-	RollingDuration:        10 * time.Second,
+	RollingDuration: 10 * time.Second,
 }
 
 // Closed resets the error and attempt count

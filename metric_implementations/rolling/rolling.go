@@ -11,7 +11,7 @@ import (
 
 // CollectRollingStats enables stats needed to display metric event streams on a hystrix dashboard, as well as it
 // gives easy access to rolling and total latency stats
-func CollectRollingStats(runConfig RunStatsConfig, fallbackConfig FallbackStatsConfig) func (string) hystrix.CommandProperties {
+func CollectRollingStats(runConfig RunStatsConfig, fallbackConfig FallbackStatsConfig) func(string) hystrix.CommandProperties {
 	return func(_ string) hystrix.CommandProperties {
 		rs := RunStats{}
 		runConfig.Merge(defaultRunStatsConfig)
@@ -133,12 +133,12 @@ func (r *RunStatsConfig) Merge(other RunStatsConfig) {
 }
 
 var defaultRunStatsConfig = RunStatsConfig{
-	Now: time.Now,
-	RollingStatsDuration:10 * time.Second,
-	RollingStatsNumBuckets:10,
-	RollingPercentileDuration:60 * time.Second,
-	RollingPercentileNumBuckets:6,
-	RollingPercentileBucketSize:100,
+	Now:                         time.Now,
+	RollingStatsDuration:        10 * time.Second,
+	RollingStatsNumBuckets:      10,
+	RollingPercentileDuration:   60 * time.Second,
+	RollingPercentileNumBuckets: 6,
+	RollingPercentileBucketSize: 100,
 }
 
 func (r *RunStats) SetConfigNotThreadSafe(config RunStatsConfig) {
@@ -256,7 +256,6 @@ type FallbackStatsConfig struct {
 	RollingStatsNumBuckets int
 }
 
-
 func (r *FallbackStatsConfig) Merge(other FallbackStatsConfig) {
 	if r.Now == nil {
 		r.Now = other.Now
@@ -270,9 +269,9 @@ func (r *FallbackStatsConfig) Merge(other FallbackStatsConfig) {
 }
 
 var defaultFallbackStatsConfig = FallbackStatsConfig{
-	Now: time.Now,
-	RollingStatsDuration:10 * time.Second,
-	RollingStatsNumBuckets:10,
+	Now:                    time.Now,
+	RollingStatsDuration:   10 * time.Second,
+	RollingStatsNumBuckets: 10,
 }
 
 var _ hystrix.FallbackMetric = &FallbackStats{}

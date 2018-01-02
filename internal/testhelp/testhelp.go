@@ -1,12 +1,12 @@
 package testhelp
 
 import (
-	"fmt"
-	"time"
-	"sync"
 	"context"
 	"errors"
+	"fmt"
 	"runtime"
+	"sync"
+	"time"
 )
 
 type BehaviorCheck struct {

@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
 	"github.com/cep21/hystrix/internal/fastmath"
 	"github.com/cep21/hystrix/internal/testhelp"
 )

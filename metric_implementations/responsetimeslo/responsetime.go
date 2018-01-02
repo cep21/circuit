@@ -3,8 +3,8 @@ package responsetimeslo
 import (
 	"time"
 
-	"github.com/cep21/hystrix/internal/fastmath"
 	"github.com/cep21/hystrix"
+	"github.com/cep21/hystrix/internal/fastmath"
 )
 
 // responseTimeSLO sets up a response time SLO that has a reasonable meaning for hystrix.  Use it for an SLO like

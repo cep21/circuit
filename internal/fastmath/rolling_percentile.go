@@ -1,11 +1,11 @@
 package fastmath
 
 import (
+	"expvar"
 	"math"
 	"sort"
 	"strings"
 	"time"
-	"expvar"
 )
 
 type RollingPercentile struct {

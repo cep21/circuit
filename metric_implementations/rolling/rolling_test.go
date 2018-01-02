@@ -2,11 +2,12 @@ package rolling
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
+
 	"github.com/cep21/hystrix"
 	"github.com/cep21/hystrix/internal/testhelp"
-	"errors"
 )
 
 func TestHappyCircuit(t *testing.T) {

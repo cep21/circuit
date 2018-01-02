@@ -8,8 +8,8 @@ import (
 
 // CommandProperties is https://github.com/Netflix/Hystrix/wiki/Configuration#command-properties
 type CommandProperties struct {
-	Execution         ExecutionConfig
-	Fallback          FallbackConfig
+	Execution ExecutionConfig
+	Fallback  FallbackConfig
 	//CircuitBreaker    CircuitBreakerConfig
 	//Metrics           MetricsConfig
 	MetricsCollectors MetricsCollectors
@@ -42,19 +42,19 @@ type FallbackConfig struct {
 
 // MetricsConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#metrics
 //type MetricsConfig struct {
-	// Rolling Stats size is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatstimeinmilliseconds
-	//RollingStatsDuration time.Duration
-	// RollingStatsNumBuckets is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatsnumbuckets
-	//RollingStatsNumBuckets int
+// Rolling Stats size is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatstimeinmilliseconds
+//RollingStatsDuration time.Duration
+// RollingStatsNumBuckets is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatsnumbuckets
+//RollingStatsNumBuckets int
 
-	// RollingPercentileEnabled is opposite of https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentileenabled
-	//RollingPercentileDisabled bool
-	// RollingPercentileDuration is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentiletimeinmilliseconds
-	//RollingPercentileDuration time.Duration
-	// RollingPercentileNumBuckets is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentilenumbuckets
-	//RollingPercentileNumBuckets int
-	// RollingPercentileBucketSize is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentilebucketsize
-	//RollingPercentileBucketSize int
+// RollingPercentileEnabled is opposite of https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentileenabled
+//RollingPercentileDisabled bool
+// RollingPercentileDuration is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentiletimeinmilliseconds
+//RollingPercentileDuration time.Duration
+// RollingPercentileNumBuckets is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentilenumbuckets
+//RollingPercentileNumBuckets int
+// RollingPercentileBucketSize is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingpercentilebucketsize
+//RollingPercentileBucketSize int
 //}
 
 // MetricsCollectors can receive metrics during a circuit.  They should be fast, as they will
@@ -66,13 +66,13 @@ type MetricsCollectors struct {
 
 // CircuitBreakerConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#circuit-breaker
 //type CircuitBreakerConfig struct {
-	// if disabled, Execute functions pass to just calling runFunc and do no tracking or fallbacks
-	// Note: Java Hystrix calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
-	//Disabled bool `json:",omitempty"`
-	// ForceOpen is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceopen
-	//ForceOpen bool `json:",omitempty"`
-	// ForcedClosed is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceclosed
-	//ForcedClosed bool `json:",omitempty"`
+// if disabled, Execute functions pass to just calling runFunc and do no tracking or fallbacks
+// Note: Java Hystrix calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
+//Disabled bool `json:",omitempty"`
+// ForceOpen is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceopen
+//ForceOpen bool `json:",omitempty"`
+// ForcedClosed is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceclosed
+//ForcedClosed bool `json:",omitempty"`
 //}
 
 // GoSpecificConfig is settings that aren't in the Java Hystrix implementation.
@@ -132,7 +132,6 @@ func (c *ExecutionConfig) merge(other ExecutionConfig) {
 		c.Timeout = other.Timeout
 	}
 }
-
 
 //func (c *MetricsConfig) merge(other MetricsConfig) {
 //	if c.RollingStatsDuration == 0 {
@@ -237,9 +236,9 @@ func (c *CommandProperties) Merge(other CommandProperties) *CommandProperties {
 // change config at runtime without requiring locks on common operations
 type atomicCircuitConfig struct {
 	CircuitBreaker struct {
-		ForceOpen                fastmath.AtomicBoolean
-		ForcedClosed             fastmath.AtomicBoolean
-		Disabled                 fastmath.AtomicBoolean
+		ForceOpen    fastmath.AtomicBoolean
+		ForcedClosed fastmath.AtomicBoolean
+		Disabled     fastmath.AtomicBoolean
 	}
 	Execution struct {
 		ExecutionTimeout      fastmath.AtomicInt64
@@ -302,9 +301,9 @@ var defaultGoSpecificConfig = GoSpecificConfig{
 }
 
 var defaultCommandProperties = CommandProperties{
-	Execution:      defaultExecutionConfig,
-	Fallback:       defaultFallbackConfig,
+	Execution: defaultExecutionConfig,
+	Fallback:  defaultFallbackConfig,
 	//CircuitBreaker: defaultCircuitBreakerConfig,
 	//Metrics:        defaultMetricsConfig,
-	GoSpecific:     defaultGoSpecificConfig,
+	GoSpecific: defaultGoSpecificConfig,
 }

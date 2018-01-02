@@ -1,10 +1,11 @@
 package hystrix
 
 import (
-	"github.com/cep21/hystrix/internal/fastmath"
-	"time"
-	"github.com/cep21/hystrix"
 	"sync"
+	"time"
+
+	"github.com/cep21/hystrix"
+	"github.com/cep21/hystrix/internal/fastmath"
 )
 
 // SleepyCloseCheck is hystrix's default half-open logic: try again ever X ms
@@ -15,7 +16,7 @@ type SleepyCloseCheck struct {
 	concurrentSuccessfulAttempts fastmath.AtomicInt64
 	closeOnCurrentCount          fastmath.AtomicInt64
 
-	mu sync.Mutex
+	mu     sync.Mutex
 	config ConfigureSleepyCloseCheck
 }
 
@@ -51,8 +52,8 @@ func (c *ConfigureSleepyCloseCheck) Merge(other ConfigureSleepyCloseCheck) {
 }
 
 var defaultConfigureSleepyCloseCheck = ConfigureSleepyCloseCheck{
-	SleepWindow:              5 * time.Second,
-	HalfOpenAttempts: 1,
+	SleepWindow:                  5 * time.Second,
+	HalfOpenAttempts:             1,
 	RequiredConcurrentSuccessful: 1,
 }
 

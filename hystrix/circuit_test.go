@@ -1,22 +1,22 @@
 package hystrix
 
 import (
-	"testing"
-	"github.com/cep21/hystrix"
 	"context"
 	"errors"
-	"time"
-	"sync"
 	"runtime"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/cep21/hystrix"
 	"github.com/cep21/hystrix/internal/testhelp"
 )
 
 func TestCircuitCloses(t *testing.T) {
 	c := hystrix.NewCircuitFromConfig("TestCircuitCloses", hystrix.CommandProperties{
 		GoSpecific: hystrix.GoSpecificConfig{
-			OpenToClosedFactory:SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
-			}),
-			ClosedToOpenFactory:OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
+			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{}),
+			ClosedToOpenFactory: OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
 				RequestVolumeThreshold: 1,
 			}),
 		},
@@ -41,10 +41,10 @@ func TestCircuitCloses(t *testing.T) {
 func TestCircuitAttemptsToReopen(t *testing.T) {
 	c := hystrix.NewCircuitFromConfig("TestCircuitAttemptsToReopen", hystrix.CommandProperties{
 		GoSpecific: hystrix.GoSpecificConfig{
-			OpenToClosedFactory:SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
+			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
 				SleepWindow: time.Millisecond,
 			}),
-			ClosedToOpenFactory:OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
+			ClosedToOpenFactory: OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
 				RequestVolumeThreshold: 1,
 			}),
 		},
@@ -74,10 +74,10 @@ func TestCircuitAttemptsToReopen(t *testing.T) {
 func TestCircuitAttemptsToReopenOnlyOnce(t *testing.T) {
 	c := hystrix.NewCircuitFromConfig("TestCircuitAttemptsToReopenOnlyOnce", hystrix.CommandProperties{
 		GoSpecific: hystrix.GoSpecificConfig{
-			OpenToClosedFactory:SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
+			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
 				SleepWindow: time.Millisecond,
 			}),
-			ClosedToOpenFactory:OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
+			ClosedToOpenFactory: OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
 				RequestVolumeThreshold: 1,
 			}),
 		},
@@ -111,11 +111,11 @@ func TestCircuitAttemptsToReopenOnlyOnce(t *testing.T) {
 func TestLargeSleepWindow(t *testing.T) {
 	c := hystrix.NewCircuitFromConfig("TestLargeSleepWindow", hystrix.CommandProperties{
 		GoSpecific: hystrix.GoSpecificConfig{
-			OpenToClosedFactory:SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
+			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
 				SleepWindow: time.Hour,
 			}),
-			ClosedToOpenFactory:OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
-				RequestVolumeThreshold: 1,
+			ClosedToOpenFactory: OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
+				RequestVolumeThreshold:   1,
 				ErrorThresholdPercentage: 1,
 			}),
 		},
@@ -159,11 +159,11 @@ func TestSleepDurationWorks(t *testing.T) {
 			MaxConcurrentRequests: int64(concurrentThreads),
 		},
 		GoSpecific: hystrix.GoSpecificConfig{
-			OpenToClosedFactory:SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
+			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
 				SleepWindow: sleepWindow + time.Millisecond,
 			}),
-			ClosedToOpenFactory:OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
-				RequestVolumeThreshold: 1,
+			ClosedToOpenFactory: OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
+				RequestVolumeThreshold:   1,
 				ErrorThresholdPercentage: 1,
 			}),
 		},
@@ -224,14 +224,14 @@ func TestSleepDurationWorks(t *testing.T) {
 func TestCircuitRecovers(t *testing.T) {
 	concurrentThreads := 25
 	sleepWindow := time.Millisecond * 5
-	c := hystrix.NewCircuitFromConfig("TestCircuitRecovers",hystrix.CommandProperties{
+	c := hystrix.NewCircuitFromConfig("TestCircuitRecovers", hystrix.CommandProperties{
 		GoSpecific: hystrix.GoSpecificConfig{
-			OpenToClosedFactory:SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
+			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
 				//		// This should allow a new request every 10 milliseconds
 				SleepWindow: time.Millisecond * 5,
 			}),
-			ClosedToOpenFactory:OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
-				RequestVolumeThreshold: 1,
+			ClosedToOpenFactory: OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
+				RequestVolumeThreshold:   1,
 				ErrorThresholdPercentage: 1,
 			}),
 		},

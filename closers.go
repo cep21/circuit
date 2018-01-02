@@ -50,7 +50,7 @@ func NeverOpensFactory() ClosedToOpen {
 	return NeverOpens{}
 }
 
-type NeverOpens struct {}
+type NeverOpens struct{}
 
 func (c NeverOpens) Closed(now time.Time) {}
 
@@ -74,7 +74,7 @@ func NeverClosesFactory() OpenToClosed {
 	return NeverCloses{}
 }
 
-type NeverCloses struct {}
+type NeverCloses struct{}
 
 func (c NeverCloses) Opened(now time.Time) {}
 
