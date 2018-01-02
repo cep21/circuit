@@ -79,42 +79,42 @@ func (c *CmdMetricCollector) check(err error) {
 }
 
 // Success sends a success to statsd
-func (c *CmdMetricCollector) Success(duration time.Duration) {
+func (c *CmdMetricCollector) Success(now time.Time, duration time.Duration) {
 	c.check(c.SendTo.Inc("success", 1, c.SampleRate))
 	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrFailure sends a failure to statsd
-func (c *CmdMetricCollector) ErrFailure(duration time.Duration) {
+func (c *CmdMetricCollector) ErrFailure(now time.Time, duration time.Duration) {
 	c.check(c.SendTo.Inc("err_failure", 1, c.SampleRate))
 	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrTimeout sends a timeout to statsd
-func (c *CmdMetricCollector) ErrTimeout(duration time.Duration) {
+func (c *CmdMetricCollector) ErrTimeout(now time.Time, duration time.Duration) {
 	c.check(c.SendTo.Inc("err_timeout", 1, c.SampleRate))
 	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrBadRequest sends a bad request error to statsd
-func (c *CmdMetricCollector) ErrBadRequest(duration time.Duration) {
+func (c *CmdMetricCollector) ErrBadRequest(now time.Time, duration time.Duration) {
 	c.check(c.SendTo.Inc("err_bad_request", 1, c.SampleRate))
 	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrInterrupt sends an interrupt error to statsd
-func (c *CmdMetricCollector) ErrInterrupt(duration time.Duration) {
+func (c *CmdMetricCollector) ErrInterrupt(now time.Time, duration time.Duration) {
 	c.check(c.SendTo.Inc("err_interrupt", 1, c.SampleRate))
 	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrShortCircuit sends a short circuit to statsd
-func (c *CmdMetricCollector) ErrShortCircuit() {
+func (c *CmdMetricCollector) ErrShortCircuit(now time.Time) {
 	c.check(c.SendTo.Inc("err_short_circuit", 1, c.SampleRate))
 }
 
 // ErrConcurrencyLimitReject sends a concurrency limit error to statsd
-func (c *CmdMetricCollector) ErrConcurrencyLimitReject() {
+func (c *CmdMetricCollector) ErrConcurrencyLimitReject(now time.Time) {
 	c.check(c.SendTo.Inc("err_concurrency_limit_reject", 1, c.SampleRate))
 }
 
@@ -134,17 +134,17 @@ func (c *FallbackMetricCollector) check(err error) {
 }
 
 // Success sends a success to statsd
-func (c *FallbackMetricCollector) Success(duration time.Duration) {
+func (c *FallbackMetricCollector) Success(now time.Time, duration time.Duration) {
 	c.check(c.SendTo.Inc("success", 1, c.SampleRate))
 }
 
 // ErrConcurrencyLimitReject sends a concurrency-limit to statsd
-func (c *FallbackMetricCollector) ErrConcurrencyLimitReject() {
+func (c *FallbackMetricCollector) ErrConcurrencyLimitReject(now time.Time) {
 	c.check(c.SendTo.Inc("err_concurrency_limit_reject", 1, c.SampleRate))
 }
 
 // ErrFailure sends a failure to statsd
-func (c *FallbackMetricCollector) ErrFailure(duration time.Duration) {
+func (c *FallbackMetricCollector) ErrFailure(now time.Time, duration time.Duration) {
 	c.check(c.SendTo.Inc("err_failure", 1, c.SampleRate))
 }
 

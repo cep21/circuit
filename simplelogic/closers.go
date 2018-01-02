@@ -56,11 +56,13 @@ func (c *ConsecutiveErrOpener) Success(now time.Time, duration time.Duration) {
 
 // ErrBadRequest is ignored
 func (c *ConsecutiveErrOpener) ErrBadRequest(now time.Time, duration time.Duration) {}
+
 // ErrInterrupt is ignored
 func (c *ConsecutiveErrOpener) ErrInterrupt(now time.Time, duration time.Duration) {}
+
 // ErrConcurrencyLimitReject is ignored
 func (c *ConsecutiveErrOpener) ErrConcurrencyLimitReject(now time.Time) {}
-func (c *ConsecutiveErrOpener) ErrShortCircuit(now time.Time) {}
+func (c *ConsecutiveErrOpener) ErrShortCircuit(now time.Time)           {}
 
 // ErrFailure increments the consecutive error counter
 func (c *ConsecutiveErrOpener) ErrFailure(now time.Time, duration time.Duration) {

@@ -80,8 +80,14 @@ func (e *OpenOnErrPercentage) Closed(now time.Time) {
 	e.legitimateAttemptsCount.Reset(now)
 }
 
-// SuccessfulAttempt increases the number of correct attempts
-func (e *OpenOnErrPercentage) SuccessfulAttempt(now time.Time, duration time.Duration) {
+// Opened resets the error and attempt count
+func (e *OpenOnErrPercentage) Opened(now time.Time) {
+	e.errorsCount.Reset(now)
+	e.legitimateAttemptsCount.Reset(now)
+}
+
+// Success increases the number of correct attempts
+func (e *OpenOnErrPercentage) Success(now time.Time, duration time.Duration) {
 	e.legitimateAttemptsCount.Inc(now)
 }
 
@@ -90,19 +96,33 @@ func (e *OpenOnErrPercentage) Prevent(now time.Time) (shouldAllow bool) {
 	return false
 }
 
-// BackedOutAttempt is ignored
-func (e *OpenOnErrPercentage) BackedOutAttempt(now time.Time) {
-}
+// ErrBadRequest is ignored
+func (e *OpenOnErrPercentage) ErrBadRequest(now time.Time, duration time.Duration) {}
+
+// ErrInterrupt is ignored
+func (e *OpenOnErrPercentage) ErrInterrupt(now time.Time, duration time.Duration) {}
 
 // ErrorAttempt increases error count for the circuit
-func (e *OpenOnErrPercentage) ErrorAttempt(now time.Time) {
+func (e *OpenOnErrPercentage) ErrFailure(now time.Time, duration time.Duration) {
 	e.legitimateAttemptsCount.Inc(now)
 	e.errorsCount.Inc(now)
 }
 
+// ErrTimeout increases error count for the circuit
+func (e *OpenOnErrPercentage) ErrTimeout(now time.Time, duration time.Duration) {
+	e.legitimateAttemptsCount.Inc(now)
+	e.errorsCount.Inc(now)
+}
+
+// ErrConcurrencyLimitReject is ignored
+func (e *OpenOnErrPercentage) ErrConcurrencyLimitReject(now time.Time) {}
+
+// ErrShortCircuit is ignored
+func (e *OpenOnErrPercentage) ErrShortCircuit(now time.Time) {}
+
 // AttemptToOpen returns true if rolling count >= threshold and
 // error % is high enough.
-func (e *OpenOnErrPercentage) AttemptToOpen(now time.Time) bool {
+func (e *OpenOnErrPercentage) ShouldOpen(now time.Time) bool {
 	attemptCount := e.legitimateAttemptsCount.RollingSumAt(now)
 	if attemptCount == 0 || attemptCount < e.requestVolumeThreshold.Get() {
 		// not enough requests. Will not open circuit

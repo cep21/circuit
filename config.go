@@ -43,7 +43,7 @@ type FallbackConfig struct {
 type MetricsCollectors struct {
 	Run      []RunMetrics     `json:"-"`
 	Fallback []FallbackMetric `json:"-"`
-	Circuit []CircuitMetrics `json:"-"`
+	Circuit  []CircuitMetrics `json:"-"`
 }
 
 // GoSpecificConfig is settings that aren't in the Java Hystrix implementation.

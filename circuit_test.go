@@ -182,6 +182,25 @@ func TestThrottled(t *testing.T) {
 	}
 }
 
+func TestCircuitCloses(t *testing.T) {
+	c := NewCircuitFromConfig("TestCircuitCloses", CommandProperties{})
+	c.OpenCircuit()
+	err := c.Run(context.Background(), func(_ context.Context) error {
+		panic("I should be open")
+	})
+	if err == nil {
+		t.Errorf("I expect to fail now")
+	}
+
+	c.CloseCircuit()
+	err = c.Run(context.Background(), func(_ context.Context) error {
+		return errors.New("some string")
+	})
+	if err.Error() != "some string" {
+		t.Errorf("Never executed inside logic on close circuit")
+	}
+}
+
 func TestTimeout(t *testing.T) {
 	c := NewCircuitFromConfig("TestThrottled", CommandProperties{
 		Execution: ExecutionConfig{

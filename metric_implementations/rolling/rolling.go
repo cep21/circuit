@@ -1,8 +1,9 @@
 package rolling
 
 import (
-	"time"
 	"expvar"
+	"time"
+
 	"github.com/cep21/hystrix"
 	"github.com/cep21/hystrix/internal/fastmath"
 )

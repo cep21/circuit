@@ -132,6 +132,7 @@ func (r FallbackMetricsCollection) Var() expvar.Var {
 }
 
 type CircuitMetricsCollection []CircuitMetrics
+
 var _ CircuitMetrics = &CircuitMetricsCollection{}
 
 // Closed sends Closed to all collectors

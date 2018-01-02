@@ -67,6 +67,12 @@ func (s *SleepyCloseCheck) Opened(now time.Time) {
 	s.reopenCircuitCheck.SleepStart(now)
 }
 
+// Closed circuit.  It can turn off now.
+func (s *SleepyCloseCheck) Closed(now time.Time) {
+	s.concurrentSuccessfulAttempts.Set(0)
+	s.reopenCircuitCheck.SleepStart(now)
+}
+
 // Allow checks for half open state.
 // The circuit is currently closed.  Check and return true if this request should be allowed.  This will signal
 // the circuit in a "half-open" state, allowing that one request.
@@ -76,22 +82,38 @@ func (s *SleepyCloseCheck) Allow(now time.Time) (shouldAllow bool) {
 }
 
 // SuccessfulAttempt any time runFunc was called and appeared healthy
-func (s *SleepyCloseCheck) SuccessfulAttempt(now time.Time, duration time.Duration) {
+func (s *SleepyCloseCheck) Success(now time.Time, duration time.Duration) {
 	s.concurrentSuccessfulAttempts.Add(1)
 }
 
-// BackedOutAttempt is ignored
-func (s *SleepyCloseCheck) BackedOutAttempt(now time.Time) {
-	// Ignored
+// ErrBadRequest is ignored
+func (s *SleepyCloseCheck) ErrBadRequest(now time.Time, duration time.Duration) {
 }
 
-// ErrorAttempt resets the consecutive Successful count
-func (s *SleepyCloseCheck) ErrorAttempt(now time.Time) {
+// ErrInterrupt is ignored
+func (s *SleepyCloseCheck) ErrInterrupt(now time.Time, duration time.Duration) {
+}
+
+// ErrConcurrencyLimitReject is ignored
+func (s *SleepyCloseCheck) ErrConcurrencyLimitReject(now time.Time) {
+}
+
+// ErrShortCircuit is ignored
+func (s *SleepyCloseCheck) ErrShortCircuit(now time.Time) {
+}
+
+// ErrFailure resets the consecutive Successful count
+func (s *SleepyCloseCheck) ErrFailure(now time.Time, duration time.Duration) {
+	s.concurrentSuccessfulAttempts.Set(0)
+}
+
+// ErrTimeout resets the consecutive Successful count
+func (s *SleepyCloseCheck) ErrTimeout(now time.Time, duration time.Duration) {
 	s.concurrentSuccessfulAttempts.Set(0)
 }
 
 // AttemptToClose is true if we hav enough successful attempts in a row.
-func (s *SleepyCloseCheck) AttemptToClose(now time.Time) bool {
+func (s *SleepyCloseCheck) ShouldClose(now time.Time) bool {
 	return s.concurrentSuccessfulAttempts.Get() > s.closeOnCurrentCount.Get()
 }
 

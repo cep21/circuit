@@ -40,15 +40,15 @@ func (c neverOpens) Prevent(now time.Time) bool {
 	return false
 }
 
-func (c neverOpens) Success(now time.Time, duration time.Duration) {}
-func (c neverOpens) ErrFailure(now time.Time, duration time.Duration) {}
-func (c neverOpens) ErrTimeout(now time.Time, duration time.Duration) {}
+func (c neverOpens) Success(now time.Time, duration time.Duration)       {}
+func (c neverOpens) ErrFailure(now time.Time, duration time.Duration)    {}
+func (c neverOpens) ErrTimeout(now time.Time, duration time.Duration)    {}
 func (c neverOpens) ErrBadRequest(now time.Time, duration time.Duration) {}
-func (c neverOpens) ErrInterrupt(now time.Time, duration time.Duration) {}
-func (c neverOpens) ErrConcurrencyLimitReject(now time.Time) {}
-func (c neverOpens) ErrShortCircuit(now time.Time) {}
-func (c neverOpens) Opened(now time.Time) {}
-func (c neverOpens) Closed(now time.Time) {}
+func (c neverOpens) ErrInterrupt(now time.Time, duration time.Duration)  {}
+func (c neverOpens) ErrConcurrencyLimitReject(now time.Time)             {}
+func (c neverOpens) ErrShortCircuit(now time.Time)                       {}
+func (c neverOpens) Opened(now time.Time)                                {}
+func (c neverOpens) Closed(now time.Time)                                {}
 
 func (c neverOpens) ShouldOpen(now time.Time) bool {
 	return false
@@ -63,18 +63,18 @@ type neverCloses struct{}
 var _ OpenToClosed = neverCloses{}
 
 func (c neverCloses) Allow(now time.Time) bool {
-	return true
+	return false
 }
 
-func (c neverCloses) Success(now time.Time, duration time.Duration) {}
-func (c neverCloses) ErrFailure(now time.Time, duration time.Duration) {}
-func (c neverCloses) ErrTimeout(now time.Time, duration time.Duration) {}
+func (c neverCloses) Success(now time.Time, duration time.Duration)       {}
+func (c neverCloses) ErrFailure(now time.Time, duration time.Duration)    {}
+func (c neverCloses) ErrTimeout(now time.Time, duration time.Duration)    {}
 func (c neverCloses) ErrBadRequest(now time.Time, duration time.Duration) {}
-func (c neverCloses) ErrInterrupt(now time.Time, duration time.Duration) {}
-func (c neverCloses) ErrConcurrencyLimitReject(now time.Time) {}
-func (c neverCloses) ErrShortCircuit(now time.Time) {}
-func (c neverCloses) Opened(now time.Time) {}
-func (c neverCloses) Closed(now time.Time) {}
+func (c neverCloses) ErrInterrupt(now time.Time, duration time.Duration)  {}
+func (c neverCloses) ErrConcurrencyLimitReject(now time.Time)             {}
+func (c neverCloses) ErrShortCircuit(now time.Time)                       {}
+func (c neverCloses) Opened(now time.Time)                                {}
+func (c neverCloses) Closed(now time.Time)                                {}
 func (c neverCloses) ShouldClose(now time.Time) bool {
 	return false
 }

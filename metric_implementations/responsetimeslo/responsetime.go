@@ -27,7 +27,7 @@ type Tracker struct {
 var _ hystrix.RunMetrics = &Tracker{}
 
 // Success adds a healthy check if duration <= maximum healthy time
-func (r *Tracker) Success(duration time.Duration) {
+func (r *Tracker) Success(now time.Time, duration time.Duration) {
 	if duration.Nanoseconds() <= r.MaximumHealthyTime.Get() {
 		r.healthy()
 		return
@@ -50,17 +50,17 @@ func (r *Tracker) healthy() {
 }
 
 // ErrFailure is always a failure
-func (r *Tracker) ErrFailure(duration time.Duration) {
+func (r *Tracker) ErrFailure(now time.Time, duration time.Duration) {
 	r.failure()
 }
 
 // ErrTimeout is always a failure
-func (r *Tracker) ErrTimeout(duration time.Duration) {
+func (r *Tracker) ErrTimeout(now time.Time, duration time.Duration) {
 	r.failure()
 }
 
 // ErrConcurrencyLimitReject is always a failure
-func (r *Tracker) ErrConcurrencyLimitReject() {
+func (r *Tracker) ErrConcurrencyLimitReject(now time.Time) {
 	// Your endpoint could be healthy, but because we can't process commands fast enough, you're considered unhealthy.
 	// This one could honestly go either way, but generally if a service cannot process commands fast enough, it's not
 	// doing what you want.
@@ -68,7 +68,7 @@ func (r *Tracker) ErrConcurrencyLimitReject() {
 }
 
 // ErrShortCircuit is always a failure
-func (r *Tracker) ErrShortCircuit() {
+func (r *Tracker) ErrShortCircuit(now time.Time) {
 	// We had to end the request early.  It's possible the endpoint we want is healthy, but because we had to trip
 	// our circuit, due to past misbehavior, it is still end endpoint's fault we cannot satisfy this request, so it
 	// fails the SLO.
@@ -76,10 +76,10 @@ func (r *Tracker) ErrShortCircuit() {
 }
 
 // ErrBadRequest is ignored
-func (r *Tracker) ErrBadRequest(duration time.Duration) {}
+func (r *Tracker) ErrBadRequest(now time.Time, duration time.Duration) {}
 
 // ErrInterrupt is only a failure if healthy time has passed
-func (r *Tracker) ErrInterrupt(duration time.Duration) {
+func (r *Tracker) ErrInterrupt(now time.Time, duration time.Duration) {
 	// If it is interrupted, but past the healthy time.  Then it is as good as unhealthy
 	if duration.Nanoseconds() > r.MaximumHealthyTime.Get() {
 		r.failure()
