@@ -3,88 +3,19 @@ package hystrix
 import (
 	"context"
 	"errors"
-	"fmt"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
-
 	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix/internal/testhelp"
 )
-
-func alwaysPasses(_ context.Context) error {
-	return nil
-}
-
-type behaviorCheck struct {
-	totalRuns          int64
-	totalErrors        int64
-	longestRunDuration time.Duration
-	mostConcurrent     int64
-	currentConcurrent  int64
-
-	mu      sync.Mutex
-	runFunc func(ctx context.Context) error
-}
-
-func (b *behaviorCheck) run(ctx context.Context) (err error) {
-	start := time.Now()
-	defer func() {
-		end := time.Now()
-		thisRun := end.Sub(start)
-
-		b.mu.Lock()
-		defer b.mu.Unlock()
-
-		if err != nil {
-			b.totalErrors++
-		}
-		if b.longestRunDuration < thisRun {
-			b.longestRunDuration = thisRun
-		}
-		b.currentConcurrent--
-	}()
-	b.mu.Lock()
-	b.totalRuns++
-	b.currentConcurrent++
-	if b.currentConcurrent > b.mostConcurrent {
-		b.mostConcurrent = b.currentConcurrent
-	}
-	b.mu.Unlock()
-	return b.runFunc(ctx)
-}
-
-func sleepsForX(d time.Duration) func(context.Context) error {
-	return func(ctx context.Context) error {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(d):
-			return nil
-		}
-	}
-}
-
-func alwaysPassesFallback(_ context.Context, _ error) error {
-	return nil
-}
-
-func alwaysFailsFallback(_ context.Context, err error) error {
-	return fmt.Errorf("failed: %s", err)
-}
-
-var errFailure = errors.New("alwaysFails failure")
-
-func alwaysFails(_ context.Context) error {
-	return errFailure
-}
 
 func TestHappyCircuit(t *testing.T) {
 	c := NewCircuitFromConfig("TestHappyCircuit", CommandProperties{})
 	// Should work 100 times in a row
 	for i := 0; i < 100; i++ {
-		err := c.Execute(context.Background(), alwaysPasses, func(_ context.Context, _ error) error {
+		err := c.Execute(context.Background(), testhelp.AlwaysPasses, func(_ context.Context, _ error) error {
 			panic("should never be called")
 		})
 		if err != nil {
@@ -128,7 +59,7 @@ func TestManyConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := c.Execute(context.Background(), alwaysPasses, nil)
+			err := c.Execute(context.Background(), testhelp.AlwaysPasses, nil)
 			if err != nil {
 				t.Errorf("saw error from circuit that always passes: %s", err)
 			}
@@ -209,7 +140,7 @@ func TestCircuit_Go_CanEnd(t *testing.T) {
 	})
 	ctx := context.Background()
 	startTime := time.Now()
-	err := c.Go(ctx, sleepsForX(time.Hour), nil)
+	err := c.Go(ctx, testhelp.SleepsForX(time.Hour), nil)
 	if err == nil {
 		t.Errorf("expected a timeout error")
 	}
@@ -224,8 +155,8 @@ func TestThrottled(t *testing.T) {
 			MaxConcurrentRequests: 2,
 		},
 	})
-	bc := behaviorCheck{
-		runFunc: sleepsForX(time.Millisecond),
+	bc := testhelp.BehaviorCheck{
+		RunFunc: testhelp.SleepsForX(time.Millisecond),
 	}
 	wg := sync.WaitGroup{}
 	errCount := 0
@@ -233,15 +164,15 @@ func TestThrottled(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := c.Execute(context.Background(), bc.run, nil)
+			err := c.Execute(context.Background(), bc.Run, nil)
 			if err != nil {
 				errCount++
 			}
 		}()
 	}
 	wg.Wait()
-	if bc.mostConcurrent != 2 {
-		t.Errorf("Concurrent count not correct: %d", bc.mostConcurrent)
+	if bc.MostConcurrent != 2 {
+		t.Errorf("Concurrent count not correct: %d", bc.MostConcurrent)
 	}
 	if errCount != 1 {
 		t.Errorf("did not see error return count: %d", errCount)
@@ -254,21 +185,21 @@ func TestTimeout(t *testing.T) {
 			Timeout: time.Millisecond,
 		},
 	})
-	bc := behaviorCheck{
-		runFunc: sleepsForX(time.Millisecond * 35),
+	bc := testhelp.BehaviorCheck{
+		RunFunc: testhelp.SleepsForX(time.Millisecond * 35),
 	}
-	err := c.Execute(context.Background(), bc.run, nil)
+	err := c.Execute(context.Background(), bc.Run, nil)
 	if err == nil {
 		t.Log("expected an error, got none")
 	}
-	if bc.longestRunDuration >= time.Millisecond*20 {
+	if bc.LongestRunDuration >= time.Millisecond*20 {
 		t.Log("A cancel didn't happen fast enough")
 	}
 }
 
 func TestFailingCircuit(t *testing.T) {
 	c := NewCircuitFromConfig("TestFailingCircuit", CommandProperties{})
-	err := c.Execute(context.Background(), alwaysFails, nil)
+	err := c.Execute(context.Background(), testhelp.AlwaysFails, nil)
 	if err == nil || err.Error() != "alwaysFails failure" {
 		t.Error("saw no error from circuit that always fails")
 	}
@@ -278,15 +209,15 @@ func TestFallbackCircuit(t *testing.T) {
 	c := NewCircuitFromConfig("TestFallbackCircuit", CommandProperties{})
 	// Fallback circuit should consistently fail
 	for i := 0; i < 100; i++ {
-		err := c.Execute(context.Background(), alwaysFails, alwaysPassesFallback)
+		err := c.Execute(context.Background(), testhelp.AlwaysFails, testhelp.AlwaysPassesFallback)
 		if err != nil {
 			t.Error("saw error from circuit that has happy fallback", err)
 		}
 	}
 
-	// By default, after 100 failures, we should be open
-	if !c.IsOpen() {
-		t.Error("I expected to be open after so many failures")
+	// By default, we never open/close
+	if c.IsOpen() {
+		t.Error("I expected to never open by default")
 	}
 }
 
@@ -298,7 +229,7 @@ func TestCircuitIgnoreContextFailures(t *testing.T) {
 	})
 	for i := 0; i < 100; i++ {
 		rootCtx, cancel := context.WithTimeout(context.Background(), time.Millisecond*3)
-		err := c.Execute(rootCtx, sleepsForX(time.Second), nil)
+		err := c.Execute(rootCtx, testhelp.SleepsForX(time.Second), nil)
 		if err == nil {
 			t.Error("saw no error from circuit that should end in an error")
 		}
@@ -324,9 +255,9 @@ func TestFallbackCircuitConcurrency(t *testing.T) {
 		go func() {
 			totalExecuted.Add(1)
 			defer wg.Done()
-			err := c.Execute(context.Background(), alwaysFails, func(ctx context.Context, err error) error {
+			err := c.Execute(context.Background(), testhelp.AlwaysFails, func(ctx context.Context, err error) error {
 				fallbackExecuted.Add(1)
-				return sleepsForX(time.Millisecond * 500)(ctx)
+				return testhelp.SleepsForX(time.Millisecond * 500)(ctx)
 			})
 			if err == nil {
 				atomic.AddInt64(&workingCircuitCount, 1)
@@ -342,133 +273,9 @@ func TestFallbackCircuitConcurrency(t *testing.T) {
 	}
 }
 
-func TestCircuitCloses(t *testing.T) {
-	c := NewCircuitFromConfig("TestCircuitCloses", CommandProperties{
-		CircuitBreaker: CircuitBreakerConfig{
-			// A single failed request should be enough to close the circuit
-			RequestVolumeThreshold: 1,
-		},
-	})
-	if c.IsOpen() {
-		t.Fatal("Circuit should not start out open")
-	}
-	err := c.Execute(context.Background(), alwaysFails, nil)
-	if err == nil {
-		t.Fatal("Circuit should have failed if run fails")
-	}
-	if !c.IsOpen() {
-		t.Fatal("Circuit should be open after having failed once")
-	}
-	err = c.Execute(context.Background(), alwaysPasses, nil)
-	if err == nil {
-		t.Fatal("Circuit should be open")
-	}
-}
-
-func TestCircuitAttemptsToReopen(t *testing.T) {
-	c := NewCircuitFromConfig("TestCircuitAttemptsToReopen", CommandProperties{
-		CircuitBreaker: CircuitBreakerConfig{
-			// A single failed request should be enough to close the circuit
-			RequestVolumeThreshold: 1,
-			SleepWindow:            time.Millisecond * 1,
-		},
-	})
-	if c.IsOpen() {
-		t.Fatal("Circuit should not start out open")
-	}
-	err := c.Execute(context.Background(), alwaysFails, nil)
-	if err == nil {
-		t.Fatal("Circuit should have failed if run fails")
-	}
-	if !c.IsOpen() {
-		t.Fatal("Circuit should be open after having failed once")
-	}
-	err = c.Execute(context.Background(), alwaysPasses, nil)
-	if err == nil {
-		t.Fatal("Circuit should be open")
-	}
-
-	time.Sleep(time.Millisecond * 3)
-	err = c.Execute(context.Background(), alwaysPasses, nil)
-	if err != nil {
-		t.Fatal("Circuit should try to reopen")
-	}
-}
-
-func TestCircuitAttemptsToReopenOnlyOnce(t *testing.T) {
-	c := NewCircuitFromConfig("TestCircuitAttemptsToReopen", CommandProperties{
-		CircuitBreaker: CircuitBreakerConfig{
-			// A single failed request should be enough to close the circuit
-			RequestVolumeThreshold: 1,
-			SleepWindow:            time.Millisecond * 1,
-		},
-	})
-	if c.IsOpen() {
-		t.Fatal("Circuit should not start out open")
-	}
-	err := c.Execute(context.Background(), alwaysFails, nil)
-	if err == nil {
-		t.Fatal("Circuit should have failed if run fails")
-	}
-	if !c.IsOpen() {
-		t.Fatal("Circuit should be open after having failed once")
-	}
-	err = c.Execute(context.Background(), alwaysPasses, nil)
-	if err == nil {
-		t.Fatal("Circuit should be open")
-	}
-
-	time.Sleep(time.Millisecond * 3)
-	err = c.Execute(context.Background(), alwaysFails, nil)
-	if err == nil {
-		t.Fatal("Circuit should try to reopen, but fail")
-	}
-	err = c.Execute(context.Background(), alwaysPasses, nil)
-	if err == nil {
-		t.Fatal("Circuit should only try to reopen once")
-	}
-}
-
-func TestLargeSleepWindow(t *testing.T) {
-	c := NewCircuitFromConfig("TestLargeSleepWindow", CommandProperties{
-		CircuitBreaker: CircuitBreakerConfig{
-			// Once this fails, it should never reopen
-			SleepWindow:              time.Hour,
-			ErrorThresholdPercentage: 1,
-			RequestVolumeThreshold:   1,
-		},
-	})
-
-	err := c.Execute(context.Background(), alwaysFails, alwaysPassesFallback)
-	if err != nil {
-		t.Errorf("I expect this to not fail since it has a fallback")
-	}
-
-	if !c.IsOpen() {
-		t.Fatalf("I expect the circuit to now be open, since the previous failure happened")
-	}
-
-	wg := sync.WaitGroup{}
-	// Create many goroutines that never fail
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < 20*2; i++ {
-				err := c.Execute(context.Background(), sleepsForX(time.Millisecond/10), nil)
-				if err == nil {
-					t.Errorf("I expect this to always fail, now that it's in the failure state")
-				}
-				time.Sleep(time.Millisecond / 10)
-			}
-		}()
-	}
-	wg.Wait()
-}
-
 func TestFailingFallbackCircuit(t *testing.T) {
 	c := NewCircuitFromConfig("TestFailingCircuit", CommandProperties{})
-	err := c.Execute(context.Background(), alwaysFails, alwaysFailsFallback)
+	err := c.Execute(context.Background(), testhelp.AlwaysFails, testhelp.AlwaysFailsFallback)
 	if err == nil {
 		t.Error("expected error back")
 		t.FailNow()
@@ -505,10 +312,10 @@ func TestFallbackAfterTimeout(t *testing.T) {
 			Timeout: time.Millisecond,
 		},
 	})
-	bc := behaviorCheck{
-		runFunc: sleepsForX(time.Millisecond * 35),
+	bc := testhelp.BehaviorCheck{
+		RunFunc: testhelp.SleepsForX(time.Millisecond * 35),
 	}
-	err := c.Execute(context.Background(), bc.run, func(ctx context.Context, err error) error {
+	err := c.Execute(context.Background(), bc.Run, func(ctx context.Context, err error) error {
 		if ctx.Err() != nil {
 			return errors.New("the passed in context should not be finished")
 		}
@@ -517,107 +324,15 @@ func TestFallbackAfterTimeout(t *testing.T) {
 	if err != nil {
 		t.Log("Should be no error since the fallback didn't error")
 	}
-	if bc.longestRunDuration >= time.Millisecond*20 {
+	if bc.LongestRunDuration >= time.Millisecond*20 {
 		t.Log("A cancel didn't happen fast enough")
 	}
-}
-
-func TestSleepDurationWorks(t *testing.T) {
-	concurrentThreads := 25
-	sleepWindow := time.Millisecond * 20
-	c := NewCircuitFromConfig("TestFailureBehavior", CommandProperties{
-		CircuitBreaker: CircuitBreakerConfig{
-			// Add an extra ms to allow time between wakeups
-			SleepWindow: sleepWindow + time.Millisecond,
-
-			// The first failure should open the circuit
-			ErrorThresholdPercentage: 1,
-			RequestVolumeThreshold:   1,
-		},
-		Execution: ExecutionConfig{
-			MaxConcurrentRequests: int64(concurrentThreads),
-		},
-		Fallback: FallbackConfig{
-			MaxConcurrentRequests: int64(concurrentThreads),
-		},
-	})
-
-	// Once failing, c should never see more than one request every 40 ms
-	// If I wait 110 ms, I should see exactly 2 requests (the one at 40 and at 80)
-	doNotPassTime := time.Now().Add(sleepWindow * 4)
-	err := c.Execute(context.Background(), alwaysFails, alwaysPassesFallback)
-	if err != nil {
-		t.Errorf("I expect this to not fail since it has a fallback")
-	}
-
-	bc := behaviorCheck{
-		runFunc: alwaysFails,
-	}
-
-	c.OpenCircuit()
-	if !c.IsOpen() {
-		t.Errorf("circuit should be open after I open it")
-	}
-	var mu sync.Mutex
-	lastRequestTime := time.Now()
-
-	wg := sync.WaitGroup{}
-	for ct := 0; ct < concurrentThreads; ct++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				if time.Now().After(doNotPassTime) {
-					break
-				}
-				err := c.Execute(context.Background(), func(_ context.Context) error {
-					now := time.Now()
-					mu.Lock()
-					if time.Since(lastRequestTime) < sleepWindow {
-						t.Errorf("I am getting too many requests: %s", time.Since(lastRequestTime))
-					}
-					lastRequestTime = now
-					mu.Unlock()
-					return errFailure
-				}, alwaysPassesFallback)
-				if err != nil {
-					t.Errorf("The fallback was fine.  It should not fail (but should stay open): %s", err)
-				}
-				// Don't need to sleep.  Just busy loop.  But let another thread take over if it wants (to get some concurrency)
-				runtime.Gosched()
-			}
-		}()
-	}
-	wg.Wait()
-	if bc.totalRuns > 3 {
-		t.Error("Too many requests", bc.totalRuns)
-	}
-}
-
-func doTillTime(endTime time.Time, wg *sync.WaitGroup, f func()) {
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for time.Now().Before(endTime) {
-			f()
-			// Don't need to sleep.  Just busy loop.  But let another thread take over if it wants (to get some concurrency)
-			runtime.Gosched()
-		}
-	}()
 }
 
 // Just test to make sure the -race detector doesn't find anything with a public function
 func TestVariousRaceConditions(t *testing.T) {
 	concurrentThreads := 5
 	c := NewCircuitFromConfig("TestVariousRaceConditions", CommandProperties{
-		CircuitBreaker: CircuitBreakerConfig{
-			// This should allow a new request every 10 milliseconds
-			SleepWindow: time.Millisecond * 5,
-
-			// The first failure should open the circuit
-			ErrorThresholdPercentage: 1,
-			RequestVolumeThreshold:   1,
-		},
 		Execution: ExecutionConfig{
 			MaxConcurrentRequests: int64(concurrentThreads),
 		},
@@ -630,98 +345,32 @@ func TestVariousRaceConditions(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 	for i := 0; i < concurrentThreads; i++ {
-		doTillTime(doNotPassTime, &wg, func() {
+		testhelp.DoTillTime(doNotPassTime, &wg, func() {
 			c.Var()
 		})
-		doTillTime(doNotPassTime, &wg, func() {
+		testhelp.DoTillTime(doNotPassTime, &wg, func() {
 			c.IsOpen()
 		})
-		doTillTime(doNotPassTime, &wg, func() {
+		testhelp.DoTillTime(doNotPassTime, &wg, func() {
 			c.CloseCircuit()
 		})
-		doTillTime(doNotPassTime, &wg, func() {
+		testhelp.DoTillTime(doNotPassTime, &wg, func() {
 			c.OpenCircuit()
 		})
-		doTillTime(doNotPassTime, &wg, func() {
+		testhelp.DoTillTime(doNotPassTime, &wg, func() {
 			c.Name()
 		})
-		doTillTime(doNotPassTime, &wg, func() {
-			c.Execute(context.Background(), alwaysPasses, nil)
+		testhelp.DoTillTime(doNotPassTime, &wg, func() {
+			c.Execute(context.Background(), testhelp.AlwaysPasses, nil)
 		})
-		doTillTime(doNotPassTime, &wg, func() {
-			c.Execute(context.Background(), alwaysFails, nil)
+		testhelp.DoTillTime(doNotPassTime, &wg, func() {
+			c.Execute(context.Background(), testhelp.AlwaysFails, nil)
 		})
-		doTillTime(doNotPassTime, &wg, func() {
-			c.Execute(context.Background(), alwaysFails, alwaysPassesFallback)
+		testhelp.DoTillTime(doNotPassTime, &wg, func() {
+			c.Execute(context.Background(), testhelp.AlwaysFails, testhelp.AlwaysPassesFallback)
 		})
-		doTillTime(doNotPassTime, &wg, func() {
-			c.Execute(context.Background(), alwaysFails, alwaysFailsFallback)
-		})
-	}
-	wg.Wait()
-}
-
-func TestCircuitRecovers(t *testing.T) {
-	concurrentThreads := 25
-	c := NewCircuitFromConfig("TestCircuitRecovers", CommandProperties{
-		CircuitBreaker: CircuitBreakerConfig{
-			// This should allow a new request every 10 milliseconds
-			SleepWindow: time.Millisecond * 5,
-
-			// The first failure should open the circuit
-			ErrorThresholdPercentage: 1,
-			RequestVolumeThreshold:   1,
-		},
-		Execution: ExecutionConfig{
-			MaxConcurrentRequests: int64(concurrentThreads),
-		},
-		Fallback: FallbackConfig{
-			MaxConcurrentRequests: int64(concurrentThreads),
-		},
-	})
-
-	// This is when the circuit starts working again
-	startWorkingTime := time.Now().Add(time.Millisecond * 11)
-	// This is the latest that the circuit should keep failing requests
-	circuitOkTime := startWorkingTime.Add(c.Config().CircuitBreaker.SleepWindow).Add(time.Millisecond * 200)
-
-	// Give some buffer so time.AfterFunc can get called
-	doNotPassTime := time.Now().Add(time.Millisecond * 250)
-	err := c.Execute(context.Background(), alwaysFails, alwaysPassesFallback)
-	if err != nil {
-		t.Errorf("I expect this to not fail since it has a fallback")
-	}
-
-	failure := errors.New("a failure")
-	bc := behaviorCheck{
-		runFunc: func(_ context.Context) error {
-			if time.Now().After(startWorkingTime) {
-				return nil
-			}
-			return failure
-		},
-	}
-
-	wg := sync.WaitGroup{}
-	for ct := 0; ct < concurrentThreads; ct++ {
-		hasHealed := false
-		doTillTime(doNotPassTime, &wg, func() {
-			isCircuitOk := time.Now().After(circuitOkTime)
-			err := c.Execute(context.Background(), bc.run, nil)
-			if err != nil {
-				if isCircuitOk {
-					t.Fatalf("Should not get an error after this time: The circuit should be ok: %s", err)
-				}
-				if hasHealed {
-					t.Fatalf("Should not get an error after the circuit healed itself")
-				}
-			}
-			if err == nil {
-				if time.Now().Before(startWorkingTime) {
-					t.Fatalf("The circuit should not work before I correct the service")
-				}
-				hasHealed = true
-			}
+		testhelp.DoTillTime(doNotPassTime, &wg, func() {
+			c.Execute(context.Background(), testhelp.AlwaysFails, testhelp.AlwaysFailsFallback)
 		})
 	}
 	wg.Wait()

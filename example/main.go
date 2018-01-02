@@ -13,15 +13,16 @@ import (
 	"sync/atomic"
 
 	"github.com/cep21/hystrix"
+	hystrix2 "github.com/cep21/hystrix/hystrix"
 	"github.com/cep21/hystrix/metric_implementations/rolling"
-	"github.com/cep21/hystrix/metriceventstream"
+	"github.com/cep21/hystrix/hystrix/metriceventstream"
 )
 
 const exampleURL = "http://localhost:7979/hystrix-dashboard/monitor/monitor.html?streams=%5B%7B%22name%22%3A%22%22%2C%22stream%22%3A%22http%3A%2F%2Flocalhost%3A8123%2Fhystrix.stream%22%2C%22auth%22%3A%22%22%2C%22delay%22%3A%22%22%7D%5D"
 
 func main() {
 	h := hystrix.Hystrix{
-		DefaultCircuitProperties: []hystrix.CommandPropertiesConstructor{rolling.CollectRollingStats},
+		DefaultCircuitProperties: []hystrix.CommandPropertiesConstructor{rolling.CollectRollingStats(rolling.RunStatsConfig{}, rolling.FallbackStatsConfig{})},
 	}
 	expvar.Publish("hystrix", h.Var())
 	es := metriceventstream.MetricEventStream{
@@ -143,10 +144,19 @@ func createBackgroundCircuits(h *hystrix.Hystrix) {
 
 	// Flop every 3 seconds, try to recover very quickly
 	floppyCircuit := h.MustCreateCircuit("floppy-circuit", hystrix.CommandProperties{
-		CircuitBreaker: hystrix.CircuitBreakerConfig{
-			SleepWindow:            time.Millisecond * 10,
-			RequestVolumeThreshold: 2,
+		GoSpecific: hystrix.GoSpecificConfig{
+			OpenToClosedFactory:hystrix2.SleepyCloseCheckFactory(hystrix2.ConfigureSleepyCloseCheck{
+				//		// This should allow a new request every 10 milliseconds
+				SleepWindow: time.Millisecond * 10,
+			}),
+			ClosedToOpenFactory:hystrix2.OpenOnErrPercentageFactory(hystrix2.ConfigureOpenOnErrPercentage{
+				RequestVolumeThreshold: 2,
+			}),
 		},
+		//CircuitBreaker: hystrix.CircuitBreakerConfig{
+		//	SleepWindow:            time.Millisecond * 10,
+		//	RequestVolumeThreshold: 2,
+		//},
 	})
 	floppyCircuitPasses := int64(1)
 	go func() {

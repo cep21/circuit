@@ -2,13 +2,12 @@ package hystrix
 
 import (
 	"time"
-
-	"github.com/cep21/hystrix/internal/fastmath"
 )
 
 // ClosedToOpen receives events and controls if the circuit should open or close as a result of those events.
 // Return true if the circuit should open, false if the circuit should close.
 type ClosedToOpen interface {
+	// TODO: These could just be `RunMetrics`
 	// Closed is called when the circuit transitions from Open to Closed.  Your logic should reinitialize itself
 	// to prepare for when it should try to open back up again.
 	Closed(now time.Time)
@@ -22,7 +21,7 @@ type ClosedToOpen interface {
 	// These are probably not failures that would make you open a circuit, but could be useful to know about
 	BackedOutAttempt(now time.Time)
 	// Any time the run function failed for a real reason.  You should expect an AttemptToOpen call later, to see if
-	// the circuit should be opened because of thi serror
+	// the circuit should be opened because of this error
 	ErrorAttempt(now time.Time)
 	// AttemptToOpen a circuit that is currently closed, after a bad request comes in.  Only called after bad requests,
 	// never called after a successful request
@@ -47,133 +46,50 @@ type OpenToClosed interface {
 	AttemptToClose(now time.Time) bool
 }
 
-// errorPercentageCheck is ClosedToOpen that opens a circuit after a threshold and % error has been
-// reached.  It is the default hystrix implementation.
-type errorPercentageCheck struct {
-	errorsCount             fastmath.RollingCounter
-	legitimateAttemptsCount fastmath.RollingCounter
-
-	errorPercentage        fastmath.AtomicInt64
-	requestVolumeThreshold fastmath.AtomicInt64
+func NeverOpensFactory() ClosedToOpen {
+	return NeverOpens{}
 }
 
-var _ ClosedToOpen = &errorPercentageCheck{}
+type NeverOpens struct {}
 
-// Closed resets the error and attempt count
-func (e *errorPercentageCheck) Closed(now time.Time) {
-	e.errorsCount.Reset(now)
-	e.legitimateAttemptsCount.Reset(now)
-}
+func (c NeverOpens) Closed(now time.Time) {}
 
-// SuccessfulAttempt increases the number of correct attempts
-func (e *errorPercentageCheck) SuccessfulAttempt(now time.Time, duration time.Duration) {
-	e.legitimateAttemptsCount.Inc(now)
-}
-
-// Prevent never returns true
-func (e *errorPercentageCheck) Prevent(now time.Time) (shouldAllow bool) {
+func (c NeverOpens) Prevent(now time.Time) bool {
 	return false
 }
 
-// BackedOutAttempt is ignored
-func (e *errorPercentageCheck) BackedOutAttempt(now time.Time) {
+func (c NeverOpens) SuccessfulAttempt(now time.Time, duration time.Duration) {}
+
+func (c NeverOpens) BackedOutAttempt(now time.Time) {}
+
+func (c NeverOpens) ErrorAttempt(now time.Time) {}
+
+func (c NeverOpens) AttemptToOpen(now time.Time) bool {
+	return false
 }
 
-// ErrorAttempt increases error count for the circuit
-func (e *errorPercentageCheck) ErrorAttempt(now time.Time) {
-	e.legitimateAttemptsCount.Inc(now)
-	e.errorsCount.Inc(now)
+var _ ClosedToOpen = NeverOpens{}
+
+func NeverClosesFactory() OpenToClosed {
+	return NeverCloses{}
 }
 
-// AttemptToOpen returns true if rolling count >= threshold and
-// error % is high enough.
-func (e *errorPercentageCheck) AttemptToOpen(now time.Time) bool {
-	attemptCount := e.legitimateAttemptsCount.RollingSumAt(now)
-	if attemptCount == 0 || attemptCount < e.requestVolumeThreshold.Get() {
-		// not enough requests. Will not open circuit
-		return false
-	}
+type NeverCloses struct {}
 
-	errCount := e.errorsCount.RollingSumAt(now)
-	errPercentage := int64(float64(errCount) / float64(attemptCount) * 100)
-	return errPercentage >= e.errorPercentage.Get()
+func (c NeverCloses) Opened(now time.Time) {}
+
+func (c NeverCloses) Allow(now time.Time) (shouldAllow bool) {
+	return false
 }
 
-// SetConfigThreadSafe modifies error % and request volume threshold
-func (e *errorPercentageCheck) SetConfigThreadSafe(props CommandProperties) {
-	e.errorPercentage.Set(props.CircuitBreaker.ErrorThresholdPercentage)
-	e.requestVolumeThreshold.Set(props.CircuitBreaker.RequestVolumeThreshold)
+func (c NeverCloses) SuccessfulAttempt(now time.Time, duration time.Duration) {}
+
+func (c NeverCloses) BackedOutAttempt(now time.Time) {}
+
+func (c NeverCloses) ErrorAttempt(now time.Time) {}
+
+func (c NeverCloses) AttemptToClose(now time.Time) bool {
+	return false
 }
 
-// SetConfigNotThreadSafe recreates the buckets
-func (e *errorPercentageCheck) SetConfigNotThreadSafe(props CommandProperties) {
-	e.SetConfigThreadSafe(props)
-	now := props.GoSpecific.TimeKeeper.Now()
-	rollingCounterBucketWidth := time.Duration(props.Metrics.RollingStatsDuration.Nanoseconds() / int64(props.Metrics.RollingStatsNumBuckets))
-	e.errorsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, props.Metrics.RollingStatsNumBuckets, now)
-	e.legitimateAttemptsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, props.Metrics.RollingStatsNumBuckets, now)
-}
-
-func newErrorPercentageCheck() ClosedToOpen {
-	return &errorPercentageCheck{}
-}
-
-// sleepyOpenToClose is hystrix's default half-open logic: try again ever X ms
-type sleepyOpenToClose struct {
-	// Tracks when we should try to close an open circuit again
-	reopenCircuitCheck fastmath.TimedCheck
-
-	concurrentSuccessfulAttempts fastmath.AtomicInt64
-	closeOnCurrentCount          fastmath.AtomicInt64
-}
-
-var _ OpenToClosed = &sleepyOpenToClose{}
-
-func newSleepyOpenToClose() OpenToClosed {
-	return &sleepyOpenToClose{}
-}
-
-// Opened circuit. It should now check to see if it should ever allow various requests in an attempt to become closed
-func (s *sleepyOpenToClose) Opened(now time.Time) {
-	s.concurrentSuccessfulAttempts.Set(0)
-	s.reopenCircuitCheck.SleepStart(now)
-}
-
-// Allow checks for half open state.
-// The circuit is currently closed.  Check and return true if this request should be allowed.  This will signal
-// the circuit in a "half-open" state, allowing that one request.
-// If any requests are allowed, the circuit moves into a half open state.
-func (s *sleepyOpenToClose) Allow(now time.Time) (shouldAllow bool) {
-	return s.reopenCircuitCheck.Check(now)
-}
-
-// SuccessfulAttempt any time runFunc was called and appeared healthy
-func (s *sleepyOpenToClose) SuccessfulAttempt(now time.Time, duration time.Duration) {
-	s.concurrentSuccessfulAttempts.Add(1)
-}
-
-// BackedOutAttempt is ignored
-func (s *sleepyOpenToClose) BackedOutAttempt(now time.Time) {
-	// Ignored
-}
-
-// ErrorAttempt resets the consecutive Successful count
-func (s *sleepyOpenToClose) ErrorAttempt(now time.Time) {
-	s.concurrentSuccessfulAttempts.Set(0)
-}
-
-// AttemptToClose is true if we hav enough successful attempts in a row.
-func (s *sleepyOpenToClose) AttemptToClose(now time.Time) bool {
-	return s.concurrentSuccessfulAttempts.Get() > s.closeOnCurrentCount.Get()
-}
-
-// SetConfigThreadSafe resets the sleep duration during reopen attempts
-func (s *sleepyOpenToClose) SetConfigThreadSafe(props CommandProperties) {
-	s.reopenCircuitCheck.SetSleepDuration(props.CircuitBreaker.SleepWindow)
-}
-
-// SetConfigNotThreadSafe just calls SetConfigThreadSafe
-func (s *sleepyOpenToClose) SetConfigNotThreadSafe(props CommandProperties) {
-	s.SetConfigThreadSafe(props)
-	s.reopenCircuitCheck.TimeAfterFunc = props.GoSpecific.TimeKeeper.AfterFunc
-}
+var _ OpenToClosed = NeverCloses{}

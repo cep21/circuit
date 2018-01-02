@@ -1,9 +1,10 @@
-package hystrix
+package responsetimeslo
 
 import (
 	"time"
 
 	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix"
 )
 
 // responseTimeSLO sets up a response time SLO that has a reasonable meaning for hystrix.  Use it for an SLO like
@@ -23,7 +24,7 @@ type responseTimeSLO struct {
 	Collectors []ResponseTimeSLOCollector
 }
 
-var _ RunMetrics = &responseTimeSLO{}
+var _ hystrix.RunMetrics = &responseTimeSLO{}
 
 // Success adds a healthy check if duration <= maximum healthy time
 func (r *responseTimeSLO) Success(duration time.Duration) {

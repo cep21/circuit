@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"expvar"
 )
 
 type RollingPercentile struct {
@@ -32,6 +33,18 @@ func (s SortedDurations) Mean() time.Duration {
 		sum += d.Nanoseconds()
 	}
 	return time.Duration(sum / int64(len(s)))
+}
+
+func (s SortedDurations) Var() expvar.Var {
+	return expvar.Func(func() interface{} {
+		return map[string]time.Duration{
+			"p25":  s.Percentile(.25),
+			"p50":  s.Percentile(.5),
+			"p90":  s.Percentile(.9),
+			"p99":  s.Percentile(.99),
+			"mean": s.Mean(),
+		}
+	})
 }
 
 func (s SortedDurations) Percentile(p float64) time.Duration {

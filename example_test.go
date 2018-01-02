@@ -214,25 +214,25 @@ func ExampleHystrix_Var() {
 	// Output:
 }
 
-func ExampleCommandProperties() {
-	h := hystrix.Hystrix{}
-
-	circuitConfig := hystrix.CommandProperties{
-		CircuitBreaker: hystrix.CircuitBreakerConfig{
-			// This should allow a new request every 10 milliseconds
-			SleepWindow: time.Millisecond * 5,
-			// The first failure should open the circuit
-			ErrorThresholdPercentage: 1,
-			// Only one request is required to fail the circuit
-			RequestVolumeThreshold: 1,
-		},
-		Execution: hystrix.ExecutionConfig{
-			// Allow at most 2 requests at a time
-			MaxConcurrentRequests: 2,
-			// Time out the context after one second
-			Timeout: time.Second,
-		},
-	}
-	h.MustCreateCircuit("configured-circuit", circuitConfig)
-	// Output:
-}
+//func ExampleCommandProperties() {
+//	h := hystrix.Hystrix{}
+//
+//	circuitConfig := hystrix.CommandProperties{
+//		CircuitBreaker: hystrix.CircuitBreakerConfig{
+//			// This should allow a new request every 10 milliseconds
+//			SleepWindow: time.Millisecond * 5,
+//			// The first failure should open the circuit
+//			ErrorThresholdPercentage: 1,
+//			// Only one request is required to fail the circuit
+//			RequestVolumeThreshold: 1,
+//		},
+//		Execution: hystrix.ExecutionConfig{
+//			// Allow at most 2 requests at a time
+//			MaxConcurrentRequests: 2,
+//			// Time out the context after one second
+//			Timeout: time.Second,
+//		},
+//	}
+//	h.MustCreateCircuit("configured-circuit", circuitConfig)
+//	// Output:
+//}

@@ -2,39 +2,16 @@ package rolling
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
-
 	"github.com/cep21/hystrix"
+	"github.com/cep21/hystrix/internal/testhelp"
+	"errors"
 )
 
-func alwaysPasses(_ context.Context) error {
-	return nil
-}
-
-func alwaysFails(_ context.Context) error {
-	return errors.New("failure")
-}
-
-func alwaysPassesFallback(_ context.Context, _ error) error {
-	return nil
-}
-
-func sleepsForX(d time.Duration) func(context.Context) error {
-	return func(ctx context.Context) error {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(d):
-			return nil
-		}
-	}
-}
-
 func TestHappyCircuit(t *testing.T) {
-	c := hystrix.NewCircuitFromConfig("TestHappyCircuit", CollectRollingStats(""))
-	err := c.Execute(context.Background(), alwaysPasses, nil)
+	c := hystrix.NewCircuitFromConfig("TestHappyCircuit", CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})(""))
+	err := c.Execute(context.Background(), testhelp.AlwaysPasses, nil)
 	if err != nil {
 		t.Error("saw error from circuit that always passes")
 	}
@@ -56,10 +33,10 @@ func TestHappyCircuit(t *testing.T) {
 }
 
 func TestBadRequest(t *testing.T) {
-	c := hystrix.NewCircuitFromConfig("TestBadRequest", CollectRollingStats(""))
+	c := hystrix.NewCircuitFromConfig("TestBadRequest", CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})(""))
 	err := c.Execute(context.Background(), func(_ context.Context) error {
 		return hystrix.SimpleBadRequest{
-			errors.New("this request is bad"),
+			Err: errors.New("this request is bad"),
 		}
 	}, nil)
 	if err == nil {
@@ -81,8 +58,8 @@ func TestBadRequest(t *testing.T) {
 }
 
 func TestFallbackCircuit(t *testing.T) {
-	c := hystrix.NewCircuitFromConfig("TestFallbackCircuit", CollectRollingStats(""))
-	err := c.Execute(context.Background(), alwaysFails, alwaysPassesFallback)
+	c := hystrix.NewCircuitFromConfig("TestFallbackCircuit", CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})(""))
+	err := c.Execute(context.Background(), testhelp.AlwaysFails, testhelp.AlwaysPassesFallback)
 	if err != nil {
 		t.Error("saw error from circuit that has happy fallback", err)
 	}
@@ -107,7 +84,7 @@ func TestFallbackCircuit(t *testing.T) {
 
 func TestCircuitIgnoreContextFailures(t *testing.T) {
 	h := hystrix.Hystrix{
-		DefaultCircuitProperties: []hystrix.CommandPropertiesConstructor{CollectRollingStats},
+		DefaultCircuitProperties: []hystrix.CommandPropertiesConstructor{CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})},
 	}
 	c := h.MustCreateCircuit("TestFailingCircuit", hystrix.CommandProperties{
 		Execution: hystrix.ExecutionConfig{
@@ -116,7 +93,7 @@ func TestCircuitIgnoreContextFailures(t *testing.T) {
 	})
 	rootCtx, cancel := context.WithTimeout(context.Background(), time.Millisecond*3)
 	defer cancel()
-	err := c.Execute(rootCtx, sleepsForX(time.Second), nil)
+	err := c.Execute(rootCtx, testhelp.SleepsForX(time.Second), nil)
 	if err == nil {
 		t.Error("saw no error from circuit that should end in an error")
 	}

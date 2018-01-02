@@ -204,12 +204,12 @@ func collectCommandMetrics(cb *hystrix.Circuit) *streamCmdMetric {
 		ExecutionIsolationStrategy: "SEMAPHORE",
 
 		// Circuit config
-		CircuitBreakerEnabled:                !circuitConfig.CircuitBreaker.Disabled,
-		CircuitBreakerForceClosed:            circuitConfig.CircuitBreaker.ForcedClosed,
-		CircuitBreakerForceOpen:              circuitConfig.CircuitBreaker.ForceOpen,
-		CircuitBreakerErrorThresholdPercent:  circuitConfig.CircuitBreaker.ErrorThresholdPercentage,
-		CircuitBreakerSleepWindow:            circuitConfig.CircuitBreaker.SleepWindow.Nanoseconds() / time.Millisecond.Nanoseconds(),
-		CircuitBreakerRequestVolumeThreshold: circuitConfig.CircuitBreaker.RequestVolumeThreshold,
+		CircuitBreakerEnabled:                !circuitConfig.Execution.Disabled,
+		CircuitBreakerForceClosed:            circuitConfig.Execution.ForcedClosed,
+		CircuitBreakerForceOpen:              circuitConfig.Execution.ForceOpen,
+		//CircuitBreakerErrorThresholdPercent:  circuitConfig.CircuitBreaker.ErrorThresholdPercentage,
+		//CircuitBreakerSleepWindow:            circuitConfig.CircuitBreaker.SleepWindow.Nanoseconds() / time.Millisecond.Nanoseconds(),
+		//CircuitBreakerRequestVolumeThreshold: circuitConfig.CircuitBreaker.RequestVolumeThreshold,
 
 		// Execution config
 		ExecutionIsolationSemaphoreMaxConcurrentRequests: circuitConfig.Execution.MaxConcurrentRequests,
@@ -218,7 +218,7 @@ func collectCommandMetrics(cb *hystrix.Circuit) *streamCmdMetric {
 		// Fallback config
 		FallbackIsolationSemaphoreMaxConcurrentRequests: circuitConfig.Fallback.MaxConcurrentRequests,
 
-		RollingStatsWindow: circuitConfig.Metrics.RollingStatsDuration.Nanoseconds() / time.Millisecond.Nanoseconds(),
+		//RollingStatsWindow: circuitConfig.Metrics.RollingStatsDuration.Nanoseconds() / time.Millisecond.Nanoseconds(),
 	}
 }
 

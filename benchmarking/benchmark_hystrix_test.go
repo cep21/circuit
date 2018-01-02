@@ -30,7 +30,7 @@ type circuitImpls struct {
 }
 
 func BenchmarkCiruits(b *testing.B) {
-	rollingTimeoutStats := rolling.CollectRollingStats("")
+	rollingTimeoutStats := rolling.CollectRollingStats(rolling.RunStatsConfig{}, rolling.FallbackStatsConfig{})("")
 	rollingTimeoutStats.Merge(hystrix.CommandProperties{
 		Execution: hystrix.ExecutionConfig{
 			Timeout: -1,

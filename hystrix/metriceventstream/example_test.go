@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/metriceventstream"
+	"github.com/cep21/hystrix/hystrix/metriceventstream"
 )
 
 // This example creates an event stream handler, starts it, then later closes the handler
