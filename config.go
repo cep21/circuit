@@ -43,6 +43,7 @@ type FallbackConfig struct {
 type MetricsCollectors struct {
 	Run      []RunMetrics     `json:"-"`
 	Fallback []FallbackMetric `json:"-"`
+	Circuit []CircuitMetrics `json:"-"`
 }
 
 // GoSpecificConfig is settings that aren't in the Java Hystrix implementation.
@@ -146,6 +147,7 @@ func (g *GoSpecificConfig) merge(other GoSpecificConfig) {
 func (m *MetricsCollectors) merge(other MetricsCollectors) {
 	m.Run = append(m.Run, other.Run...)
 	m.Fallback = append(m.Fallback, other.Fallback...)
+	m.Circuit = append(m.Circuit, other.Circuit...)
 }
 
 // Merge these properties with another command's properties.  Anything set to the zero value, will takes values from

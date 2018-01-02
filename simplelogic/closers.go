@@ -50,20 +50,34 @@ func (c *ConsecutiveErrOpener) Prevent(now time.Time) bool {
 }
 
 // SuccessfulAttempt resets the consecutive error count
-func (c *ConsecutiveErrOpener) SuccessfulAttempt(now time.Time, duration time.Duration) {
+func (c *ConsecutiveErrOpener) Success(now time.Time, duration time.Duration) {
 	c.consecutiveCount.Set(0)
 }
 
-// BackedOutAttempt is ignored
-func (c *ConsecutiveErrOpener) BackedOutAttempt(now time.Time) {}
+// ErrBadRequest is ignored
+func (c *ConsecutiveErrOpener) ErrBadRequest(now time.Time, duration time.Duration) {}
+// ErrInterrupt is ignored
+func (c *ConsecutiveErrOpener) ErrInterrupt(now time.Time, duration time.Duration) {}
+// ErrConcurrencyLimitReject is ignored
+func (c *ConsecutiveErrOpener) ErrConcurrencyLimitReject(now time.Time) {}
+func (c *ConsecutiveErrOpener) ErrShortCircuit(now time.Time) {}
 
-// ErrorAttempt increments the consecutive error counter
-func (c *ConsecutiveErrOpener) ErrorAttempt(now time.Time) {
+// ErrFailure increments the consecutive error counter
+func (c *ConsecutiveErrOpener) ErrFailure(now time.Time, duration time.Duration) {
 	c.consecutiveCount.Add(1)
 }
 
+// ErrFailure increments the consecutive error counter
+func (c *ConsecutiveErrOpener) ErrTimeout(now time.Time, duration time.Duration) {
+	c.consecutiveCount.Add(1)
+}
+
+func (c *ConsecutiveErrOpener) Opened(now time.Time) {
+	c.consecutiveCount.Set(0)
+}
+
 // AttemptToOpen returns true if enough consecutive errors have returned
-func (c *ConsecutiveErrOpener) AttemptToOpen(now time.Time) bool {
+func (c *ConsecutiveErrOpener) ShouldOpen(now time.Time) bool {
 	return c.consecutiveCount.Get() >= c.closeThreshold.Get()
 }
 

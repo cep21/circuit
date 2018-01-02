@@ -2,9 +2,7 @@ package rolling
 
 import (
 	"time"
-
 	"expvar"
-
 	"github.com/cep21/hystrix"
 	"github.com/cep21/hystrix/internal/fastmath"
 )
@@ -160,46 +158,41 @@ func (r *RunStats) SetConfigNotThreadSafe(config RunStatsConfig) {
 }
 
 // Success increments the Successes bucket
-func (r *RunStats) Success(duration time.Duration) {
-	now := time.Now()
+func (r *RunStats) Success(now time.Time, duration time.Duration) {
 	r.Successes.Inc(now)
 	r.Latencies.AddDuration(duration, now)
 }
 
 // ErrInterrupt increments the ErrInterrupts bucket
-func (r *RunStats) ErrInterrupt(duration time.Duration) {
-	now := time.Now()
+func (r *RunStats) ErrInterrupt(now time.Time, duration time.Duration) {
 	r.ErrInterrupts.Inc(now)
 	r.Latencies.AddDuration(duration, now)
 }
 
 // ErrConcurrencyLimitReject increments the ErrConcurrencyLimitReject bucket
-func (r *RunStats) ErrConcurrencyLimitReject() {
-	r.ErrConcurrencyLimitRejects.Inc(time.Now())
+func (r *RunStats) ErrConcurrencyLimitReject(now time.Time) {
+	r.ErrConcurrencyLimitRejects.Inc(now)
 }
 
 // ErrFailure increments the ErrFailure bucket
-func (r *RunStats) ErrFailure(duration time.Duration) {
-	now := time.Now()
+func (r *RunStats) ErrFailure(now time.Time, duration time.Duration) {
 	r.ErrFailures.Inc(now)
 	r.Latencies.AddDuration(duration, now)
 }
 
 // ErrShortCircuit increments the ErrShortCircuit bucket
-func (r *RunStats) ErrShortCircuit() {
-	r.ErrShortCircuits.Inc(time.Now())
+func (r *RunStats) ErrShortCircuit(now time.Time) {
+	r.ErrShortCircuits.Inc(now)
 }
 
 // ErrTimeout increments the ErrTimeout bucket
-func (r *RunStats) ErrTimeout(duration time.Duration) {
-	now := time.Now()
+func (r *RunStats) ErrTimeout(now time.Time, duration time.Duration) {
 	r.ErrTimeouts.Inc(now)
 	r.Latencies.AddDuration(duration, now)
 }
 
 // ErrBadRequest increments the ErrBadRequest bucket
-func (r *RunStats) ErrBadRequest(duration time.Duration) {
-	now := time.Now()
+func (r *RunStats) ErrBadRequest(now time.Time, duration time.Duration) {
 	r.ErrBadRequests.Inc(now)
 	r.Latencies.AddDuration(duration, now)
 }
@@ -248,18 +241,18 @@ func (r *FallbackStats) Var() expvar.Var {
 }
 
 // Success increments the Success bucket
-func (r *FallbackStats) Success(duration time.Duration) {
-	r.Successes.Inc(time.Now())
+func (r *FallbackStats) Success(now time.Time, duration time.Duration) {
+	r.Successes.Inc(now)
 }
 
 // ErrConcurrencyLimitReject increments the ErrConcurrencyLimitReject bucket
-func (r *FallbackStats) ErrConcurrencyLimitReject() {
-	r.ErrConcurrencyLimitRejects.Inc(time.Now())
+func (r *FallbackStats) ErrConcurrencyLimitReject(now time.Time) {
+	r.ErrConcurrencyLimitRejects.Inc(now)
 }
 
 // ErrFailure increments the ErrFailure bucket
-func (r *FallbackStats) ErrFailure(duration time.Duration) {
-	r.ErrFailures.Inc(time.Now())
+func (r *FallbackStats) ErrFailure(now time.Time, duration time.Duration) {
+	r.ErrFailures.Inc(now)
 }
 
 // FallbackStatsConfig configures how to track fallback stats
