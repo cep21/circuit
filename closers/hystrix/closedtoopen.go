@@ -1,4 +1,4 @@
-package circuit
+package hystrix
 
 import (
 	"sync"
@@ -143,11 +143,19 @@ func (e *OpenOnErrPercentage) SetConfigThreadSafe(props ConfigureOpenOnErrPercen
 	e.requestVolumeThreshold.Set(props.RequestVolumeThreshold)
 }
 
-// SetConfigNotThreadSafe recreates the buckets
+// SetConfigNotThreadSafe recreates the buckets.  It is not safe to call while the circuit is active.
 func (e *OpenOnErrPercentage) SetConfigNotThreadSafe(props ConfigureOpenOnErrPercentage) {
 	e.SetConfigThreadSafe(props)
 	now := props.Now()
 	rollingCounterBucketWidth := time.Duration(props.RollingDuration.Nanoseconds() / int64(props.NumBuckets))
 	e.errorsCount = faststats.NewRollingCounter(rollingCounterBucketWidth, props.NumBuckets, now)
 	e.legitimateAttemptsCount = faststats.NewRollingCounter(rollingCounterBucketWidth, props.NumBuckets, now)
+}
+
+// Config returns the current configuration.  To update configuration, please call SetConfigThreadSafe or
+// SetConfigNotThreadSafe
+func (e *OpenOnErrPercentage) Config() ConfigureOpenOnErrPercentage {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.config
 }

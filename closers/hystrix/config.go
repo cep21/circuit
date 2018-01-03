@@ -1,4 +1,4 @@
-package circuit
+package hystrix
 
 import "github.com/cep21/circuit"
 

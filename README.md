@@ -85,28 +85,31 @@ your run function early and leave it hanging (possibly forever), then you can ca
 
 ## Configuration
 
-All configuration parameters are documented in config.go and mirror the configuration better documented on [the Hystrix wiki](https://github.com/Netflix/Hystrix/wiki/Configuration).
+All configuration parameters are documented in config.go.  Your circuit open/close logic configuration is documented
+with the logic.  For hystrix, this configuration is in closers/hystrix and well documented on [the Hystrix wiki](https://github.com/Netflix/Hystrix/wiki/Configuration).
+
+This example configures the circuit to use Hystrix open/close logic with the default Hystrix parameters
 ```go
-  // Make one of these to manage all your circuits
-  h := hystrix.Hystrix{}
-  
-  circuitConfig := hystrix.CommandProperties {
-  	CircuitBreaker: circuit.CircuitBreakerConfig{
-      // This should allow a new request every 10 milliseconds
-      SleepWindow: time.Millisecond * 5,
-      // The first failure should open the circuit
-      ErrorThresholdPercentage: 1,
-      // Only one request is required to fail the circuit
-      RequestVolumeThreshold:   1,
-    },
-    Execution: circuit.ExecutionConfig{
-      // Allow at most 2 requests at a time
-      MaxConcurrentRequests: 2,
-      // Time out the context after one second
-      ExecutionTimeout: time.Second,
-    },
-  }
-  circuit := h.MustCreateCircuit("configured-circuit", circuitConfig) 
+	configuration := hystrix.ConfigFactory{
+		// Hystrix open logic is to open the circuit after an % of errors
+		ConfigureOpenOnErrPercentage: hystrix.ConfigureOpenOnErrPercentage{
+			// We change the default to wait for 10 requests, not 20, before checking to close
+			RequestVolumeThreshold: 10,
+			// The default values match what hystrix does by default
+		},
+		// Hystrix close logic is to sleep then check
+		ConfigureSleepyCloseCheck: hystrix.ConfigureSleepyCloseCheck{
+			// The default values match what hystrix does by default
+		},
+	}
+	h := circuit.Manager{
+		// Tell the manager to use this configuration factory whenever it makes a new circuit
+		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{configuration.Configure},
+	}
+	// This circuit will inherit the configuration from the example
+	c := h.MustCreateCircuit("hystrix-circuit")
+	fmt.Println("This is a hystrix configured circuit", c.Name())
+	// Output: This is a hystrix configured circuit hystrix-circuit
 ```
 
 ## Enable dashboard metrics
@@ -145,15 +148,14 @@ Implement interfaces CmdMetricCollector or FallbackMetricCollector to know what 
 Then pass those implementations to configure.
 
 ```go
-  // Make one of these to manage all your circuits
-  h := hystrix.Hystrix{}
-  
-  circuitConfig := CommandProperties {
-  	MetricsConfig: hystrix.MetricsConfig{
-  		CmdMetricCollector: &myImplementation{},
-  	},
-  }
-  circuit := h.MustCreateCircuit("configured-circuit", circuitConfig) 
+	config := circuit.Config{
+		Metrics: circuit.MetricsCollectors{
+			Run: []circuit.RunMetrics{
+				// Here is where I would insert my custom metric collector
+			},
+		},
+	}
+	circuit.NewCircuitFromConfig("custom-metrics", config)
 ```
 
 ## Panics
@@ -185,14 +187,22 @@ related to stat collection.  A comprehensive list is is all the fields duplicate
 internal to this project.
 
 ```go
-  h := hystrix.Hystrix{}
-  circuit := h.MustCreateCircuit("changes-at-runtime", hystrix.CommandProperties{})
-  // ... later on (during live)
-  circuit.SetConfigThreadSafe(hystrix.CommandProperties{
-		Execution: circuit.ExecutionConfig{
-			MaxConcurrentRequests: int64(12),
-		},
-  })
+	// Start off using the defaults
+	configuration := hystrix.ConfigFactory{}
+	h := circuit.Manager{
+		// Tell the manager to use this configuration factory whenever it makes a new circuit
+		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{configuration.Configure},
+	}
+	c := h.MustCreateCircuit("hystrix-circuit")
+	fmt.Println("The default sleep window", c.OpenToClose.(*hystrix.SleepyCloseCheck).Config().SleepWindow)
+	// This configuration update function is thread safe.  We can modify this at runtime while the circuit is active
+	c.OpenToClose.(*hystrix.SleepyCloseCheck).SetConfigThreadSafe(hystrix.ConfigureSleepyCloseCheck{
+		SleepWindow: time.Second * 3,
+	})
+	fmt.Println("The new sleep window", c.OpenToClose.(*hystrix.SleepyCloseCheck).Config().SleepWindow)
+	// Output:
+	// The default sleep window 5s
+	// The new sleep window 3s
 ```
 
 ## Not counting early terminations as failures
@@ -239,37 +249,49 @@ Configuration factories are supported on the root hystrix object.  This allows y
 circuit name.
 
 ```go
-  myFactory := func(circuitName string) hysrix.CommandProperties {
-    customTimeout := lookup_timeout(circuitName)
-    return hysrix.CommandProperties {
-      Execution: circuit.ExecutionConfig{
-        ExecutionTimeout: customTimeout,
-      }
-    },
-  }
-  
-  // Hystrix manages circuits with unique names
-  h := hystrix.Hystrix {
-    DefaultCircuitProperties: []func(circuitName string) CommandProperties {myFactory},
-  }
-  h.MustCreateCircuit("...", hystrix.CommandProperties{})
+	myFactory := func(circuitName string) circuit.Config {
+		timeoutsByName := map[string]time.Duration{
+			"v1": time.Second,
+			"v2": time.Second * 2,
+		}
+		customTimeout := timeoutsByName[circuitName]
+		if customTimeout == 0 {
+			// Just return empty if you don't want to set any config
+			return circuit.Config{}
+		}
+		return circuit.Config{
+			Execution: circuit.ExecutionConfig{
+				Timeout: customTimeout,
+			},
+		}
+	}
+
+	// Hystrix manages circuits with unique names
+	h := circuit.Manager{
+		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{myFactory},
+	}
+	h.MustCreateCircuit("v1", circuit.Config{})
+	fmt.Println("The timeout of v1 is", h.GetCircuit("v1").Config().Execution.Timeout)
+	// Output: The timeout of v1 is 1s
 ```
 
 ## StatsD configuration factory
 
-A configuration factory for statsd is provided inside metric_implementations
+A configuration factory for statsd is provided inside ./metrics/statsdmetrics
 
 ```go
-  statsdFactory := statsdmetrics.CommandFactory {
-  	SubStatter: myStatter,
-  }
+	// This factory allows us to report statsd metrics from the circuit
+	f := statsdmetrics.CommandFactory{
+		SubStatter: &statsd.NoopClient{},
+	}
 
-  // Hystrix manages circuits with unique names
-  h := hystrix.Hystrix {
-    DefaultCircuitProperties: []func(circuitName string) CommandProperties {statsdFactory.CommandProperties},
-  }
-  h.MustCreateCircuit("...", hystrix.CommandProperties{})
-
+	// Wire the statsd factory into the circuit manager
+	h := circuit.Manager{
+		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{f.CommandProperties},
+	}
+	// This created circuit will now use statsd
+	h.MustCreateCircuit("using-statsd")
+	// Output:
 ```
 
 ## Service health tracking
@@ -278,7 +300,7 @@ Most services have the concept of an SLA, or service level agreement.  Unfortuna
 this is usually tracked by the service owners, which creates incentives for people to
 inflate the health of their service.
 
-This Hystrix implementation formalizes an SLO of the template
+This Circuit implementation formalizes an SLO of the template
 "X% of requests will return faster than Y ms".  This is a value that canont be calculated
 just by looking at the p90 or p99 of requests in aggregate, but must be tracked per
 request.  You can define a SLO for your service, which is a time **less** than the timeout
@@ -287,30 +309,19 @@ report per circuit not just fail/pass but an extra "healthy" % over time that co
 requests that resopnd _quickly enough_.
 
 ```go
-  h := hystrix.Hystrix{}
-  circuit := h.MustCreateCircuit("track-my-slo", hystrix.CommandProperties{
-    Execution: circuit.ExecutionConfig{
-      // healthy is allowing a full second
-      ExecutionTimeout: time.Second,
-    },
-    GoSpecific: circuit.ExecutionConfig{
-    	// But healthy requests should respond in < 100 ms
-      ResponseTimeSLO: time.Millisecond * 100,
-      MetricsCollectors:  {
-      	ResponseTimeSLO: []hystrix.ResponseTimeSLOCollector {
-      		myCustomCollector{},
-      	},
-      },
-    },
-  })
-  err := c.Execute(func(_ context.Context) error {
-  	time.Sleep(time.Millisecond * 250)
-  	return nil
-  }, nil)
+	sloTrackerFactory := responsetimeslo.Factory{
+		Config: responsetimeslo.Config{
+			// Consider requests faster than 20 ms as passing
+			MaximumHealthyTime: time.Millisecond * 20,
+		},
+		// Pass in your collector here: for example, statsd
+		CollectorConstructors: nil,
+	}
+	h := circuit.Manager{
+		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{sloTrackerFactory.CommandProperties},
+	}
+	h.CreateCircuit("circuit-with-slo")
   
-  // err will be nil, because the circuit returned quickly enough
-  // But a SLO metric of 'fail' will be incremented to indicate the
-  // response did not meet service SLO
 ```
 
 ## Not counting user error as a fault

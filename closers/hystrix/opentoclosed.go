@@ -1,4 +1,4 @@
-package circuit
+package hystrix
 
 import (
 	"sync"
@@ -117,6 +117,13 @@ func (s *SleepyCloseCheck) ShouldClose(now time.Time) bool {
 	return s.concurrentSuccessfulAttempts.Get() > s.closeOnCurrentCount.Get()
 }
 
+// Config returns the current configuration.  Use SetConfigThreadSafe to modify the current configuration.
+func (s *SleepyCloseCheck) Config() ConfigureSleepyCloseCheck {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.config
+}
+
 // SetConfigThreadSafe resets the sleep duration during reopen attempts
 func (s *SleepyCloseCheck) SetConfigThreadSafe(config ConfigureSleepyCloseCheck) {
 	s.mu.Lock()
@@ -127,7 +134,7 @@ func (s *SleepyCloseCheck) SetConfigThreadSafe(config ConfigureSleepyCloseCheck)
 	s.closeOnCurrentCount.Set(config.RequiredConcurrentSuccessful)
 }
 
-// SetConfigNotThreadSafe just calls SetConfigThreadSafe
+// SetConfigNotThreadSafe just calls SetConfigThreadSafe. It is not safe to call while the circuit is active.
 func (s *SleepyCloseCheck) SetConfigNotThreadSafe(config ConfigureSleepyCloseCheck) {
 	s.SetConfigThreadSafe(config)
 }

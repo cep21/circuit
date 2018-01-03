@@ -200,9 +200,10 @@ func setupFloppyCircuit(h *circuit.Manager, tickInterval time.Duration) {
 	}()
 	for i := 0; i < 10; i++ {
 		go func() {
+			totalErrors := 0
 			for range time.Tick(tickInterval) {
 				// Errors flop back and forth
-				_ = floppyCircuit.Execute(context.Background(), func(ctx context.Context) error {
+				err := floppyCircuit.Execute(context.Background(), func(ctx context.Context) error {
 					if atomic.LoadInt64(&floppyCircuitPasses) == 1 {
 						return nil
 					}
@@ -210,6 +211,9 @@ func setupFloppyCircuit(h *circuit.Manager, tickInterval time.Duration) {
 				}, func(ctx context.Context, err error) error {
 					return nil
 				})
+				if err != nil {
+					totalErrors++
+				}
 			}
 		}()
 	}
@@ -224,9 +228,10 @@ func setupThrottledCircuit(h *circuit.Manager, tickInterval time.Duration) {
 	// 100 threads, every 100ms, someone will get throttled
 	for i := 0; i < 100; i++ {
 		go func() {
+			totalErrors := 0
 			for range time.Tick(tickInterval) {
 				// Some pass (not throttled) and some don't (throttled)
-				_ = throttledCircuit.Execute(context.Background(), func(ctx context.Context) error {
+				err := throttledCircuit.Execute(context.Background(), func(ctx context.Context) error {
 					select {
 					// Some time between 0 and 50ms
 					case <-time.After(time.Duration(int64(float64(time.Millisecond.Nanoseconds()*50) * rand.Float64()))):
@@ -235,6 +240,9 @@ func setupThrottledCircuit(h *circuit.Manager, tickInterval time.Duration) {
 						return ctx.Err()
 					}
 				}, nil)
+				if err != nil {
+					totalErrors++
+				}
 			}
 		}()
 	}
