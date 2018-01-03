@@ -10,8 +10,8 @@ import (
 
 	gohystrix "github.com/afex/hystrix-go/hystrix"
 	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/metrics/rolling"
 	"github.com/cep21/hystrix/closers/simplelogic"
+	"github.com/cep21/hystrix/metrics/rolling"
 	iandCircuit "github.com/iand/circuit"
 	"github.com/rubyist/circuitbreaker"
 	"github.com/sony/gobreaker"

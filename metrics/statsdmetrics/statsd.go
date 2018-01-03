@@ -45,7 +45,7 @@ func appendStatsdParts(parts ...string) string {
 	return strings.Join(nonEmpty, ".")
 }
 
-// CircuitConfig creates statsd metrics for a circuit
+// CommandProperties creates statsd metrics for a circuit
 func (c *CommandFactory) CommandProperties(circuitName string) hystrix.CircuitConfig {
 	return hystrix.CircuitConfig{
 		Metrics: hystrix.MetricsCollectors{

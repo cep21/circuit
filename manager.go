@@ -10,7 +10,7 @@ import (
 // It is safe to leave not configured properties their empty value.
 type CommandPropertiesConstructor func(circuitName string) CircuitConfig
 
-// Hystrix manages circuits with unique names
+// Manager manages circuits with unique names
 type Manager struct {
 	// DefaultCircuitProperties is a list of CircuitConfig constructors called, in reverse order,
 	// to append or modify configuration for your circuit.

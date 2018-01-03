@@ -126,7 +126,7 @@ func ExampleCircuit_Execute_panics() {
 }
 
 // You can use DefaultCircuitProperties to set configuration dynamically for any circuit
-func ExampleHystrix_DefaultCircuitProperties() {
+func ExampleManager_DefaultCircuitProperties() {
 	myFactory := func(circuitName string) hystrix.CircuitConfig {
 		timeoutsByName := map[string]time.Duration{
 			"v1": time.Second,
@@ -207,7 +207,7 @@ func ExampleBadRequest() {
 }
 
 // If you wanted to publish hystrix information on Expvar, you can register your instance.
-func ExampleHystrix_Var() {
+func ExampleManager_Var() {
 	h := hystrix.Manager{}
 	expvar.Publish("hystrix", h.Var())
 	// Output:

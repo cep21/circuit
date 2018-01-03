@@ -6,7 +6,7 @@ import (
 	"github.com/cep21/hystrix/faststats"
 )
 
-// CircuitConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#command-properties
+// CircuitConfig controls how a circuit operates
 type CircuitConfig struct {
 	General   GeneralConfig
 	Execution ExecutionConfig
@@ -14,6 +14,8 @@ type CircuitConfig struct {
 	Metrics   MetricsCollectors
 }
 
+// GeneralConfig controls the non general logic of the circuit.  Things specific to metrics, execution, or fallback are
+// in their own configs
 type GeneralConfig struct {
 	// if disabled, Execute functions pass to just calling runFunc and do no tracking or fallbacks
 	// Note: Java Hystrix calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
@@ -58,7 +60,7 @@ type FallbackConfig struct {
 	MaxConcurrentRequests int64
 }
 
-// Metrics can receive metrics during a circuit.  They should be fast, as they will
+// MetricsCollectors can receive metrics during a circuit.  They should be fast, as they will
 // block circuit operation during function calls.
 type MetricsCollectors struct {
 	Run      []RunMetrics      `json:"-"`
