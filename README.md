@@ -19,7 +19,7 @@ There are a large number of examples on the [godoc](https://godoc.org/github.com
 * Comprehensive metric tracking
 * Efficient implementation with Benchmarks
 * Low/zero memory allocation costs
-* Support for Netflix Hystrix dashboards, even with custom circuit transition logic
+* Support for [Netflix Hystrix dashboards](https://github.com/Netflix/Hystrix/wiki/Dashboard), even with custom circuit transition logic
 * Multiple error handling features
 * Expose circuit health and configuration on expvar
 * SLO tracking
