@@ -84,10 +84,10 @@ func TestFallbackCircuit(t *testing.T) {
 }
 
 func TestCircuitIgnoreContextFailures(t *testing.T) {
-	h := hystrix.Hystrix{
+	h := hystrix.Manager{
 		DefaultCircuitProperties: []hystrix.CommandPropertiesConstructor{CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})},
 	}
-	c := h.MustCreateCircuit("TestFailingCircuit", hystrix.CommandProperties{
+	c := h.MustCreateCircuit("TestFailingCircuit", hystrix.CircuitConfig{
 		Execution: hystrix.ExecutionConfig{
 			Timeout: time.Hour,
 		},

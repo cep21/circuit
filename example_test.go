@@ -16,8 +16,8 @@ import (
 
 // This is a full example of using a circuit around HTTP requests.
 func Example_http() {
-	h := hystrix.Hystrix{}
-	c := h.MustCreateCircuit("hello-http", hystrix.CommandProperties{
+	h := hystrix.Manager{}
+	c := h.MustCreateCircuit("hello-http", hystrix.CircuitConfig{
 		Execution: hystrix.ExecutionConfig{
 			// Timeout after 3 seconds
 			Timeout: time.Second * 3,
@@ -63,7 +63,7 @@ func Example_http() {
 // back to the user since the fallback was able to execute.  For this case, we try to load the size of the
 // largest message a user can send, but fall back to 140 if the load fails.
 func ExampleCircuit_Execute_fallback() {
-	c := hystrix.NewCircuitFromConfig("divider", hystrix.CommandProperties{})
+	c := hystrix.NewCircuitFromConfig("divider", hystrix.CircuitConfig{})
 	var maximumMessageSize int
 	err := c.Execute(context.Background(), func(_ context.Context) error {
 		return errors.New("your circuit failed")
@@ -79,7 +79,7 @@ func ExampleCircuit_Execute_fallback() {
 // back to the user since the fallback was able to execute.  For this case, we try to load the size of the
 // largest message a user can send, but fall back to 140 if the load fails.
 func ExampleCircuit_Execute_helloworld() {
-	c := hystrix.NewCircuitFromConfig("hello-world", hystrix.CommandProperties{})
+	c := hystrix.NewCircuitFromConfig("hello-world", hystrix.CircuitConfig{})
 	err := c.Execute(context.Background(), func(_ context.Context) error {
 		return nil
 	}, nil)
@@ -88,8 +88,8 @@ func ExampleCircuit_Execute_helloworld() {
 }
 
 func ExampleCircuit_Go() {
-	h := hystrix.Hystrix{}
-	circuit := h.MustCreateCircuit("untrusting-circuit", hystrix.CommandProperties{
+	h := hystrix.Manager{}
+	circuit := h.MustCreateCircuit("untrusting-circuit", hystrix.CircuitConfig{
 		Execution: hystrix.ExecutionConfig{
 			// Time out the context after one second
 			Timeout: time.Second,
@@ -110,8 +110,8 @@ func ExampleCircuit_Go() {
 
 // This example will panic, and the panic can be caught up the stack
 func ExampleCircuit_Execute_panics() {
-	h := hystrix.Hystrix{}
-	circuit := h.MustCreateCircuit("panic_up", hystrix.CommandProperties{})
+	h := hystrix.Manager{}
+	circuit := h.MustCreateCircuit("panic_up", hystrix.CircuitConfig{})
 
 	defer func() {
 		r := recover()
@@ -126,8 +126,8 @@ func ExampleCircuit_Execute_panics() {
 }
 
 // You can use DefaultCircuitProperties to set configuration dynamically for any circuit
-func ExampleHystrix_DefaultCircuitProperties() {
-	myFactory := func(circuitName string) hystrix.CommandProperties {
+func ExampleManager_DefaultCircuitProperties() {
+	myFactory := func(circuitName string) hystrix.CircuitConfig {
 		timeoutsByName := map[string]time.Duration{
 			"v1": time.Second,
 			"v2": time.Second * 2,
@@ -135,9 +135,9 @@ func ExampleHystrix_DefaultCircuitProperties() {
 		customTimeout := timeoutsByName[circuitName]
 		if customTimeout == 0 {
 			// Just return empty if you don't want to set any config
-			return hystrix.CommandProperties{}
+			return hystrix.CircuitConfig{}
 		}
-		return hystrix.CommandProperties{
+		return hystrix.CircuitConfig{
 			Execution: hystrix.ExecutionConfig{
 				Timeout: customTimeout,
 			},
@@ -145,20 +145,20 @@ func ExampleHystrix_DefaultCircuitProperties() {
 	}
 
 	// Hystrix manages circuits with unique names
-	h := hystrix.Hystrix{
+	h := hystrix.Manager{
 		DefaultCircuitProperties: []hystrix.CommandPropertiesConstructor{myFactory},
 	}
-	h.MustCreateCircuit("v1", hystrix.CommandProperties{})
+	h.MustCreateCircuit("v1", hystrix.CircuitConfig{})
 	fmt.Println("The timeout of v1 is", h.GetCircuit("v1").Config().Execution.Timeout)
 	// Output: The timeout of v1 is 1s
 }
 
 // Many configuration variables can be set at runtime in a thread safe way
 func ExampleCircuit_SetConfigThreadSafe() {
-	h := hystrix.Hystrix{}
-	circuit := h.MustCreateCircuit("changes-at-runtime", hystrix.CommandProperties{})
+	h := hystrix.Manager{}
+	circuit := h.MustCreateCircuit("changes-at-runtime", hystrix.CircuitConfig{})
 	// ... later on (during live)
-	circuit.SetConfigThreadSafe(hystrix.CommandProperties{
+	circuit.SetConfigThreadSafe(hystrix.CircuitConfig{
 		Execution: hystrix.ExecutionConfig{
 			MaxConcurrentRequests: int64(12),
 		},
@@ -168,8 +168,8 @@ func ExampleCircuit_SetConfigThreadSafe() {
 // Even though Go executes inside a goroutine, we catch that panic and bubble it up the same
 // call stack that called Go
 func ExampleCircuit_Go_panics() {
-	h := hystrix.Hystrix{}
-	circuit := h.MustCreateCircuit("panic_up", hystrix.CommandProperties{})
+	h := hystrix.Manager{}
+	circuit := h.MustCreateCircuit("panic_up", hystrix.CircuitConfig{})
 
 	defer func() {
 		r := recover()
@@ -187,7 +187,7 @@ func ExampleCircuit_Go_panics() {
 // Here, even if someone tries to divide by zero, the circuit will not consider it a failure even if the
 // function returns non nil error.
 func ExampleBadRequest() {
-	c := hystrix.NewCircuitFromConfig("divider", hystrix.CommandProperties{})
+	c := hystrix.NewCircuitFromConfig("divider", hystrix.CircuitConfig{})
 	divideInCircuit := func(a, b int) (int, error) {
 		var result int
 		err := c.Run(context.Background(), func(ctx context.Context) error {
@@ -207,16 +207,16 @@ func ExampleBadRequest() {
 }
 
 // If you wanted to publish hystrix information on Expvar, you can register your instance.
-func ExampleHystrix_Var() {
-	h := hystrix.Hystrix{}
+func ExampleManager_Var() {
+	h := hystrix.Manager{}
 	expvar.Publish("hystrix", h.Var())
 	// Output:
 }
 
 //func ExampleCommandProperties() {
-//	h := hystrix.Hystrix{}
+//	h := hystrix.Manager{}
 //
-//	circuitConfig := hystrix.CommandProperties{
+//	circuitConfig := hystrix.CircuitConfig{
 //		CircuitBreaker: hystrix.CircuitBreakerConfig{
 //			// This should allow a new request every 10 milliseconds
 //			SleepWindow: time.Millisecond * 5,

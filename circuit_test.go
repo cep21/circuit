@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix/faststats"
 	"github.com/cep21/hystrix/internal/testhelp"
 )
 
 func TestHappyCircuit(t *testing.T) {
-	c := NewCircuitFromConfig("TestHappyCircuit", CommandProperties{})
+	c := NewCircuitFromConfig("TestHappyCircuit", CircuitConfig{})
 	// Should work 100 times in a row
 	for i := 0; i < 100; i++ {
 		err := c.Execute(context.Background(), testhelp.AlwaysPasses, func(_ context.Context, _ error) error {
@@ -29,7 +29,7 @@ func TestHappyCircuit(t *testing.T) {
 }
 
 func TestBadRequest(t *testing.T) {
-	c := NewCircuitFromConfig("TestBadRequest", CommandProperties{})
+	c := NewCircuitFromConfig("TestBadRequest", CircuitConfig{})
 	// Should work 100 times in a row
 	for i := 0; i < 100; i++ {
 		err := c.Execute(context.Background(), func(_ context.Context) error {
@@ -50,7 +50,7 @@ func TestBadRequest(t *testing.T) {
 
 func TestManyConcurrent(t *testing.T) {
 	concurrency := 20
-	c := NewCircuitFromConfig("TestManyConcurrent", CommandProperties{
+	c := NewCircuitFromConfig("TestManyConcurrent", CircuitConfig{
 		Execution: ExecutionConfig{
 			MaxConcurrentRequests: int64(concurrency),
 		},
@@ -70,7 +70,7 @@ func TestManyConcurrent(t *testing.T) {
 }
 
 func TestExecuteBlocks(t *testing.T) {
-	c := NewCircuitFromConfig("TestGoFunction", CommandProperties{
+	c := NewCircuitFromConfig("TestGoFunction", CircuitConfig{
 		Execution: ExecutionConfig{
 			Timeout: time.Nanosecond,
 		},
@@ -91,7 +91,7 @@ func TestExecuteBlocks(t *testing.T) {
 }
 
 func TestDoForwardsPanics(t *testing.T) {
-	c := NewCircuitFromConfig("TestGoFunction", CommandProperties{
+	c := NewCircuitFromConfig("TestGoFunction", CircuitConfig{
 		Execution: ExecutionConfig{
 			Timeout: time.Millisecond * 1,
 		},
@@ -114,7 +114,7 @@ func TestDoForwardsPanics(t *testing.T) {
 }
 
 func TestCircuit_Go_ForwardsPanic(t *testing.T) {
-	c := NewCircuitFromConfig("TestGoFunction", CommandProperties{
+	c := NewCircuitFromConfig("TestGoFunction", CircuitConfig{
 		Execution: ExecutionConfig{
 			Timeout: time.Millisecond * 2,
 		},
@@ -136,7 +136,7 @@ func TestCircuit_Go_ForwardsPanic(t *testing.T) {
 }
 
 func TestCircuit_Go_CanEnd(t *testing.T) {
-	c := NewCircuitFromConfig("TestGoFunction", CommandProperties{
+	c := NewCircuitFromConfig("TestGoFunction", CircuitConfig{
 		Execution: ExecutionConfig{
 			Timeout: time.Millisecond * 2,
 		},
@@ -153,7 +153,7 @@ func TestCircuit_Go_CanEnd(t *testing.T) {
 }
 
 func TestThrottled(t *testing.T) {
-	c := NewCircuitFromConfig("TestThrottled", CommandProperties{
+	c := NewCircuitFromConfig("TestThrottled", CircuitConfig{
 		Execution: ExecutionConfig{
 			MaxConcurrentRequests: 2,
 		},
@@ -183,7 +183,7 @@ func TestThrottled(t *testing.T) {
 }
 
 func TestCircuitCloses(t *testing.T) {
-	c := NewCircuitFromConfig("TestCircuitCloses", CommandProperties{})
+	c := NewCircuitFromConfig("TestCircuitCloses", CircuitConfig{})
 	c.OpenCircuit()
 	err := c.Run(context.Background(), func(_ context.Context) error {
 		panic("I should be open")
@@ -202,7 +202,7 @@ func TestCircuitCloses(t *testing.T) {
 }
 
 func TestTimeout(t *testing.T) {
-	c := NewCircuitFromConfig("TestThrottled", CommandProperties{
+	c := NewCircuitFromConfig("TestThrottled", CircuitConfig{
 		Execution: ExecutionConfig{
 			Timeout: time.Millisecond,
 		},
@@ -220,7 +220,7 @@ func TestTimeout(t *testing.T) {
 }
 
 func TestFailingCircuit(t *testing.T) {
-	c := NewCircuitFromConfig("TestFailingCircuit", CommandProperties{})
+	c := NewCircuitFromConfig("TestFailingCircuit", CircuitConfig{})
 	err := c.Execute(context.Background(), testhelp.AlwaysFails, nil)
 	if err == nil || err.Error() != "alwaysFails failure" {
 		t.Error("saw no error from circuit that always fails")
@@ -228,7 +228,7 @@ func TestFailingCircuit(t *testing.T) {
 }
 
 func TestFallbackCircuit(t *testing.T) {
-	c := NewCircuitFromConfig("TestFallbackCircuit", CommandProperties{})
+	c := NewCircuitFromConfig("TestFallbackCircuit", CircuitConfig{})
 	// Fallback circuit should consistently fail
 	for i := 0; i < 100; i++ {
 		err := c.Execute(context.Background(), testhelp.AlwaysFails, testhelp.AlwaysPassesFallback)
@@ -244,7 +244,7 @@ func TestFallbackCircuit(t *testing.T) {
 }
 
 func TestCircuitIgnoreContextFailures(t *testing.T) {
-	c := NewCircuitFromConfig("TestFailingCircuit", CommandProperties{
+	c := NewCircuitFromConfig("TestFailingCircuit", CircuitConfig{
 		Execution: ExecutionConfig{
 			Timeout: time.Hour,
 		},
@@ -263,15 +263,15 @@ func TestCircuitIgnoreContextFailures(t *testing.T) {
 }
 
 func TestFallbackCircuitConcurrency(t *testing.T) {
-	c := NewCircuitFromConfig("TestFallbackCircuitConcurrency", CommandProperties{
+	c := NewCircuitFromConfig("TestFallbackCircuitConcurrency", CircuitConfig{
 		Fallback: FallbackConfig{
 			MaxConcurrentRequests: 2,
 		},
 	})
 	wg := sync.WaitGroup{}
 	workingCircuitCount := int64(0)
-	var fallbackExecuted fastmath.AtomicInt64
-	var totalExecuted fastmath.AtomicInt64
+	var fallbackExecuted faststats.AtomicInt64
+	var totalExecuted faststats.AtomicInt64
 	for i := 0; i < 3; i++ {
 		wg.Add(1)
 		go func() {
@@ -296,7 +296,7 @@ func TestFallbackCircuitConcurrency(t *testing.T) {
 }
 
 func TestFailingFallbackCircuit(t *testing.T) {
-	c := NewCircuitFromConfig("TestFailingCircuit", CommandProperties{})
+	c := NewCircuitFromConfig("TestFailingCircuit", CircuitConfig{})
 	err := c.Execute(context.Background(), testhelp.AlwaysFails, testhelp.AlwaysFailsFallback)
 	if err == nil {
 		t.Error("expected error back")
@@ -308,7 +308,7 @@ func TestFailingFallbackCircuit(t *testing.T) {
 }
 
 //func TestSLO(t *testing.T) {
-//	c := NewCircuitFromConfig("TestFailingCircuit", CommandProperties{
+//	c := NewCircuitFromConfig("TestFailingCircuit", CircuitConfig{
 //		GoSpecific: GoSpecificConfig{
 //			ResponseTimeSLO: time.Millisecond,
 //		},
@@ -329,7 +329,7 @@ func TestFailingFallbackCircuit(t *testing.T) {
 //}
 
 func TestFallbackAfterTimeout(t *testing.T) {
-	c := NewCircuitFromConfig("TestThrottled", CommandProperties{
+	c := NewCircuitFromConfig("TestThrottled", CircuitConfig{
 		Execution: ExecutionConfig{
 			Timeout: time.Millisecond,
 		},
@@ -354,7 +354,7 @@ func TestFallbackAfterTimeout(t *testing.T) {
 // Just test to make sure the -race detector doesn't find anything with a public function
 func TestVariousRaceConditions(t *testing.T) {
 	concurrentThreads := 5
-	c := NewCircuitFromConfig("TestVariousRaceConditions", CommandProperties{
+	c := NewCircuitFromConfig("TestVariousRaceConditions", CircuitConfig{
 		Execution: ExecutionConfig{
 			MaxConcurrentRequests: int64(-1),
 		},

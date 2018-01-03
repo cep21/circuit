@@ -1,4 +1,4 @@
-package fastmath
+package faststats
 
 import (
 	"runtime"

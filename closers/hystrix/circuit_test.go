@@ -13,14 +13,14 @@ import (
 )
 
 func TestCircuitCloses(t *testing.T) {
-	c := hystrix.NewCircuitFromConfig("TestCircuitCloses", hystrix.CommandProperties{
-		GoSpecific: hystrix.GoSpecificConfig{
-			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{}),
-			ClosedToOpenFactory: OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
+	h := hystrix.Manager{
+		DefaultCircuitProperties: []hystrix.CommandPropertiesConstructor{
+			Config(ConfigureSleepyCloseCheck{}, ConfigureOpenOnErrPercentage{
 				RequestVolumeThreshold: 1,
 			}),
 		},
-	})
+	}
+	c := h.MustCreateCircuit("TestCircuitCloses")
 
 	if c.IsOpen() {
 		t.Fatal("Circuit should not start out open")
@@ -39,8 +39,8 @@ func TestCircuitCloses(t *testing.T) {
 }
 
 func TestCircuitAttemptsToReopen(t *testing.T) {
-	c := hystrix.NewCircuitFromConfig("TestCircuitAttemptsToReopen", hystrix.CommandProperties{
-		GoSpecific: hystrix.GoSpecificConfig{
+	c := hystrix.NewCircuitFromConfig("TestCircuitAttemptsToReopen", hystrix.CircuitConfig{
+		General: hystrix.GeneralConfig{
 			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
 				SleepWindow: time.Millisecond,
 			}),
@@ -72,8 +72,8 @@ func TestCircuitAttemptsToReopen(t *testing.T) {
 }
 
 func TestCircuitAttemptsToReopenOnlyOnce(t *testing.T) {
-	c := hystrix.NewCircuitFromConfig("TestCircuitAttemptsToReopenOnlyOnce", hystrix.CommandProperties{
-		GoSpecific: hystrix.GoSpecificConfig{
+	c := hystrix.NewCircuitFromConfig("TestCircuitAttemptsToReopenOnlyOnce", hystrix.CircuitConfig{
+		General: hystrix.GeneralConfig{
 			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
 				SleepWindow: time.Millisecond,
 			}),
@@ -109,8 +109,8 @@ func TestCircuitAttemptsToReopenOnlyOnce(t *testing.T) {
 }
 
 func TestLargeSleepWindow(t *testing.T) {
-	c := hystrix.NewCircuitFromConfig("TestLargeSleepWindow", hystrix.CommandProperties{
-		GoSpecific: hystrix.GoSpecificConfig{
+	c := hystrix.NewCircuitFromConfig("TestLargeSleepWindow", hystrix.CircuitConfig{
+		General: hystrix.GeneralConfig{
 			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
 				SleepWindow: time.Hour,
 			}),
@@ -151,14 +151,14 @@ func TestLargeSleepWindow(t *testing.T) {
 func TestSleepDurationWorks(t *testing.T) {
 	concurrentThreads := 10
 	sleepWindow := time.Millisecond * 25
-	c := hystrix.NewCircuitFromConfig("TestSleepDurationWorks", hystrix.CommandProperties{
+	c := hystrix.NewCircuitFromConfig("TestSleepDurationWorks", hystrix.CircuitConfig{
 		Execution: hystrix.ExecutionConfig{
 			MaxConcurrentRequests: int64(concurrentThreads),
 		},
 		Fallback: hystrix.FallbackConfig{
 			MaxConcurrentRequests: int64(concurrentThreads),
 		},
-		GoSpecific: hystrix.GoSpecificConfig{
+		General: hystrix.GeneralConfig{
 			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
 				SleepWindow: sleepWindow + time.Millisecond*5,
 			}),
@@ -224,8 +224,8 @@ func TestSleepDurationWorks(t *testing.T) {
 func TestCircuitRecovers(t *testing.T) {
 	concurrentThreads := 25
 	sleepWindow := time.Millisecond * 5
-	c := hystrix.NewCircuitFromConfig("TestCircuitRecovers", hystrix.CommandProperties{
-		GoSpecific: hystrix.GoSpecificConfig{
+	c := hystrix.NewCircuitFromConfig("TestCircuitRecovers", hystrix.CircuitConfig{
+		General: hystrix.GeneralConfig{
 			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
 				//		// This should allow a new request every 10 milliseconds
 				SleepWindow: time.Millisecond * 5,

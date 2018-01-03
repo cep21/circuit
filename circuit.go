@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix/faststats"
 )
 
 // Circuit is a hystrix circuit that can accept commands and open/close on failures
@@ -21,19 +21,19 @@ type Circuit struct {
 	// The passed in config is not atomic and thread safe.  We reference thread safe values during circuit operations
 	// with atomicCircuitConfig.  Those are, also, the only values that can actually be changed while a circuit is
 	// running.
-	notThreadSafeConfig CommandProperties
+	notThreadSafeConfig CircuitConfig
 	// The mutex supports setting and reading the command properties, but is not locked when we reference the config
 	// while live: we use the threadSafeConfig below
 	notThreadSafeConfigMu sync.Mutex
 	threadSafeConfig      atomicCircuitConfig
 
 	// Tracks if the circuit has been shut open or closed
-	isOpen fastmath.AtomicBoolean
+	isOpen faststats.AtomicBoolean
 
 	// Tracks how many commands are currently running
-	concurrentCommands fastmath.AtomicInt64
+	concurrentCommands faststats.AtomicInt64
 	// Tracks how many fallbacks are currently running
-	concurrentFallbacks fastmath.AtomicInt64
+	concurrentFallbacks faststats.AtomicInt64
 
 	// closedToOpen controls when to open a closed circuit
 	closedToOpen ClosedToOpen
@@ -45,7 +45,7 @@ type Circuit struct {
 
 // NewCircuitFromConfig creates an inline circuit.  If you want to group all your circuits together, you should probably
 // just use Hystrix struct instead.
-func NewCircuitFromConfig(name string, config CommandProperties) *Circuit {
+func NewCircuitFromConfig(name string, config CircuitConfig) *Circuit {
 	config.Merge(defaultCommandProperties)
 	ret := &Circuit{
 		name:                name,
@@ -68,7 +68,7 @@ func (c *Circuit) ConcurrentFallbacks() int64 {
 // SetConfigThreadSafe changes the current configuration of this circuit. Note that many config parameters, specifically those
 // around creating stat tracking buckets, are not modifiable during runtime for efficiency reasons.  Those buckets
 // will stay the same.
-func (c *Circuit) SetConfigThreadSafe(config CommandProperties) {
+func (c *Circuit) SetConfigThreadSafe(config CircuitConfig) {
 	c.notThreadSafeConfigMu.Lock()
 	defer c.notThreadSafeConfigMu.Unlock()
 	//c.circuitStats.SetConfigThreadSafe(config)
@@ -84,7 +84,7 @@ func (c *Circuit) SetConfigThreadSafe(config CommandProperties) {
 
 // Config returns the circuit's configuration.  Modifications to this configuration are not reflected by the circuit.
 // In other words, this creates a copy.
-func (c *Circuit) Config() CommandProperties {
+func (c *Circuit) Config() CircuitConfig {
 	c.notThreadSafeConfigMu.Lock()
 	defer c.notThreadSafeConfigMu.Unlock()
 	return c.notThreadSafeConfig
@@ -93,17 +93,17 @@ func (c *Circuit) Config() CommandProperties {
 // SetConfigNotThreadSafe is only useful during construction before a circuit is being used.  It is not thread safe,
 // but will modify all the circuit's internal structs to match what the config wants.  It also doe *NOT* use the
 // default configuration parameters.
-func (c *Circuit) SetConfigNotThreadSafe(config CommandProperties) {
+func (c *Circuit) SetConfigNotThreadSafe(config CircuitConfig) {
 	c.notThreadSafeConfigMu.Lock()
 	// Set, but do not reference this config inside this function, since that would not be thread safe (no mu protection)
 	c.notThreadSafeConfig = config
 	c.notThreadSafeConfigMu.Unlock()
 
-	c.goroutineWrapper.lostErrors = config.GoSpecific.GoLostErrors
-	c.timeNow = config.GoSpecific.TimeKeeper.Now
+	c.goroutineWrapper.lostErrors = config.General.GoLostErrors
+	c.timeNow = config.General.TimeKeeper.Now
 
-	c.openToClose = config.GoSpecific.OpenToClosedFactory()
-	c.closedToOpen = config.GoSpecific.ClosedToOpenFactory()
+	c.openToClose = config.General.OpenToClosedFactory()
+	c.closedToOpen = config.General.ClosedToOpenFactory()
 	if cfg, ok := c.openToClose.(Configurable); ok {
 		cfg.SetConfigNotThreadSafe(config)
 	}
@@ -111,20 +111,20 @@ func (c *Circuit) SetConfigNotThreadSafe(config CommandProperties) {
 		cfg.SetConfigNotThreadSafe(config)
 	}
 	c.CmdMetricCollector = append(
-		make([]RunMetrics, 0, len(config.MetricsCollectors.Run)+2),
+		make([]RunMetrics, 0, len(config.Metrics.Run)+2),
 		c.openToClose,
 		c.closedToOpen)
-	c.CmdMetricCollector = append(c.CmdMetricCollector, config.MetricsCollectors.Run...)
+	c.CmdMetricCollector = append(c.CmdMetricCollector, config.Metrics.Run...)
 
 	c.FallbackMetricCollector = append(
-		make([]FallbackMetrics, 0, len(config.MetricsCollectors.Fallback)+2),
-		config.MetricsCollectors.Fallback...)
+		make([]FallbackMetrics, 0, len(config.Metrics.Fallback)+2),
+		config.Metrics.Fallback...)
 
 	c.CircuitMetricsCollector = append(
-		make([]CircuitMetrics, 0, len(config.MetricsCollectors.Circuit)+2),
+		make([]CircuitMetrics, 0, len(config.Metrics.Circuit)+2),
 		c.openToClose,
 		c.closedToOpen)
-	c.CircuitMetricsCollector = append(c.CircuitMetricsCollector, config.MetricsCollectors.Circuit...)
+	c.CircuitMetricsCollector = append(c.CircuitMetricsCollector, config.Metrics.Circuit...)
 
 	c.SetConfigThreadSafe(config)
 }

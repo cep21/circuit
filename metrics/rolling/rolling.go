@@ -5,21 +5,21 @@ import (
 	"time"
 
 	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix/faststats"
 )
 
 // CollectRollingStats enables stats needed to display metric event streams on a hystrix dashboard, as well as it
 // gives easy access to rolling and total latency stats
-func CollectRollingStats(runConfig RunStatsConfig, fallbackConfig FallbackStatsConfig) func(string) hystrix.CommandProperties {
-	return func(_ string) hystrix.CommandProperties {
+func CollectRollingStats(runConfig RunStatsConfig, fallbackConfig FallbackStatsConfig) func(string) hystrix.CircuitConfig {
+	return func(_ string) hystrix.CircuitConfig {
 		rs := RunStats{}
 		runConfig.Merge(defaultRunStatsConfig)
 		rs.SetConfigNotThreadSafe(runConfig)
 		fs := FallbackStats{}
 		fallbackConfig.Merge(defaultFallbackStatsConfig)
 		fs.SetConfigNotThreadSafe(fallbackConfig)
-		return hystrix.CommandProperties{
-			MetricsCollectors: hystrix.MetricsCollectors{
+		return hystrix.CircuitConfig{
+			Metrics: hystrix.MetricsCollectors{
 				Run:      []hystrix.RunMetrics{&rs},
 				Fallback: []hystrix.FallbackMetrics{&fs},
 			},
@@ -49,16 +49,16 @@ func FindFallbackMetrics(c *hystrix.Circuit) *FallbackStats {
 
 // RunStats tracks rolling windows of callback counts
 type RunStats struct {
-	Successes                  fastmath.RollingCounter
-	ErrConcurrencyLimitRejects fastmath.RollingCounter
-	ErrFailures                fastmath.RollingCounter
-	ErrShortCircuits           fastmath.RollingCounter
-	ErrTimeouts                fastmath.RollingCounter
-	ErrBadRequests             fastmath.RollingCounter
-	ErrInterrupts              fastmath.RollingCounter
+	Successes                  faststats.RollingCounter
+	ErrConcurrencyLimitRejects faststats.RollingCounter
+	ErrFailures                faststats.RollingCounter
+	ErrShortCircuits           faststats.RollingCounter
+	ErrTimeouts                faststats.RollingCounter
+	ErrBadRequests             faststats.RollingCounter
+	ErrInterrupts              faststats.RollingCounter
 
 	// It is analogous to https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#latency-percentiles-hystrixcommandrun-execution-gauge
-	Latencies fastmath.RollingPercentile
+	Latencies faststats.RollingPercentile
 }
 
 func expvarToVal(in expvar.Var) interface{} {
@@ -148,14 +148,14 @@ func (r *RunStats) SetConfigNotThreadSafe(config RunStatsConfig) {
 	rollingPercentileNumBuckets := config.RollingPercentileNumBuckets
 	rollingPercentileBucketSize := config.RollingPercentileBucketSize
 
-	r.Successes = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.ErrConcurrencyLimitRejects = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.ErrFailures = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.ErrShortCircuits = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.ErrTimeouts = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.ErrBadRequests = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.ErrInterrupts = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.Latencies = fastmath.NewRollingPercentile(rollingPercentileBucketWidth, rollingPercentileNumBuckets, rollingPercentileBucketSize, now)
+	r.Successes = faststats.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.ErrConcurrencyLimitRejects = faststats.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.ErrFailures = faststats.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.ErrShortCircuits = faststats.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.ErrTimeouts = faststats.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.ErrBadRequests = faststats.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.ErrInterrupts = faststats.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.Latencies = faststats.NewRollingPercentile(rollingPercentileBucketWidth, rollingPercentileNumBuckets, rollingPercentileBucketSize, now)
 }
 
 // Success increments the Successes bucket
@@ -225,9 +225,9 @@ func (r *RunStats) ErrorPercentageAt(now time.Time) float64 {
 
 // FallbackStats tracks fallback metrics in rolling buckets
 type FallbackStats struct {
-	Successes                  fastmath.RollingCounter
-	ErrConcurrencyLimitRejects fastmath.RollingCounter
-	ErrFailures                fastmath.RollingCounter
+	Successes                  faststats.RollingCounter
+	ErrConcurrencyLimitRejects faststats.RollingCounter
+	ErrFailures                faststats.RollingCounter
 }
 
 // Var allows FallbackStats on expvar
@@ -293,7 +293,7 @@ func (r *FallbackStats) SetConfigNotThreadSafe(config FallbackStatsConfig) {
 	bucketWidth := time.Duration(config.RollingStatsDuration.Nanoseconds() / int64(config.RollingStatsNumBuckets))
 	numBuckets := config.RollingStatsNumBuckets
 
-	r.Successes = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.ErrConcurrencyLimitRejects = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
-	r.ErrFailures = fastmath.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.Successes = faststats.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.ErrConcurrencyLimitRejects = faststats.NewRollingCounter(bucketWidth, numBuckets, now)
+	r.ErrFailures = faststats.NewRollingCounter(bucketWidth, numBuckets, now)
 }

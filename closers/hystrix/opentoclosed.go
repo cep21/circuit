@@ -5,16 +5,16 @@ import (
 	"time"
 
 	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix/faststats"
 )
 
 // SleepyCloseCheck is hystrix's default half-open logic: try again ever X ms
 type SleepyCloseCheck struct {
 	// Tracks when we should try to close an open circuit again
-	reopenCircuitCheck fastmath.TimedCheck
+	reopenCircuitCheck faststats.TimedCheck
 
-	concurrentSuccessfulAttempts fastmath.AtomicInt64
-	closeOnCurrentCount          fastmath.AtomicInt64
+	concurrentSuccessfulAttempts faststats.AtomicInt64
+	closeOnCurrentCount          faststats.AtomicInt64
 
 	mu     sync.Mutex
 	config ConfigureSleepyCloseCheck

@@ -3,13 +3,13 @@ package hystrix
 import (
 	"context"
 
-	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix/faststats"
 )
 
 // goroutineWrapper contains logic to wrap normal run methods inside a goroutine so they can end early
 // if the goroutine continues to run
 type goroutineWrapper struct {
-	skipCatchPanics fastmath.AtomicBoolean
+	skipCatchPanics faststats.AtomicBoolean
 	lostErrors      func(err error, panics interface{})
 }
 

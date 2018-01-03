@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix/faststats"
 )
 
 // Tracker sets up a response time SLO that has a reasonable meaning for hystrix.  Use it for an SLO like
@@ -17,9 +17,9 @@ import (
 // happen.  All other types of errors are blamed on the down stream service, or the Run method's request time.  They
 // will count as failing the SLA.
 type Tracker struct {
-	MaximumHealthyTime fastmath.AtomicInt64
-	MeetsSLOCount      fastmath.AtomicInt64
-	FailsSLOCount      fastmath.AtomicInt64
+	MaximumHealthyTime faststats.AtomicInt64
+	MeetsSLOCount      faststats.AtomicInt64
+	FailsSLOCount      faststats.AtomicInt64
 
 	Collectors []Collector
 }
