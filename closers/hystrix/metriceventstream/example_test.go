@@ -5,13 +5,13 @@ import (
 
 	"log"
 
-	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/closers/hystrix/metriceventstream"
+	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/closers/hystrix/metriceventstream"
 )
 
 // This example creates an event stream handler, starts it, then later closes the handler
 func ExampleMetricEventStream() {
-	h := hystrix.Manager{}
+	h := circuit.Manager{}
 	es := metriceventstream.MetricEventStream{
 		Hystrix: &h,
 	}

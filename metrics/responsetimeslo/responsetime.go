@@ -3,8 +3,8 @@ package responsetimeslo
 import (
 	"time"
 
-	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/faststats"
+	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/faststats"
 )
 
 // Tracker sets up a response time SLO that has a reasonable meaning for hystrix.  Use it for an SLO like
@@ -24,7 +24,7 @@ type Tracker struct {
 	Collectors []Collector
 }
 
-var _ hystrix.RunMetrics = &Tracker{}
+var _ circuit.RunMetrics = &Tracker{}
 
 // Success adds a healthy check if duration <= maximum healthy time
 func (r *Tracker) Success(now time.Time, duration time.Duration) {

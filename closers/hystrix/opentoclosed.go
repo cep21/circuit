@@ -1,11 +1,11 @@
-package hystrix
+package circuit
 
 import (
 	"sync"
 	"time"
 
-	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/faststats"
+	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/faststats"
 )
 
 // SleepyCloseCheck is hystrix's default half-open logic: try again ever X ms
@@ -21,8 +21,8 @@ type SleepyCloseCheck struct {
 }
 
 // SleepyCloseCheckFactory creates SleepyCloseCheck closer
-func SleepyCloseCheckFactory(config ConfigureSleepyCloseCheck) func() hystrix.OpenToClosed {
-	return func() hystrix.OpenToClosed {
+func SleepyCloseCheckFactory(config ConfigureSleepyCloseCheck) func() circuit.OpenToClosed {
+	return func() circuit.OpenToClosed {
 		s := SleepyCloseCheck{}
 		config.Merge(defaultConfigureSleepyCloseCheck)
 		s.SetConfigNotThreadSafe(config)
@@ -30,7 +30,7 @@ func SleepyCloseCheckFactory(config ConfigureSleepyCloseCheck) func() hystrix.Op
 	}
 }
 
-var _ hystrix.OpenToClosed = &SleepyCloseCheck{}
+var _ circuit.OpenToClosed = &SleepyCloseCheck{}
 
 // ConfigureSleepyCloseCheck configures values for SleepyCloseCheck
 type ConfigureSleepyCloseCheck struct {

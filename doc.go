@@ -1,6 +1,6 @@
 /*
-Package hystrix is a Go implementation of Netflix's Hystrix library.  Most documentation is available on
-the github README page https://github.com/cep21/hystrix/blob/master/README.md
+Package circuit is a Go implementation of Netflix's Hystrix library.  Most documentation is available on
+the github README page https://github.com/cep21/circuit/blob/master/README.md
 
 Use case
 
@@ -36,4 +36,4 @@ All circuits record circuit stats that you can fetch out of the Circuit at any t
 your own circuit stat trackers by modifying the MetricsCollectors structure.
 
 */
-package hystrix
+package circuit

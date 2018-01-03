@@ -1,4 +1,4 @@
-package hystrix
+package circuit
 
 import "fmt"
 
