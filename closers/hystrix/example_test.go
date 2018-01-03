@@ -2,12 +2,13 @@ package hystrix_test
 
 import (
 	"fmt"
-	"github.com/cep21/circuit/closers/hystrix"
-	"github.com/cep21/circuit"
 	"time"
+
+	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/closers/hystrix"
 )
 
-// This example configures the circuit to use Hystrix open/close logic with the default Hystrix parameters
+// This example configures the circuit to use Manager open/close logic with the default Manager parameters
 func ExampleConfigFactory_Configure() {
 	configuration := hystrix.ConfigFactory{
 		// Hystrix open logic is to open the circuit after an % of errors
@@ -18,7 +19,7 @@ func ExampleConfigFactory_Configure() {
 		},
 		// Hystrix close logic is to sleep then check
 		ConfigureSleepyCloseCheck: hystrix.ConfigureSleepyCloseCheck{
-			// The default values match what hystrix does by default
+		// The default values match what hystrix does by default
 		},
 	}
 	h := circuit.Manager{

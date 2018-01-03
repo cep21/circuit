@@ -201,7 +201,7 @@ func ExampleManager_DefaultCircuitProperties() {
 		}
 	}
 
-	// Hystrix manages circuits with unique names
+	// Manager manages circuits with unique names
 	h := circuit.Manager{
 		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{myFactory},
 	}
@@ -275,7 +275,7 @@ func ExampleConfig_custommetrics() {
 	config := circuit.Config{
 		Metrics: circuit.MetricsCollectors{
 			Run: []circuit.RunMetrics{
-				// Here is where I would insert my custom metric collector
+			// Here is where I would insert my custom metric collector
 			},
 		},
 	}

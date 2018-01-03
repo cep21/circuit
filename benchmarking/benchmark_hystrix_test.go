@@ -43,8 +43,8 @@ func BenchmarkCiruits(b *testing.B) {
 	passesParam := []bool{true, false}
 	impls := []circuitImpls{
 		{
-			name:   "Hystrix",
-			runner: hystrixRunner,
+			name:   "circuit",
+			runner: circuitRunner,
 			configs: []circuitConfigs{
 				{
 					name:   "Metrics",
@@ -168,7 +168,7 @@ func BenchmarkCiruits(b *testing.B) {
 	}
 }
 
-func hystrixRunner(b *testing.B, configIn interface{}, concurrent int, funcToRun interface{}, pass bool) {
+func circuitRunner(b *testing.B, configIn interface{}, concurrent int, funcToRun interface{}, pass bool) {
 	f := funcToRun.(func(context.Context) error)
 	h := circuit.Manager{}
 	config := configIn.(circuit.Config)

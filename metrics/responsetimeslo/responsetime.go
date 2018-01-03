@@ -29,7 +29,7 @@ type Config struct {
 
 // Factory creates SLO monitors for a circuit
 type Factory struct {
-	Config Config
+	Config                Config
 	CollectorConstructors []func(circuitName string) Collector
 }
 

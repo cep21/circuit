@@ -16,7 +16,7 @@ import (
 
 	"github.com/cep21/circuit"
 	hystrix2 "github.com/cep21/circuit/closers/hystrix"
-	"github.com/cep21/circuit/closers/hystrix/metriceventstream"
+	"github.com/cep21/circuit/metriceventstream"
 	"github.com/cep21/circuit/metrics/rolling"
 )
 
@@ -29,7 +29,7 @@ func main() {
 	}
 	expvar.Publish("hystrix", h.Var())
 	es := metriceventstream.MetricEventStream{
-		Hystrix: &h,
+		Manager: &h,
 	}
 	go func() {
 		log.Fatal(es.Start())
@@ -49,9 +49,9 @@ func main() {
 	log.Println("To view expvar metrics, visit expvar in your browser")
 	log.Println("  http://127.0.0.1:8123/debug/vars")
 	log.Println()
-	log.Println("To view a dashboard, follow the instructions at https://github.com/Netflix/Hystrix/wiki/Dashboard#run-via-gradle")
-	log.Println("  git clone git@github.com:Netflix/Hystrix.git")
-	log.Println("  cd Hystrix/hystrix-dashboard")
+	log.Println("To view a dashboard, follow the instructions at https://github.com/Netflix/Manager/wiki/Dashboard#run-via-gradle")
+	log.Println("  git clone git@github.com:Netflix/Manager.git")
+	log.Println("  cd Manager/hystrix-dashboard")
 	log.Println("  ../gradlew jettyRun")
 	log.Println()
 	log.Println("Then, add the stream http://127.0.0.1:8123/hystrix.stream")

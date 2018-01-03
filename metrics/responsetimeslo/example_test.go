@@ -1,9 +1,10 @@
 package responsetimeslo_test
 
 import (
-	"github.com/cep21/circuit/metrics/responsetimeslo"
-	"github.com/cep21/circuit"
 	"time"
+
+	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/metrics/responsetimeslo"
 )
 
 func ExampleFactory() {

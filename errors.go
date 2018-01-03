@@ -2,25 +2,25 @@ package circuit
 
 import "fmt"
 
-var errThrottledConcucrrentCommands = &hystrixError{concurrencyLimitReached: true, msg: "throttling connections to command"}
-var errCircuitOpen = &hystrixError{circuitOpen: true, msg: "circuit is open"}
+var errThrottledConcucrrentCommands = &circuitError{concurrencyLimitReached: true, msg: "throttling connections to command"}
+var errCircuitOpen = &circuitError{circuitOpen: true, msg: "circuit is open"}
 
-// hystrixError is used for internally generated errors
-type hystrixError struct {
+// circuitError is used for internally generated errors
+type circuitError struct {
 	concurrencyLimitReached bool
 	circuitOpen             bool
 	msg                     string
 }
 
-func (m *hystrixError) Error() string {
-	return fmt.Sprintf("%s: concurrencyReached=%t circuitOpen=%t", m.msg, m.HystrixConcurrencyLimitReached(), m.HystrixCiruitOpen())
+func (m *circuitError) Error() string {
+	return fmt.Sprintf("%s: concurrencyReached=%t circuitOpen=%t", m.msg, m.ConcurrencyLimitReached(), m.CiruitOpen())
 }
 
-func (m *hystrixError) HystrixConcurrencyLimitReached() bool {
+func (m *circuitError) ConcurrencyLimitReached() bool {
 	return m.concurrencyLimitReached
 }
 
-func (m *hystrixError) HystrixCiruitOpen() bool {
+func (m *circuitError) CiruitOpen() bool {
 	return m.circuitOpen
 }
 
@@ -28,7 +28,7 @@ func (m *hystrixError) HystrixCiruitOpen() bool {
 // bad.  See http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/exception/HystrixBadRequestException.html
 // and https://github.com/Netflix/Hystrix/wiki/How-To-Use#error-propagation for information.
 type BadRequest interface {
-	HystrixBadRequest() bool
+	BadRequest() bool
 }
 
 // IsBadRequest returns true if the error is of type BadRequest
@@ -37,7 +37,7 @@ func IsBadRequest(err error) bool {
 		return false
 	}
 	br, ok := err.(BadRequest)
-	return ok && br.HystrixBadRequest()
+	return ok && br.BadRequest()
 }
 
 // SimpleBadRequest is a simple wrapper for an error to mark it as a bad request
@@ -55,12 +55,12 @@ func (s SimpleBadRequest) Error() string {
 	return s.Err.Error()
 }
 
-// HystrixBadRequest always returns true
-func (s SimpleBadRequest) HystrixBadRequest() bool {
+// BadRequest always returns true
+func (s SimpleBadRequest) BadRequest() bool {
 	return true
 }
 
 var _ error = &SimpleBadRequest{}
 var _ BadRequest = &SimpleBadRequest{}
 
-var _ error = &hystrixError{}
+var _ error = &circuitError{}

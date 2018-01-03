@@ -1,9 +1,9 @@
 package statsdmetrics_test
 
 import (
-	"github.com/cep21/circuit/metrics/statsdmetrics"
 	"github.com/cactus/go-statsd-client/statsd"
 	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/metrics/statsdmetrics"
 )
 
 func ExampleCommandFactory_CommandProperties() {

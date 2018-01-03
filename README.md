@@ -116,21 +116,26 @@ This example configures the circuit to use Hystrix open/close logic with the def
 
 Dashboard metrics can be enabled with the MetricEventStream object.
 ```go
-	h := circuit.Manager{}
+	// metriceventstream uses rolling stats to report circuit information
+	sf := rolling.StatFactory{}
+	h := circuit.Manager{
+		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{sf.CreateConfig},
+	}
 	es := metriceventstream.MetricEventStream{
-		Hystrix: &h,
+		Manager: &h,
 	}
 	go func() {
 		if err := es.Start(); err != nil {
 			log.Fatal(err)
 		}
 	}()
+	// ES is a http.Handler, so you can pass it directly to your mux
 	http.Handle("/hystrix.stream", &es)
 	// ...
 	if err := es.Close(); err != nil {
 		log.Fatal(err)
 	}
-	// Output:	
+	// Output:
 ```
 
 ## Enable expvar

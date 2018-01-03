@@ -9,7 +9,7 @@ import (
 	"github.com/cep21/circuit/faststats"
 )
 
-// Circuit is a hystrix circuit that can accept commands and open/close on failures
+// Circuit is a circuit breaker pattern implementation that can accept commands and open/close on failures
 type Circuit struct {
 	//circuitStats
 	CmdMetricCollector      RunMetricsCollection
@@ -44,7 +44,7 @@ type Circuit struct {
 }
 
 // NewCircuitFromConfig creates an inline circuit.  If you want to group all your circuits together, you should probably
-// just use Hystrix struct instead.
+// just use Manager struct instead.
 func NewCircuitFromConfig(name string, config Config) *Circuit {
 	config.Merge(defaultCommandProperties)
 	ret := &Circuit{
@@ -203,7 +203,7 @@ func (c *Circuit) Run(ctx context.Context, runFunc func(context.Context) error) 
 	return c.Execute(ctx, runFunc, nil)
 }
 
-// Execute the hystrix circuit.  Prefer this over Go.  Similar to http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#execute--
+// Execute the circuit.  Prefer this over Go.  Similar to http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#execute--
 func (c *Circuit) Execute(ctx context.Context, runFunc func(context.Context) error, fallbackFunc func(context.Context, error) error) error {
 	if c.threadSafeConfig.CircuitBreaker.Disabled.Get() {
 		return runFunc(ctx)
@@ -232,7 +232,7 @@ func (c *Circuit) throttleConcurrentCommands(currentCommandCount int64) error {
 	return nil
 }
 
-// run is the equivalent of Java Hystrix's http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#run()
+// run is the equivalent of Java Manager's http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#run()
 func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) (retErr error) {
 	if runFunc == nil {
 		return nil
@@ -287,7 +287,7 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 		return ret
 	}
 
-	// The runFunc failed, but someone asked the original context to end.  This probably isn't a failure of the hystrix
+	// The runFunc failed, but someone asked the original context to end.  This probably isn't a failure of the
 	// circuit: someone just wanted `Execute` to end early, so don't track it as a failure.
 	if c.checkErrInterrupt(originalContext, ret, runFuncDoneTime, totalCmdTime) {
 		return ret
@@ -363,7 +363,7 @@ func (c *Circuit) fallback(ctx context.Context, err error, fallbackFunc func(con
 	defer c.concurrentFallbacks.Add(-1)
 	if c.threadSafeConfig.Fallback.MaxConcurrentRequests.Get() >= 0 && currentFallbackCount > c.threadSafeConfig.Fallback.MaxConcurrentRequests.Get() {
 		c.FallbackMetricCollector.ErrConcurrencyLimitReject(c.now())
-		return &hystrixError{concurrencyLimitReached: true, msg: "throttling concurrency to fallbacks"}
+		return &circuitError{concurrencyLimitReached: true, msg: "throttling concurrency to fallbacks"}
 	}
 
 	startTime := c.now()

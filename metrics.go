@@ -173,7 +173,7 @@ type RunMetrics interface {
 	ErrBadRequest(now time.Time, duration time.Duration)
 	// ErrInterrupt means the request ended, not because the runFunc failed, but probably because the original
 	// context canceled.  Your circuit returned an error, but it's probably because someone else killed the context,
-	// and not that your circuit is broken.  Java Hystrix doesn't have an equivalent for this, but it would be like if
+	// and not that your circuit is broken.  Java Manager doesn't have an equivalent for this, but it would be like if
 	// an interrupt was called on the thread.
 	//
 	// A note on stat tracking: you may or may not consider this duration valid.  Yes, that's how long it executed,
