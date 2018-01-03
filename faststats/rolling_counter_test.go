@@ -46,14 +46,14 @@ func TestRollingCounter_NormalConsistency(t *testing.T) {
 	concurrent := 20
 	eachIteration := bucketSize * (numBuckets / 2)
 	end := 50 * eachIteration
-	for k :=0;k<50;k++ {
+	for k := 0; k < 50; k++ {
 		wg := sync.WaitGroup{}
 		for i := 0; i < concurrent; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				for j := 0; j < eachIteration; j++ {
-					newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(j + k *eachIteration)))
+					newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(j+k*eachIteration)))
 					x.Inc(newNow)
 				}
 			}()
