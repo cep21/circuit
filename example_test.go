@@ -201,7 +201,7 @@ func ExampleManager_DefaultCircuitProperties() {
 		}
 	}
 
-	// Hystrix manages circuits with unique names
+	// Manager manages circuits with unique names
 	h := circuit.Manager{
 		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{myFactory},
 	}
@@ -271,25 +271,14 @@ func ExampleManager_Var() {
 	// Output:
 }
 
-//func ExampleCommandProperties() {
-//	h := circuit.Manager{}
-//
-//	circuitConfig := circuit.Config{
-//		CircuitBreaker: circuit.CircuitBreakerConfig{
-//			// This should allow a new request every 10 milliseconds
-//			SleepWindow: time.Millisecond * 5,
-//			// The first failure should open the circuit
-//			ErrorThresholdPercentage: 1,
-//			// Only one request is required to fail the circuit
-//			RequestVolumeThreshold: 1,
-//		},
-//		Execution: circuit.ExecutionConfig{
-//			// Allow at most 2 requests at a time
-//			MaxConcurrentRequests: 2,
-//			// Time out the context after one second
-//			Timeout: time.Second,
-//		},
-//	}
-//	h.MustCreateCircuit("configured-circuit", circuitConfig)
-//	// Output:
-//}
+func ExampleConfig_custommetrics() {
+	config := circuit.Config{
+		Metrics: circuit.MetricsCollectors{
+			Run: []circuit.RunMetrics{
+			// Here is where I would insert my custom metric collector
+			},
+		},
+	}
+	circuit.NewCircuitFromConfig("custom-metrics", config)
+	// Output:
+}

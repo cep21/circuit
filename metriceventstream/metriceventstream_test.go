@@ -20,7 +20,7 @@ func TestMetricEventStream(t *testing.T) {
 	}
 
 	eventStream := MetricEventStream{
-		Hystrix:      h,
+		Manager:      h,
 		TickDuration: time.Millisecond * 10,
 	}
 	eventStreamStartResult := make(chan error)

@@ -1,4 +1,4 @@
-package circuit
+package hystrix
 
 import (
 	"context"

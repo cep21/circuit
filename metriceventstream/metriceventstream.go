@@ -15,9 +15,10 @@ import (
 )
 
 // MetricEventStream is a HTTP handler that supports hystrix's metric stream API
-// See https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#metrics-event-stream
+// See https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#metrics-event-stream.  It requires that your
+// metrics are monitored by rolling stats, because it uses them to get health information.
 type MetricEventStream struct {
-	Hystrix      *circuit.Manager
+	Manager      *circuit.Manager
 	TickDuration time.Duration
 
 	eventStreams map[*http.Request]chan []byte
@@ -127,7 +128,7 @@ func (m *MetricEventStream) Start() error {
 			if m.listenerCount() == 0 {
 				continue
 			}
-			for _, circuit := range m.Hystrix.AllCircuits() {
+			for _, circuit := range m.Manager.AllCircuits() {
 				buf := &bytes.Buffer{}
 				mustWrite(buf, "data:")
 				commandMetrics := collectCommandMetrics(circuit)

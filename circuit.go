@@ -9,7 +9,7 @@ import (
 	"github.com/cep21/circuit/faststats"
 )
 
-// Circuit is a hystrix circuit that can accept commands and open/close on failures
+// Circuit is a circuit breaker pattern implementation that can accept commands and open/close on failures
 type Circuit struct {
 	//circuitStats
 	CmdMetricCollector      RunMetricsCollection
@@ -35,16 +35,16 @@ type Circuit struct {
 	// Tracks how many fallbacks are currently running
 	concurrentFallbacks faststats.AtomicInt64
 
-	// closedToOpen controls when to open a closed circuit
-	closedToOpen ClosedToOpen
+	// ClosedToOpen controls when to open a closed circuit
+	ClosedToOpen ClosedToOpen
 	// openToClosed controls when to close an open circuit
-	openToClose OpenToClosed
+	OpenToClose OpenToClosed
 
 	timeNow func() time.Time
 }
 
 // NewCircuitFromConfig creates an inline circuit.  If you want to group all your circuits together, you should probably
-// just use Hystrix struct instead.
+// just use Manager struct instead.
 func NewCircuitFromConfig(name string, config Config) *Circuit {
 	config.Merge(defaultCommandProperties)
 	ret := &Circuit{
@@ -74,10 +74,10 @@ func (c *Circuit) SetConfigThreadSafe(config Config) {
 	//c.circuitStats.SetConfigThreadSafe(config)
 	c.threadSafeConfig.reset(c.notThreadSafeConfig)
 	c.notThreadSafeConfig = config
-	if cfg, ok := c.openToClose.(Configurable); ok {
+	if cfg, ok := c.OpenToClose.(Configurable); ok {
 		cfg.SetConfigThreadSafe(config)
 	}
-	if cfg, ok := c.closedToOpen.(Configurable); ok {
+	if cfg, ok := c.ClosedToOpen.(Configurable); ok {
 		cfg.SetConfigThreadSafe(config)
 	}
 }
@@ -102,18 +102,18 @@ func (c *Circuit) SetConfigNotThreadSafe(config Config) {
 	c.goroutineWrapper.lostErrors = config.General.GoLostErrors
 	c.timeNow = config.General.TimeKeeper.Now
 
-	c.openToClose = config.General.OpenToClosedFactory()
-	c.closedToOpen = config.General.ClosedToOpenFactory()
-	if cfg, ok := c.openToClose.(Configurable); ok {
+	c.OpenToClose = config.General.OpenToClosedFactory()
+	c.ClosedToOpen = config.General.ClosedToOpenFactory()
+	if cfg, ok := c.OpenToClose.(Configurable); ok {
 		cfg.SetConfigNotThreadSafe(config)
 	}
-	if cfg, ok := c.closedToOpen.(Configurable); ok {
+	if cfg, ok := c.ClosedToOpen.(Configurable); ok {
 		cfg.SetConfigNotThreadSafe(config)
 	}
 	c.CmdMetricCollector = append(
 		make([]RunMetrics, 0, len(config.Metrics.Run)+2),
-		c.openToClose,
-		c.closedToOpen)
+		c.OpenToClose,
+		c.ClosedToOpen)
 	c.CmdMetricCollector = append(c.CmdMetricCollector, config.Metrics.Run...)
 
 	c.FallbackMetricCollector = append(
@@ -122,8 +122,8 @@ func (c *Circuit) SetConfigNotThreadSafe(config Config) {
 
 	c.CircuitMetricsCollector = append(
 		make([]Metrics, 0, len(config.Metrics.Circuit)+2),
-		c.openToClose,
-		c.closedToOpen)
+		c.OpenToClose,
+		c.ClosedToOpen)
 	c.CircuitMetricsCollector = append(c.CircuitMetricsCollector, config.Metrics.Circuit...)
 
 	c.SetConfigThreadSafe(config)
@@ -203,7 +203,7 @@ func (c *Circuit) Run(ctx context.Context, runFunc func(context.Context) error) 
 	return c.Execute(ctx, runFunc, nil)
 }
 
-// Execute the hystrix circuit.  Prefer this over Go.  Similar to http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#execute--
+// Execute the circuit.  Prefer this over Go.  Similar to http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#execute--
 func (c *Circuit) Execute(ctx context.Context, runFunc func(context.Context) error, fallbackFunc func(context.Context, error) error) error {
 	if c.threadSafeConfig.CircuitBreaker.Disabled.Get() {
 		return runFunc(ctx)
@@ -232,7 +232,7 @@ func (c *Circuit) throttleConcurrentCommands(currentCommandCount int64) error {
 	return nil
 }
 
-// run is the equivalent of Java Hystrix's http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#run()
+// run is the equivalent of Java Manager's http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#run()
 func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) (retErr error) {
 	if runFunc == nil {
 		return nil
@@ -247,7 +247,7 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 		return errCircuitOpen
 	}
 
-	if c.closedToOpen.Prevent(startTime) {
+	if c.ClosedToOpen.Prevent(startTime) {
 		return errCircuitOpen
 	}
 
@@ -287,7 +287,7 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 		return ret
 	}
 
-	// The runFunc failed, but someone asked the original context to end.  This probably isn't a failure of the hystrix
+	// The runFunc failed, but someone asked the original context to end.  This probably isn't a failure of the
 	// circuit: someone just wanted `Execute` to end early, so don't track it as a failure.
 	if c.checkErrInterrupt(originalContext, ret, runFuncDoneTime, totalCmdTime) {
 		return ret
@@ -363,7 +363,7 @@ func (c *Circuit) fallback(ctx context.Context, err error, fallbackFunc func(con
 	defer c.concurrentFallbacks.Add(-1)
 	if c.threadSafeConfig.Fallback.MaxConcurrentRequests.Get() >= 0 && currentFallbackCount > c.threadSafeConfig.Fallback.MaxConcurrentRequests.Get() {
 		c.FallbackMetricCollector.ErrConcurrencyLimitReject(c.now())
-		return &hystrixError{concurrencyLimitReached: true, msg: "throttling concurrency to fallbacks"}
+		return &circuitError{concurrencyLimitReached: true, msg: "throttling concurrency to fallbacks"}
 	}
 
 	startTime := c.now()
@@ -383,7 +383,7 @@ func (c *Circuit) allowNewRun(now time.Time) bool {
 	if !c.IsOpen() {
 		return true
 	}
-	if c.openToClose.Allow(now) {
+	if c.OpenToClose.Allow(now) {
 		return true
 	}
 	return false
@@ -398,7 +398,7 @@ func (c *Circuit) close(now time.Time, forceClosed bool) {
 	if c.threadSafeConfig.CircuitBreaker.ForceOpen.Get() {
 		return
 	}
-	if forceClosed || c.openToClose.ShouldClose(now) {
+	if forceClosed || c.OpenToClose.ShouldClose(now) {
 		c.CircuitMetricsCollector.Closed(now)
 		c.isOpen.Set(false)
 	}
@@ -420,7 +420,7 @@ func (c *Circuit) attemptToOpen(now time.Time) {
 		return
 	}
 
-	if c.closedToOpen.ShouldOpen(now) {
+	if c.ClosedToOpen.ShouldOpen(now) {
 		c.openCircuit(now)
 	}
 }

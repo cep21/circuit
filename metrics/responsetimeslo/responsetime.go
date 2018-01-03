@@ -20,11 +20,39 @@ type Tracker struct {
 	MaximumHealthyTime faststats.AtomicInt64
 	MeetsSLOCount      faststats.AtomicInt64
 	FailsSLOCount      faststats.AtomicInt64
+	Collectors         []Collector
+}
 
-	Collectors []Collector
+// Config controls how SLO is tracked by default for a Tracker
+type Config struct {
+	// MaximumHealthyTime is the maximum amount of time a request can take and still be considered healthy
+	MaximumHealthyTime time.Duration
+}
+
+// Factory creates SLO monitors for a circuit
+type Factory struct {
+	Config                Config
+	CollectorConstructors []func(circuitName string) Collector
 }
 
 var _ circuit.RunMetrics = &Tracker{}
+
+// CommandProperties appends SLO tracking to a circuit
+func (r *Factory) CommandProperties(circuitName string) circuit.Config {
+	collectors := make([]Collector, 0, len(r.CollectorConstructors))
+	for _, constructor := range r.CollectorConstructors {
+		collectors = append(collectors, constructor(circuitName))
+	}
+	tracker := &Tracker{
+		Collectors: collectors,
+	}
+	tracker.MaximumHealthyTime.Set(r.Config.MaximumHealthyTime.Nanoseconds())
+	return circuit.Config{
+		Metrics: circuit.MetricsCollectors{
+			Run: []circuit.RunMetrics{tracker},
+		},
+	}
+}
 
 // Success adds a healthy check if duration <= maximum healthy time
 func (r *Tracker) Success(now time.Time, duration time.Duration) {

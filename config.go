@@ -18,7 +18,7 @@ type Config struct {
 // in their own configs
 type GeneralConfig struct {
 	// if disabled, Execute functions pass to just calling runFunc and do no tracking or fallbacks
-	// Note: Java Hystrix calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
+	// Note: Java Manager calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
 	Disabled bool `json:",omitempty"`
 	// ForceOpen is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceopen
 	ForceOpen bool `json:",omitempty"`
@@ -28,11 +28,10 @@ type GeneralConfig struct {
 	// early but some long time later an error or panic eventually happens.
 	GoLostErrors func(err error, panics interface{}) `json:"-"`
 	// ClosedToOpenFactory creates logic that determines if the circuit should go from Closed to Open state.
-	// By default, it uses the Hystrix model of opening a circuit after a threshold and % as reached.
+	// By default, it never opens
 	ClosedToOpenFactory func() ClosedToOpen `json:"-"`
 	// OpenToClosedFactory creates logic that determines if the circuit should go from Open to Closed state.
-	// By default, it uses the Hystrix model of allowing a single connection and switching if the connection is
-	// Successful
+	// By default, it never closes
 	OpenToClosedFactory func() OpenToClosed `json:"-"`
 	// CustomConfig is anything you want.
 	CustomConfig map[interface{}]interface{} `json:"-"`
@@ -54,7 +53,7 @@ type ExecutionConfig struct {
 // FallbackConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#fallback
 type FallbackConfig struct {
 	// Enabled is opposite of https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerenabled
-	// Note: Java Hystrix calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
+	// Note: Java Manager calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
 	Disabled bool `json:",omitempty"`
 	// MaxConcurrentRequests is https://github.com/Netflix/Hystrix/wiki/Configuration#fallback.isolation.semaphore.maxConcurrentRequests
 	MaxConcurrentRequests int64

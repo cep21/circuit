@@ -6,6 +6,7 @@ import (
 
 	"github.com/cactus/go-statsd-client/statsd"
 	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/metrics/responsetimeslo"
 )
 
 // CommandFactory allows ingesting statsd metrics
@@ -45,6 +46,14 @@ func appendStatsdParts(parts ...string) string {
 	return strings.Join(nonEmpty, ".")
 }
 
+// SLOCollector tracks SLO stats for statsd
+func (c *CommandFactory) SLOCollector(circuitName string) responsetimeslo.Collector {
+	return &SLOCollector{
+		SendTo:     c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "slo")),
+		SampleRate: c.sampleRate(),
+	}
+}
+
 // CommandProperties creates statsd metrics for a circuit
 func (c *CommandFactory) CommandProperties(circuitName string) circuit.Config {
 	return circuit.Config{
@@ -65,17 +74,38 @@ func (c *CommandFactory) CommandProperties(circuitName string) circuit.Config {
 	}
 }
 
-// RunMetricsCollector collects command metrics
-type RunMetricsCollector struct {
-	SendTo       statsd.StatSender
-	SampleRate   float32
-	StatsdErrors func(err error)
+type errorChecker struct {
+	checkFunction func(err error)
 }
 
-func (c *RunMetricsCollector) check(err error) {
-	if err != nil && c.StatsdErrors != nil {
-		c.StatsdErrors(err)
+func (e *errorChecker) check(err error) {
+	if err != nil && e.checkFunction != nil {
+		e.checkFunction(err)
 	}
+}
+
+// SLOCollector collects SLO level metrics
+type SLOCollector struct {
+	errorChecker
+	SendTo     statsd.StatSender
+	SampleRate float32
+}
+
+// Failed increments a failed metric
+func (s *SLOCollector) Failed() {
+	s.check(s.SendTo.Inc("failed", 1, s.SampleRate))
+}
+
+// Passed increments a passed metric
+func (s *SLOCollector) Passed() {
+	s.check(s.SendTo.Inc("passed", 1, s.SampleRate))
+}
+
+// RunMetricsCollector collects command metrics
+type RunMetricsCollector struct {
+	errorChecker
+	SendTo     statsd.StatSender
+	SampleRate float32
 }
 
 // Success sends a success to statsd
@@ -122,15 +152,9 @@ var _ circuit.RunMetrics = &RunMetricsCollector{}
 
 // FallbackMetricsCollector collects fallback metrics
 type FallbackMetricsCollector struct {
-	SendTo       statsd.StatSender
-	SampleRate   float32
-	StatsdErrors func(err error)
-}
-
-func (c *FallbackMetricsCollector) check(err error) {
-	if err != nil && c.StatsdErrors != nil {
-		c.StatsdErrors(err)
-	}
+	errorChecker
+	SendTo     statsd.StatSender
+	SampleRate float32
 }
 
 // Success sends a success to statsd

@@ -16,7 +16,7 @@ import (
 
 	"github.com/cep21/circuit"
 	hystrix2 "github.com/cep21/circuit/closers/hystrix"
-	"github.com/cep21/circuit/closers/hystrix/metriceventstream"
+	"github.com/cep21/circuit/metriceventstream"
 	"github.com/cep21/circuit/metrics/rolling"
 )
 
@@ -29,7 +29,7 @@ func main() {
 	}
 	expvar.Publish("hystrix", h.Var())
 	es := metriceventstream.MetricEventStream{
-		Hystrix: &h,
+		Manager: &h,
 	}
 	go func() {
 		log.Fatal(es.Start())
@@ -49,9 +49,9 @@ func main() {
 	log.Println("To view expvar metrics, visit expvar in your browser")
 	log.Println("  http://127.0.0.1:8123/debug/vars")
 	log.Println()
-	log.Println("To view a dashboard, follow the instructions at https://github.com/Netflix/Hystrix/wiki/Dashboard#run-via-gradle")
-	log.Println("  git clone git@github.com:Netflix/Hystrix.git")
-	log.Println("  cd Hystrix/hystrix-dashboard")
+	log.Println("To view a dashboard, follow the instructions at https://github.com/Netflix/Manager/wiki/Dashboard#run-via-gradle")
+	log.Println("  git clone git@github.com:Netflix/Manager.git")
+	log.Println("  cd Manager/hystrix-dashboard")
 	log.Println("  ../gradlew jettyRun")
 	log.Println()
 	log.Println("Then, add the stream http://127.0.0.1:8123/hystrix.stream")
@@ -200,9 +200,10 @@ func setupFloppyCircuit(h *circuit.Manager, tickInterval time.Duration) {
 	}()
 	for i := 0; i < 10; i++ {
 		go func() {
+			totalErrors := 0
 			for range time.Tick(tickInterval) {
 				// Errors flop back and forth
-				_ = floppyCircuit.Execute(context.Background(), func(ctx context.Context) error {
+				err := floppyCircuit.Execute(context.Background(), func(ctx context.Context) error {
 					if atomic.LoadInt64(&floppyCircuitPasses) == 1 {
 						return nil
 					}
@@ -210,6 +211,9 @@ func setupFloppyCircuit(h *circuit.Manager, tickInterval time.Duration) {
 				}, func(ctx context.Context, err error) error {
 					return nil
 				})
+				if err != nil {
+					totalErrors++
+				}
 			}
 		}()
 	}
@@ -224,9 +228,10 @@ func setupThrottledCircuit(h *circuit.Manager, tickInterval time.Duration) {
 	// 100 threads, every 100ms, someone will get throttled
 	for i := 0; i < 100; i++ {
 		go func() {
+			totalErrors := 0
 			for range time.Tick(tickInterval) {
 				// Some pass (not throttled) and some don't (throttled)
-				_ = throttledCircuit.Execute(context.Background(), func(ctx context.Context) error {
+				err := throttledCircuit.Execute(context.Background(), func(ctx context.Context) error {
 					select {
 					// Some time between 0 and 50ms
 					case <-time.After(time.Duration(int64(float64(time.Millisecond.Nanoseconds()*50) * rand.Float64()))):
@@ -235,6 +240,9 @@ func setupThrottledCircuit(h *circuit.Manager, tickInterval time.Duration) {
 						return ctx.Err()
 					}
 				}, nil)
+				if err != nil {
+					totalErrors++
+				}
 			}
 		}()
 	}
