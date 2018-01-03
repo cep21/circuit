@@ -417,7 +417,6 @@ BenchmarkCiruits/iand_circuit/Default/failing/75-8              300000000       
 
 PASS
 ok      github.com/cep21/circuit/benchmarking   59.518s
-``
 ```
 
 I feel the most important benchmarks are the ones with high concurrency on a passing circuit, since
