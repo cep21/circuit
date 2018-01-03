@@ -1,4 +1,4 @@
-package hystrix
+package circuit
 
 import (
 	"strings"
@@ -14,7 +14,7 @@ func TestManager_Empty(t *testing.T) {
 
 func TestManager_Var(t *testing.T) {
 	h := Manager{}
-	c := h.MustCreateCircuit("hello-world", CircuitConfig{})
+	c := h.MustCreateCircuit("hello-world", Config{})
 	if !strings.Contains(h.Var().String(), "hello-world") {
 		t.Error("Var() does not seem to work for hystrix", h.Var())
 	}
@@ -25,7 +25,7 @@ func TestManager_Var(t *testing.T) {
 
 func TestSimpleCreate(t *testing.T) {
 	h := Manager{}
-	c := h.MustCreateCircuit("hello-world", CircuitConfig{})
+	c := h.MustCreateCircuit("hello-world", Config{})
 	if c.Name() != "hello-world" {
 		t.Error("unexpeted name")
 	}
@@ -37,13 +37,13 @@ func TestSimpleCreate(t *testing.T) {
 
 func TestDoubleCreate(t *testing.T) {
 	h := Manager{}
-	h.MustCreateCircuit("hello-world", CircuitConfig{})
+	h.MustCreateCircuit("hello-world", Config{})
 	var foundErr interface{}
 	func() {
 		defer func() {
 			foundErr = recover()
 		}()
-		h.MustCreateCircuit("hello-world", CircuitConfig{})
+		h.MustCreateCircuit("hello-world", Config{})
 	}()
 	if foundErr == nil {
 		t.Error("Expect panic when must creating twice")

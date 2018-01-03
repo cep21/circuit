@@ -60,11 +60,11 @@ func TestRollingCounter_NormalConsistency(t *testing.T) {
 	wg.Wait()
 	newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(end)))
 	if x.RollingSumAt(newNow) != int64(concurrent*bucketSize*(numBuckets-1)) {
-		t.Error("small rolling sum", x.RollingSumAt(newNow))
+		t.Error("small rolling sum", x.RollingSumAt(newNow), "when we want", concurrent*bucketSize*(numBuckets-1))
 	}
 	b := x.GetBuckets(newNow)
 	if b[1] != int64(concurrent*bucketSize) {
-		t.Error("incorrect size at b[1]", b[1])
+		t.Error("incorrect size at b[1]", b[1], "wanting", concurrent*bucketSize)
 	}
 }
 

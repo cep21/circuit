@@ -1,4 +1,4 @@
-package hystrix
+package circuit
 
 import (
 	"time"
@@ -8,7 +8,7 @@ import (
 // Return true if the circuit should open, false if the circuit should close.
 type ClosedToOpen interface {
 	RunMetrics
-	CircuitMetrics
+	Metrics
 	// AttemptToOpen a circuit that is currently closed, after a bad request comes in.  Only called after bad requests,
 	// never called after a successful request
 	ShouldOpen(now time.Time) bool
@@ -21,7 +21,7 @@ type ClosedToOpen interface {
 // OpenToClosed controls logic that tries to close an open circuit
 type OpenToClosed interface {
 	RunMetrics
-	CircuitMetrics
+	Metrics
 	// AttemptToOpen a circuit that is currently closed, after a bad request comes in
 	ShouldClose(now time.Time) bool
 	// Allow a single request while remaining in the closed state
