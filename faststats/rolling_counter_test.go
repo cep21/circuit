@@ -53,7 +53,9 @@ func TestRollingCounter_NormalConsistency(t *testing.T) {
 			for j := 0; j < end; j++ {
 				newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(j)))
 				x.Inc(newNow)
-				time.Sleep(time.Millisecond / 100)
+				if j%bucketSize == 0 {
+					time.Sleep(time.Millisecond * 10)
+				}
 			}
 		}()
 	}
