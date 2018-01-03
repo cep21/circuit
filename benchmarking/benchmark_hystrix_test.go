@@ -31,7 +31,9 @@ type circuitImpls struct {
 }
 
 func BenchmarkCiruits(b *testing.B) {
-	rollingTimeoutStats := rolling.CollectRollingStats(rolling.RunStatsConfig{}, rolling.FallbackStatsConfig{})("")
+	sf := rolling.StatFactory{}
+	rollingTimeoutStats := sf.CreateConfig("")
+	//rollingTimeoutStats := rolling.CollectRollingStats(rolling.RunStatsConfig{}, rolling.FallbackStatsConfig{})("")
 	rollingTimeoutStats.Merge(circuit.Config{
 		Execution: circuit.ExecutionConfig{
 			Timeout: -1,
