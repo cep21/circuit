@@ -1,4 +1,4 @@
-package hystrix
+package circuit
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cep21/hystrix/faststats"
+	"github.com/cep21/circuit/faststats"
 )
 
 // Circuit is a hystrix circuit that can accept commands and open/close on failures
@@ -14,14 +14,14 @@ type Circuit struct {
 	//circuitStats
 	CmdMetricCollector      RunMetricsCollection
 	FallbackMetricCollector FallbackMetricsCollection
-	CircuitMetricsCollector CircuitMetricsCollection
+	CircuitMetricsCollector MetricsCollection
 	// This is used to help run `Go` calls in the background
 	goroutineWrapper goroutineWrapper
 	name             string
 	// The passed in config is not atomic and thread safe.  We reference thread safe values during circuit operations
 	// with atomicCircuitConfig.  Those are, also, the only values that can actually be changed while a circuit is
 	// running.
-	notThreadSafeConfig CircuitConfig
+	notThreadSafeConfig Config
 	// The mutex supports setting and reading the command properties, but is not locked when we reference the config
 	// while live: we use the threadSafeConfig below
 	notThreadSafeConfigMu sync.Mutex
@@ -45,7 +45,7 @@ type Circuit struct {
 
 // NewCircuitFromConfig creates an inline circuit.  If you want to group all your circuits together, you should probably
 // just use Hystrix struct instead.
-func NewCircuitFromConfig(name string, config CircuitConfig) *Circuit {
+func NewCircuitFromConfig(name string, config Config) *Circuit {
 	config.Merge(defaultCommandProperties)
 	ret := &Circuit{
 		name:                name,
@@ -68,7 +68,7 @@ func (c *Circuit) ConcurrentFallbacks() int64 {
 // SetConfigThreadSafe changes the current configuration of this circuit. Note that many config parameters, specifically those
 // around creating stat tracking buckets, are not modifiable during runtime for efficiency reasons.  Those buckets
 // will stay the same.
-func (c *Circuit) SetConfigThreadSafe(config CircuitConfig) {
+func (c *Circuit) SetConfigThreadSafe(config Config) {
 	c.notThreadSafeConfigMu.Lock()
 	defer c.notThreadSafeConfigMu.Unlock()
 	//c.circuitStats.SetConfigThreadSafe(config)
@@ -84,7 +84,7 @@ func (c *Circuit) SetConfigThreadSafe(config CircuitConfig) {
 
 // Config returns the circuit's configuration.  Modifications to this configuration are not reflected by the circuit.
 // In other words, this creates a copy.
-func (c *Circuit) Config() CircuitConfig {
+func (c *Circuit) Config() Config {
 	c.notThreadSafeConfigMu.Lock()
 	defer c.notThreadSafeConfigMu.Unlock()
 	return c.notThreadSafeConfig
@@ -93,7 +93,7 @@ func (c *Circuit) Config() CircuitConfig {
 // SetConfigNotThreadSafe is only useful during construction before a circuit is being used.  It is not thread safe,
 // but will modify all the circuit's internal structs to match what the config wants.  It also doe *NOT* use the
 // default configuration parameters.
-func (c *Circuit) SetConfigNotThreadSafe(config CircuitConfig) {
+func (c *Circuit) SetConfigNotThreadSafe(config Config) {
 	c.notThreadSafeConfigMu.Lock()
 	// Set, but do not reference this config inside this function, since that would not be thread safe (no mu protection)
 	c.notThreadSafeConfig = config
@@ -121,7 +121,7 @@ func (c *Circuit) SetConfigNotThreadSafe(config CircuitConfig) {
 		config.Metrics.Fallback...)
 
 	c.CircuitMetricsCollector = append(
-		make([]CircuitMetrics, 0, len(config.Metrics.Circuit)+2),
+		make([]Metrics, 0, len(config.Metrics.Circuit)+2),
 		c.openToClose,
 		c.closedToOpen)
 	c.CircuitMetricsCollector = append(c.CircuitMetricsCollector, config.Metrics.Circuit...)

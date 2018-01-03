@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cep21/hystrix/internal/clock"
+	"github.com/cep21/circuit/internal/clock"
 )
 
 func TestTimedCheck_Empty(t *testing.T) {

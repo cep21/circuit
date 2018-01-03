@@ -1,13 +1,13 @@
-package hystrix
+package circuit
 
 import (
 	"time"
 
-	"github.com/cep21/hystrix/faststats"
+	"github.com/cep21/circuit/faststats"
 )
 
-// CircuitConfig controls how a circuit operates
-type CircuitConfig struct {
+// Config controls how a circuit operates
+type Config struct {
 	General   GeneralConfig
 	Execution ExecutionConfig
 	Fallback  FallbackConfig
@@ -65,7 +65,7 @@ type FallbackConfig struct {
 type MetricsCollectors struct {
 	Run      []RunMetrics      `json:"-"`
 	Fallback []FallbackMetrics `json:"-"`
-	Circuit  []CircuitMetrics  `json:"-"`
+	Circuit  []Metrics         `json:"-"`
 }
 
 // TimeKeeper allows overriding time to test the circuit
@@ -80,10 +80,10 @@ type TimeKeeper struct {
 type Configurable interface {
 	// SetConfigThreadSafe can be called while the circuit is currently being used and will modify things that are
 	// safe to change live.
-	SetConfigThreadSafe(props CircuitConfig)
+	SetConfigThreadSafe(props Config)
 	// SetConfigNotThreadSafe should only be called when the circuit is not in use: otherwise it will fail -race
 	// detection
-	SetConfigNotThreadSafe(props CircuitConfig)
+	SetConfigNotThreadSafe(props Config)
 }
 
 func (t *TimeKeeper) merge(other TimeKeeper) {
@@ -152,7 +152,7 @@ func (m *MetricsCollectors) merge(other MetricsCollectors) {
 
 // Merge these properties with another command's properties.  Anything set to the zero value, will takes values from
 // other.
-func (c *CircuitConfig) Merge(other CircuitConfig) *CircuitConfig {
+func (c *Config) Merge(other Config) *Config {
 	c.Execution.merge(other.Execution)
 	c.Fallback.merge(other.Fallback)
 	c.Metrics.merge(other.Metrics)
@@ -181,7 +181,7 @@ type atomicCircuitConfig struct {
 	}
 }
 
-func (a *atomicCircuitConfig) reset(config CircuitConfig) {
+func (a *atomicCircuitConfig) reset(config Config) {
 	a.CircuitBreaker.ForcedClosed.Set(config.General.ForcedClosed)
 	a.CircuitBreaker.ForceOpen.Set(config.General.ForceOpen)
 	a.CircuitBreaker.Disabled.Set(config.General.Disabled)
@@ -213,7 +213,7 @@ var defaultGoSpecificConfig = GeneralConfig{
 	},
 }
 
-var defaultCommandProperties = CircuitConfig{
+var defaultCommandProperties = Config{
 	Execution: defaultExecutionConfig,
 	Fallback:  defaultFallbackConfig,
 	General:   defaultGoSpecificConfig,

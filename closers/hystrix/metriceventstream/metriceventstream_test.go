@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cep21/hystrix"
+	"github.com/cep21/circuit"
 )
 
 func TestMetricEventStream(t *testing.T) {
-	h := &hystrix.Manager{}
-	c := h.MustCreateCircuit("hello-world", hystrix.CircuitConfig{})
+	h := &circuit.Manager{}
+	c := h.MustCreateCircuit("hello-world", circuit.Config{})
 	if err := c.Execute(context.Background(), func(_ context.Context) error {
 		return nil
 	}, nil); err != nil {

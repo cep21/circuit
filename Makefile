@@ -46,3 +46,5 @@ setup:
 # Run the example
 run:
 	go run -race example/main.go
+
+ci: test lint

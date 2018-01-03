@@ -1,15 +1,15 @@
 <!-- Image designed by Jack Lindamood, Licensed under the Creative Commons 3.0 Attributions license, originate from https://github.com/golang-samples/gopher-vector design by Takuya Ueda -->
 ![Mascot](https://cep21.github.io/circuit/imgs/hystrix-gopher_100px.png)
-# Hystrix
+# Circuit
 [![Build Status](https://travis-ci.org/cep21/circuit.svg?branch=master)](https://travis-ci.org/cep21/circuit)
 [![GoDoc](https://godoc.org/github.com/cep21/circuit?status.svg)](https://godoc.org/github.com/cep21/circuit)
 
-Hystrix is an efficient and feature complete [Hystrix](https://github.com/Netflix/Hystrix) like Go implementation of the [circuit
+Circuit is an efficient and feature complete [Hystrix](https://github.com/Netflix/Hystrix) like Go implementation of the [circuit
 breaker pattern](https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker).
 
 Learn more about the problems Hystrix and other circuit breakers solve on the [Hystrix Wiki](https://github.com/Netflix/Hystrix/wiki).
 
-There are a large number of examples on the [godoc](https://godoc.org/github.com/cep21/hystrix#pkg-examples) that are worth looking at.  They tend to be more up to date than the README doc.
+There are a large number of examples on the [godoc](https://godoc.org/github.com/cep21/circuit#pkg-examples) that are worth looking at.  They tend to be more up to date than the README doc.
 
 # Feature set
 
@@ -19,7 +19,7 @@ There are a large number of examples on the [godoc](https://godoc.org/github.com
 * Comprehensive metric tracking
 * Efficient implementation with Benchmarks
 * Low/zero memory allocation costs
-* Support for Netflix Hystrix dashboards
+* Support for Netflix Hystrix dashboards, even with custom circuit transition logic
 * Multiple error handling features
 * Expose circuit health and configuration on expvar
 * SLO tracking
@@ -28,45 +28,36 @@ There are a large number of examples on the [godoc](https://godoc.org/github.com
 * Many tests and examples
 * Good inline documentation
 
-# Comparison to go-hystrix
-
-This library is most directly comparable to [go-hystrix](https://github.com/afex/hystrix-go),
-but differs in many ways including performance, no global mutable state, accuracy (more accurately does what it advertises),
-feature set, context support, panic behavior, and metric tracking.
-
 # Usage
 
 ## Hello world circuit
 
 ```go
-  // Make one of these to manage all your circuits
-  h := hystrix.Hystrix{}
-  
-  // Create a named circuit from your hystrix manager
-  circuit := h.MustCreateCircuit("hello-world", hystrix.CommandProperties{})
-  
-  // Call a function on your circuit
-  errResult := circuit.Execute(ctx, func(ctx context.Context) error {
-  	return nil
-  }, nil)
-  // errResult == nil
+	// Manages all our circuits
+	h := circuit.Manager{}
+	// Create a circuit with a unique name
+	c:= h.MustCreateCircuit("hello-world", circuit.Config{})
+	// Call the circuit
+	errResult := c.Execute(context.Background(), func(ctx context.Context) error {
+		return nil
+	}, nil)
+	fmt.Println("Result of execution:", errResult)
+	// Output: Result of execution: <nil>
 ```
 
 ## Hello world fallback
 
 ```go
-  h := hystrix.Hystrix{}
-  
-  circuit := h.MustCreateCircuit("fallback-circuit", hystrix.CommandProperties{})
-  
-  errResult := circuit.Execute(ctx, func(ctx context.Context) error {
-  	return errors.New("This will fail")
-  }, func(ctx context.Context, err error) error {
-  	fmt.Println("Circuit failed with error ", err)
-  	fmt.Println("But I will not")
-  	return nil
-  })
-  // errResult == nil
+	c := circuit.NewCircuitFromConfig("hello-world-fallback", circuit.Config{})
+	errResult := c.Execute(context.Background(), func(ctx context.Context) error {
+		return errors.New("this will fail")
+	}, func(ctx context.Context, err error) error {
+		fmt.Println("Circuit failed with error, but fallback returns nil")
+		return nil
+	})
+	fmt.Println("Execution result:", errResult)
+	// Output: Circuit failed with error, but fallback returns nil
+	// Execution result: <nil>
 ```
 
 ## Ending early for functions that don't respect context.Context.Done()
@@ -75,21 +66,21 @@ I strongly recommend using `circuit.Execute` and implementing a context aware fu
 your run function early and leave it hanging (possibly forever), then you can call `circuit.Go`.
 
 ```go
-  h := hystrix.Hystrix{}
-  circuit := h.MustCreateCircuit("untrusting-circuit", hystrix.CommandProperties{
-    Execution: hystrix.ExecutionConfig{
-      // Time out the context after one second
-      ExecutionTimeout: time.Second,
-    },
-  })
-  
-  errResult := circuit.Go(ctx, func(ctx context.Context) error {
-  	// This will be left hanging because time.Sleep continues to run even if the context is dead
-  	time.Sleep(time.Hour)
-  }, nil)
-  // errResult != nil
-  //  Will return after 1 second.  Go spins time.Sleep inside a goroutine, which will hang around for 1 hour, while
-  //  Go ends when the context is canceled (in this case, after a timeout of 1 second).
+	h := circuit.Manager{}
+	c := h.MustCreateCircuit("untrusting-circuit", circuit.Config{
+		Execution: circuit.ExecutionConfig{
+			// Time out the context after a few ms
+			Timeout: time.Millisecond * 30,
+		},
+	})
+
+	errResult := c.Go(context.Background(), func(ctx context.Context) error {
+		// Sleep 30 seconds, way longer than our timeout
+		time.Sleep(time.Second * 30)
+		return nil
+	}, nil)
+	fmt.Printf("err=%v", errResult)
+	// Output: err=context deadline exceeded
 ```
 
 ## Configuration
@@ -100,7 +91,7 @@ All configuration parameters are documented in config.go and mirror the configur
   h := hystrix.Hystrix{}
   
   circuitConfig := hystrix.CommandProperties {
-  	CircuitBreaker: hystrix.CircuitBreakerConfig{
+  	CircuitBreaker: circuit.CircuitBreakerConfig{
       // This should allow a new request every 10 milliseconds
       SleepWindow: time.Millisecond * 5,
       // The first failure should open the circuit
@@ -108,7 +99,7 @@ All configuration parameters are documented in config.go and mirror the configur
       // Only one request is required to fail the circuit
       RequestVolumeThreshold:   1,
     },
-    Execution: hystrix.ExecutionConfig{
+    Execution: circuit.ExecutionConfig{
       // Allow at most 2 requests at a time
       MaxConcurrentRequests: 2,
       // Time out the context after one second
@@ -122,15 +113,21 @@ All configuration parameters are documented in config.go and mirror the configur
 
 Dashboard metrics can be enabled with the MetricEventStream object.
 ```go
-	h := hystrix.Hystrix{}
-	eventStream := hystrix.MetricEventStream{
+	h := circuit.Manager{}
+	es := metriceventstream.MetricEventStream{
 		Hystrix: &h,
 	}
-	go eventStream.Start()
-	http.Handle("/hystrix.stream", &eventStream)
+	go func() {
+		if err := es.Start(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+	http.Handle("/hystrix.stream", &es)
 	// ...
-	go http.ListenAndServe(net.JoinHostPort("", "8181"), hystrixStreamHandler)
-	
+	if err := es.Close(); err != nil {
+		log.Fatal(err)
+	}
+	// Output:	
 ```
 
 ## Enable expvar
@@ -138,7 +135,7 @@ Dashboard metrics can be enabled with the MetricEventStream object.
 Expvar variables can be exported via the Var function
 
 ```go
-	h := hystrix.Hystrix{}
+	h := circuit.Manager{}
 	expvar.Publish("hystrix", h.Var())
 ```
 
@@ -165,17 +162,19 @@ Code executed with `Execute` does not spawn a goroutine and panics naturally go 
 This is also true for `Go`, where we attempt to recover and throw panics on the same stack that
 calls Go.
  ```go
-  h := hystrix.Hystrix{}
-  circuit := h.MustCreateCircuit("panic_up", hystrix.CommandProperties{})
-  
-  defer func() {
-  	r := recover()
-  	fmt.Println("I recovered from a panic")
-  }()
-  errResult := circuit.Execute(ctx, func(ctx context.Context) error {
-  	panic("oh no")
-  }, nil)
-  // errResult never happens (panics first)
+	h := circuit.Manager{}
+	c := h.MustCreateCircuit("panic_up", circuit.Config{})
+
+	defer func() {
+		r := recover()
+		if r != nil {
+			fmt.Println("I recovered from a panic", r)
+		}
+	}()
+	c.Execute(context.Background(), func(ctx context.Context) error {
+		panic("oh no")
+	}, nil)
+	// Output: I recovered from a panic oh no
 ```
 
 ## Runtime configuration changes
@@ -190,7 +189,7 @@ internal to this project.
   circuit := h.MustCreateCircuit("changes-at-runtime", hystrix.CommandProperties{})
   // ... later on (during live)
   circuit.SetConfigThreadSafe(hystrix.CommandProperties{
-		Execution: hystrix.ExecutionConfig{
+		Execution: circuit.ExecutionConfig{
 			MaxConcurrentRequests: int64(12),
 		},
   })
@@ -202,39 +201,36 @@ If the context passed into a circuit function ends, before the circuit can
 finish, it does not count the circuit as unhealthy.  You can disable this
 behavior with the `IgnoreInterrputs` flag.
 
+This example proves that terminating a circuit call early because the passed in context died does not, by default,
+count as an error on the circuit.  It also demonstrates setting up internal stat collection by default for all
+circuits
+
 ```go
-  h := hystrix.Hystrix{}
-  circuit := h.MustCreateCircuit("dont-fail-me-bro", hystrix.CommandProperties{
-    Execution: hystrix.ExecutionConfig{
-      // healthy is allowing a full second
-      ExecutionTimeout: time.Second,
-    },
-    GoSpecific: hystrix.ExecutionConfig{
-    	// Do not count parent context failures as the circuit's fault
-    	// This is the default
-      IgnoreInterrputs: false,
-    },
-  })
-  // The passed in context will time out in a millisecond
-  ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-  defer cancel()
-  
-  // Call a function on your circuit
-  errResult := circuit.Execute(ctx, func(ctx context.Context) error {
-  	select {
-  	case <- ctx.Done():
-  		// This will return early, with an error, since the parent context was canceled after 1 ms
-  		return ctx.Err()
-  	case <- time.After(time.Millisecond * 100):
-  		//  100ms is a healthy execute
-  		return nil
-  	}
-  }, nil)
-  
-  // errResult != nil
-  // The circuit failed, but not because it's misbehaving: it failed because the passed in context was canceled.
-  // Because you set IgnoreContextFailures, we will not consider this failure state invalid and the circuit will not
-  // try to open up.
+	// Inject stat collection to prove these failures don't count
+	f := rolling.StatFactory{}
+	manager := circuit.Manager{
+		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{
+			f.CreateConfig,
+		},
+	}
+	c := manager.MustCreateCircuit("don't fail me bro")
+	// The passed in context times out in one millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	errResult := c.Execute(ctx, func(ctx context.Context) error {
+		select {
+		case <- ctx.Done():
+			// This will return early, with an error, since the parent context was canceled after 1 ms
+			return ctx.Err()
+		case <- time.After(time.Hour):
+			panic("We never actually get this far")
+		}
+	}, nil)
+	rs := f.RunStats("don't fail me bro")
+	fmt.Println("errResult is", errResult)
+	fmt.Println("The error and timeout count is", rs.ErrTimeouts.TotalSum() + rs.ErrFailures.TotalSum())
+	// Output: errResult is context deadline exceeded
+	// The error and timeout count is 0
 ```
 
 ## Configuration factories
@@ -246,7 +242,7 @@ circuit name.
   myFactory := func(circuitName string) hysrix.CommandProperties {
     customTimeout := lookup_timeout(circuitName)
     return hysrix.CommandProperties {
-      Execution: hystrix.ExecutionConfig{
+      Execution: circuit.ExecutionConfig{
         ExecutionTimeout: customTimeout,
       }
     },
@@ -293,11 +289,11 @@ requests that resopnd _quickly enough_.
 ```go
   h := hystrix.Hystrix{}
   circuit := h.MustCreateCircuit("track-my-slo", hystrix.CommandProperties{
-    Execution: hystrix.ExecutionConfig{
+    Execution: circuit.ExecutionConfig{
       // healthy is allowing a full second
       ExecutionTimeout: time.Second,
     },
-    GoSpecific: hystrix.ExecutionConfig{
+    GoSpecific: circuit.ExecutionConfig{
     	// But healthy requests should respond in < 100 ms
       ResponseTimeSLO: time.Millisecond * 100,
       MetricsCollectors:  {
@@ -323,13 +319,30 @@ Sometimes users pass invalid functions to the input of your circuit.  You want t
 an error in that case, but not count the error as a failure of the circuit.  Use `SimpleBadRequest`
 in this case.
 
-# Why fork go-hystrix
+This example shows how to return errors in a circuit without considering the circuit at fault.
+Here, even if someone tries to divide by zero, the circuit will not consider it a failure even if the
+function returns non nil error.
 
-I wanted to change the API to confirm to other design principals (forced asyncronousness, global mutable state, etc),
-as well as work with newer Go features (context).
-As I worked with go-hystrix, the internal code felt slightly complicated, and as I pulled chunks out, the API turned
-into something entirely different.  At that point, I felt a fork was best.  However, I freely admit to borrowing many
-ideas from go-hystrix! 
+```go
+	c := circuit.NewCircuitFromConfig("divider", circuit.Config{})
+	divideInCircuit := func(numerator, denominator int) (int, error) {
+		var result int
+		err := c.Run(context.Background(), func(ctx context.Context) error {
+			if denominator == 0 {
+				// This error type is not counted as a failure of the circuit
+				return &circuit.SimpleBadRequest{
+					Err: errors.New("someone tried to divide by zero"),
+				}
+			}
+			result = numerator / denominator
+			return nil
+		})
+		return result, err
+	}
+	_, err := divideInCircuit(10, 0)
+	fmt.Println("Result of 10/0 is", err)
+	// Output: Result of 10/0 is someone tried to divide by zero
+```
 
 # Benchmarking
 
@@ -342,13 +355,14 @@ there is a better way to benchmark one of these circuits, please let me know!
 * [rubyist](https://github.com/rubyist/circuitbreaker)
 * [sony/gobreaker](https://github.com/sony/gobreaker)
 * [handy/breaker](https://github.com/streadway/handy/tree/master/breaker)
+* [iand-circuit]("github.com/iand/circuit")
 
 ```
 > make bench
 cd benchmarking && go test -v -benchmem -run=^$ -bench=. . 2> /dev/null
 goos: darwin
 goarch: amd64
-pkg: github.com/cep21/hystrix/benchmarking
+pkg: github.com/cep21/circuit/benchmarking
 BenchmarkCiruits/Hystrix/Metrics/passing/1-8       	 5000000	       253 ns/op	       0 B/op	       0 allocs/op
 BenchmarkCiruits/Hystrix/Metrics/passing/75-8      	10000000	       108 ns/op	       0 B/op	       0 allocs/op
 BenchmarkCiruits/Hystrix/Metrics/failing/1-8       	 5000000	       297 ns/op	       0 B/op	       0 allocs/op
@@ -383,7 +397,7 @@ BenchmarkCiruits/iand_circuit/Default/failing/1-8            	100000000	        
 BenchmarkCiruits/iand_circuit/Default/failing/75-8           	300000000	         5.36 ns/op	       0 B/op	       0 allocs/op
 
 PASS
-ok  	github.com/cep21/hystrix/benchmarking	59.518s
+ok  	github.com/cep21/circuit/benchmarking	59.518s
 ``
 ```
 

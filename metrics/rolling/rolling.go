@@ -4,31 +4,88 @@ import (
 	"expvar"
 	"time"
 
-	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/faststats"
+	"sync"
+
+	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/faststats"
 )
+
+// StatFactory helps the process of making stat collectors for circuit breakers
+type StatFactory struct {
+	RunConfig      RunStatsConfig
+	FallbackConfig FallbackStatsConfig
+
+	runStatsByCircuit      map[string]*RunStats
+	fallbackStatsByCircuit map[string]*FallbackStats
+	mu                     sync.Mutex
+}
+
+// CreateConfig is a config factory that associates stat collection with the circuit
+func (s *StatFactory) CreateConfig(circuitName string) circuit.Config {
+	rs := RunStats{}
+	cfg := RunStatsConfig{}
+	cfg.Merge(s.RunConfig)
+	cfg.Merge(defaultRunStatsConfig)
+	rs.SetConfigNotThreadSafe(cfg)
+
+	fs := FallbackStats{}
+	fcfg := FallbackStatsConfig{}
+	fcfg.Merge(s.FallbackConfig)
+	fcfg.Merge(defaultFallbackStatsConfig)
+	fs.SetConfigNotThreadSafe(fcfg)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.runStatsByCircuit == nil {
+		s.runStatsByCircuit = make(map[string]*RunStats, 1)
+	}
+	if s.fallbackStatsByCircuit == nil {
+		s.fallbackStatsByCircuit = make(map[string]*FallbackStats, 1)
+	}
+	s.runStatsByCircuit[circuitName] = &rs
+	s.fallbackStatsByCircuit[circuitName] = &fs
+	return circuit.Config{
+		Metrics: circuit.MetricsCollectors{
+			Run:      []circuit.RunMetrics{&rs},
+			Fallback: []circuit.FallbackMetrics{&fs},
+		},
+	}
+}
+
+// RunStats returns the run stats for a circuit, or nil if there is none
+func (s *StatFactory) RunStats(circuitName string) *RunStats {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.runStatsByCircuit[circuitName]
+}
+
+// FallbackStats returns the fallback stats for a circuit, or nil if there is none
+func (s *StatFactory) FallbackStats(circuitName string) *FallbackStats {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.fallbackStatsByCircuit[circuitName]
+}
 
 // CollectRollingStats enables stats needed to display metric event streams on a hystrix dashboard, as well as it
 // gives easy access to rolling and total latency stats
-func CollectRollingStats(runConfig RunStatsConfig, fallbackConfig FallbackStatsConfig) func(string) hystrix.CircuitConfig {
-	return func(_ string) hystrix.CircuitConfig {
+func CollectRollingStats(runConfig RunStatsConfig, fallbackConfig FallbackStatsConfig) func(string) circuit.Config {
+	return func(_ string) circuit.Config {
 		rs := RunStats{}
 		runConfig.Merge(defaultRunStatsConfig)
 		rs.SetConfigNotThreadSafe(runConfig)
 		fs := FallbackStats{}
 		fallbackConfig.Merge(defaultFallbackStatsConfig)
 		fs.SetConfigNotThreadSafe(fallbackConfig)
-		return hystrix.CircuitConfig{
-			Metrics: hystrix.MetricsCollectors{
-				Run:      []hystrix.RunMetrics{&rs},
-				Fallback: []hystrix.FallbackMetrics{&fs},
+		return circuit.Config{
+			Metrics: circuit.MetricsCollectors{
+				Run:      []circuit.RunMetrics{&rs},
+				Fallback: []circuit.FallbackMetrics{&fs},
 			},
 		}
 	}
 }
 
 // FindCommandMetrics searches a circuit for the previously stored run stats.  Returns nil if never set.
-func FindCommandMetrics(c *hystrix.Circuit) *RunStats {
+func FindCommandMetrics(c *circuit.Circuit) *RunStats {
 	for _, r := range c.CmdMetricCollector {
 		if ret, ok := r.(*RunStats); ok {
 			return ret
@@ -38,7 +95,7 @@ func FindCommandMetrics(c *hystrix.Circuit) *RunStats {
 }
 
 // FindFallbackMetrics searches a circuit for the previously stored fallback stats.  Returns nil if never set.
-func FindFallbackMetrics(c *hystrix.Circuit) *FallbackStats {
+func FindFallbackMetrics(c *circuit.Circuit) *FallbackStats {
 	for _, r := range c.FallbackMetricCollector {
 		if ret, ok := r.(*FallbackStats); ok {
 			return ret
@@ -285,7 +342,7 @@ var defaultFallbackStatsConfig = FallbackStatsConfig{
 	RollingStatsNumBuckets: 10,
 }
 
-var _ hystrix.FallbackMetrics = &FallbackStats{}
+var _ circuit.FallbackMetrics = &FallbackStats{}
 
 // SetConfigNotThreadSafe sets the configuration for fallback stats
 func (r *FallbackStats) SetConfigNotThreadSafe(config FallbackStatsConfig) {

@@ -9,11 +9,11 @@ import (
 	"time"
 
 	gohystrix "github.com/afex/hystrix-go/hystrix"
-	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/closers/simplelogic"
-	"github.com/cep21/hystrix/metrics/rolling"
+	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/closers/simplelogic"
+	"github.com/cep21/circuit/metrics/rolling"
 	iandCircuit "github.com/iand/circuit"
-	"github.com/rubyist/circuitbreaker"
+	circuitbreaker "github.com/rubyist/circuitbreaker"
 	"github.com/sony/gobreaker"
 	"github.com/streadway/handy/breaker"
 )
@@ -32,8 +32,8 @@ type circuitImpls struct {
 
 func BenchmarkCiruits(b *testing.B) {
 	rollingTimeoutStats := rolling.CollectRollingStats(rolling.RunStatsConfig{}, rolling.FallbackStatsConfig{})("")
-	rollingTimeoutStats.Merge(hystrix.CircuitConfig{
-		Execution: hystrix.ExecutionConfig{
+	rollingTimeoutStats.Merge(circuit.Config{
+		Execution: circuit.ExecutionConfig{
 			Timeout: -1,
 		},
 	})
@@ -49,22 +49,22 @@ func BenchmarkCiruits(b *testing.B) {
 					config: rollingTimeoutStats,
 				}, {
 					name: "Minimal",
-					config: hystrix.CircuitConfig{
-						Execution: hystrix.ExecutionConfig{
+					config: circuit.Config{
+						Execution: circuit.ExecutionConfig{
 							MaxConcurrentRequests: int64(-1),
 							Timeout:               -1,
 						},
-						General: hystrix.GeneralConfig{
+						General: circuit.GeneralConfig{
 							ClosedToOpenFactory: simplelogic.ConsecutiveErrOpenerFactory(simplelogic.ConfigConsecutiveErrOpener{}),
 						},
 					},
 				}, {
 					name: "UseGo",
-					config: hystrix.CircuitConfig{
-						Execution: hystrix.ExecutionConfig{
+					config: circuit.Config{
+						Execution: circuit.ExecutionConfig{
 							MaxConcurrentRequests: int64(12),
 							Timeout:               -1,
-						}, General: hystrix.GeneralConfig{
+						}, General: circuit.GeneralConfig{
 							CustomConfig: map[interface{}]interface{}{
 								"use-go": true,
 							},
@@ -95,8 +95,8 @@ func BenchmarkCiruits(b *testing.B) {
 			configs: []circuitConfigs{
 				{
 					name: "Threshold-10",
-					config: func() *circuit.Breaker {
-						return circuit.NewThresholdBreaker(10)
+					config: func() *circuitbreaker.Breaker {
+						return circuitbreaker.NewThresholdBreaker(10)
 					},
 				},
 			},
@@ -168,8 +168,8 @@ func BenchmarkCiruits(b *testing.B) {
 
 func hystrixRunner(b *testing.B, configIn interface{}, concurrent int, funcToRun interface{}, pass bool) {
 	f := funcToRun.(func(context.Context) error)
-	h := hystrix.Manager{}
-	config := configIn.(hystrix.CircuitConfig)
+	h := circuit.Manager{}
+	config := configIn.(circuit.Config)
 	config.Execution.MaxConcurrentRequests = int64(concurrent)
 	c := h.MustCreateCircuit("hello-world", config)
 	ctx := context.Background()
@@ -183,7 +183,7 @@ func hystrixRunner(b *testing.B, configIn interface{}, concurrent int, funcToRun
 }
 
 func rubyistRunner(b *testing.B, configIn interface{}, concurrent int, funcToRun interface{}, pass bool) {
-	circ := configIn.(func() *circuit.Breaker)()
+	circ := configIn.(func() *circuitbreaker.Breaker)()
 	f := funcToRun.(func() error)
 	ctx := context.Background()
 	genericBenchmarkTesting(b, concurrent, func() error {

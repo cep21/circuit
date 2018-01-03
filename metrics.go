@@ -1,4 +1,4 @@
-package hystrix
+package circuit
 
 import (
 	"expvar"
@@ -131,27 +131,27 @@ func (r FallbackMetricsCollection) Var() expvar.Var {
 	})
 }
 
-// CircuitMetricsCollection allows reporting multiple circuit metrics at once
-type CircuitMetricsCollection []CircuitMetrics
+// MetricsCollection allows reporting multiple circuit metrics at once
+type MetricsCollection []Metrics
 
-var _ CircuitMetrics = &CircuitMetricsCollection{}
+var _ Metrics = &MetricsCollection{}
 
 // Closed sends Closed to all collectors
-func (r CircuitMetricsCollection) Closed(now time.Time) {
+func (r MetricsCollection) Closed(now time.Time) {
 	for _, c := range r {
 		c.Closed(now)
 	}
 }
 
 // Opened sends Opened to all collectors
-func (r CircuitMetricsCollection) Opened(now time.Time) {
+func (r MetricsCollection) Opened(now time.Time) {
 	for _, c := range r {
 		c.Opened(now)
 	}
 }
 
-// CircuitMetrics reports internal circuit metric events
-type CircuitMetrics interface {
+// Metrics reports internal circuit metric events
+type Metrics interface {
 	// Closed is called when the circuit transitions from Open to Closed.
 	Closed(now time.Time)
 	// Opened is called when the circuit transitions from Closed to Opened.

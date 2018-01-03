@@ -1,4 +1,4 @@
-package hystrix
+package circuit
 
 import (
 	"errors"
@@ -8,11 +8,11 @@ import (
 
 // CommandPropertiesConstructor is a generic function that can create command properties to configure a circuit by name
 // It is safe to leave not configured properties their empty value.
-type CommandPropertiesConstructor func(circuitName string) CircuitConfig
+type CommandPropertiesConstructor func(circuitName string) Config
 
 // Manager manages circuits with unique names
 type Manager struct {
-	// DefaultCircuitProperties is a list of CircuitConfig constructors called, in reverse order,
+	// DefaultCircuitProperties is a list of Config constructors called, in reverse order,
 	// to append or modify configuration for your circuit.
 	DefaultCircuitProperties []CommandPropertiesConstructor
 
@@ -63,7 +63,7 @@ func (h *Manager) GetCircuit(name string) *Circuit {
 }
 
 // MustCreateCircuit calls CreateCircuit, but panics if the circuit name already exists
-func (h *Manager) MustCreateCircuit(name string, config ...CircuitConfig) *Circuit {
+func (h *Manager) MustCreateCircuit(name string, config ...Config) *Circuit {
 	c, err := h.CreateCircuit(name, config...)
 	if err != nil {
 		panic(err)
@@ -72,13 +72,13 @@ func (h *Manager) MustCreateCircuit(name string, config ...CircuitConfig) *Circu
 }
 
 // CreateCircuit creates a new circuit, or returns error if a circuit with that name already exists
-func (h *Manager) CreateCircuit(name string, configs ...CircuitConfig) (*Circuit, error) {
+func (h *Manager) CreateCircuit(name string, configs ...Config) (*Circuit, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.circuitMap == nil {
 		h.circuitMap = make(map[string]*Circuit, 5)
 	}
-	finalConfig := CircuitConfig{}
+	finalConfig := Config{}
 	for _, c := range configs {
 		finalConfig.Merge(c)
 	}
