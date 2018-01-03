@@ -89,6 +89,7 @@ All configuration parameters are documented in config.go.  Your circuit open/clo
 with the logic.  For hystrix, this configuration is in closers/hystrix and well documented on [the Hystrix wiki](https://github.com/Netflix/Hystrix/wiki/Configuration).
 
 This example configures the circuit to use Hystrix open/close logic with the default Hystrix parameters
+
 ```go
 configuration := hystrix.ConfigFactory{
   // Hystrix open logic is to open the circuit after an % of errors
@@ -115,6 +116,7 @@ fmt.Println("This is a hystrix configured circuit", c.Name())
 ## Enable dashboard metrics
 
 Dashboard metrics can be enabled with the MetricEventStream object.
+
 ```go
 // metriceventstream uses rolling stats to report circuit information
 sf := rolling.StatFactory{}
@@ -168,6 +170,7 @@ circuit.NewCircuitFromConfig("custom-metrics", config)
 Code executed with `Execute` does not spawn a goroutine and panics naturally go up the call stack to the caller.
 This is also true for `Go`, where we attempt to recover and throw panics on the same stack that
 calls Go.
+
  ```go
 h := circuit.Manager{}
 c := h.MustCreateCircuit("panic_up", circuit.Config{})
@@ -366,6 +369,7 @@ to other implementations, in most faster when running with high concurrency. Run
 
 I benchmark the following alternative circuit implementations.  I try to be fair and if
 there is a better way to benchmark one of these circuits, please let me know!
+
 * [hystrix-go](https://github.com/afex/hystrix-go)
 * [rubyist](https://github.com/rubyist/circuitbreaker)
 * [sony/gobreaker](https://github.com/sony/gobreaker)
@@ -432,21 +436,22 @@ make run
 ```
 
 The output looks something like this:
+
 ```bash
 < make run
 go run example/main.go
 2017/12/19 15:24:42 Serving on socket :8123
-2017/12/19 15:24:42 To view the stream, execute: 
+2017/12/19 15:24:42 To view the stream, execute:
 2017/12/19 15:24:42   curl http://localhost:8123/hystrix.stream
-2017/12/19 15:24:42 
+2017/12/19 15:24:42
 2017/12/19 15:24:42 To view expvar metrics, visit expvar in your browser
 2017/12/19 15:24:42   http://localhost:8123/debug/vars
-2017/12/19 15:24:42 
+2017/12/19 15:24:42
 2017/12/19 15:24:42 To view a dashboard, follow the instructions at https://github.com/Netflix/Hystrix/wiki/Dashboard#run-via-gradle
 2017/12/19 15:24:42   git clone git@github.com:Netflix/Hystrix.git
 2017/12/19 15:24:42   cd Hystrix/hystrix-dashboard
 2017/12/19 15:24:42   ../gradlew jettyRun
-2017/12/19 15:24:42 
+2017/12/19 15:24:42
 2017/12/19 15:24:42 Then, add the stream http://localhost:8123/hystrix.stream
 ```
 
