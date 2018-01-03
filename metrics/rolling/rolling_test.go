@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/internal/testhelp"
+	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/internal/testhelp"
 )
 
 func TestHappyCircuit(t *testing.T) {
-	c := hystrix.NewCircuitFromConfig("TestHappyCircuit", CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})(""))
+	c := circuit.NewCircuitFromConfig("TestHappyCircuit", CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})(""))
 	err := c.Execute(context.Background(), testhelp.AlwaysPasses, nil)
 	if err != nil {
 		t.Error("saw error from circuit that always passes")
@@ -34,9 +34,9 @@ func TestHappyCircuit(t *testing.T) {
 }
 
 func TestBadRequest(t *testing.T) {
-	c := hystrix.NewCircuitFromConfig("TestBadRequest", CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})(""))
+	c := circuit.NewCircuitFromConfig("TestBadRequest", CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})(""))
 	err := c.Execute(context.Background(), func(_ context.Context) error {
-		return hystrix.SimpleBadRequest{
+		return circuit.SimpleBadRequest{
 			Err: errors.New("this request is bad"),
 		}
 	}, nil)
@@ -59,7 +59,7 @@ func TestBadRequest(t *testing.T) {
 }
 
 func TestFallbackCircuit(t *testing.T) {
-	c := hystrix.NewCircuitFromConfig("TestFallbackCircuit", CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})(""))
+	c := circuit.NewCircuitFromConfig("TestFallbackCircuit", CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})(""))
 	err := c.Execute(context.Background(), testhelp.AlwaysFails, testhelp.AlwaysPassesFallback)
 	if err != nil {
 		t.Error("saw error from circuit that has happy fallback", err)
@@ -84,11 +84,11 @@ func TestFallbackCircuit(t *testing.T) {
 }
 
 func TestCircuitIgnoreContextFailures(t *testing.T) {
-	h := hystrix.Manager{
-		DefaultCircuitProperties: []hystrix.CommandPropertiesConstructor{CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})},
+	h := circuit.Manager{
+		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})},
 	}
-	c := h.MustCreateCircuit("TestFailingCircuit", hystrix.CircuitConfig{
-		Execution: hystrix.ExecutionConfig{
+	c := h.MustCreateCircuit("TestFailingCircuit", circuit.Config{
+		Execution: circuit.ExecutionConfig{
 			Timeout: time.Hour,
 		},
 	})

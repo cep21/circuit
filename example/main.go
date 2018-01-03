@@ -14,17 +14,17 @@ import (
 
 	"flag"
 
-	"github.com/cep21/hystrix"
-	hystrix2 "github.com/cep21/hystrix/closers/hystrix"
-	"github.com/cep21/hystrix/closers/hystrix/metriceventstream"
-	"github.com/cep21/hystrix/metrics/rolling"
+	"github.com/cep21/circuit"
+	hystrix2 "github.com/cep21/circuit/closers/hystrix"
+	"github.com/cep21/circuit/closers/hystrix/metriceventstream"
+	"github.com/cep21/circuit/metrics/rolling"
 )
 
 const exampleURL = "http://localhost:7979/hystrix-dashboard/monitor/monitor.html?streams=%5B%7B%22name%22%3A%22%22%2C%22stream%22%3A%22http%3A%2F%2Flocalhost%3A8123%2Fhystrix.stream%22%2C%22auth%22%3A%22%22%2C%22delay%22%3A%22%22%7D%5D"
 
 func main() {
-	h := hystrix.Manager{
-		DefaultCircuitProperties: []hystrix.CommandPropertiesConstructor{rolling.CollectRollingStats(rolling.RunStatsConfig{}, rolling.FallbackStatsConfig{})},
+	h := circuit.Manager{
+		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{rolling.CollectRollingStats(rolling.RunStatsConfig{}, rolling.FallbackStatsConfig{})},
 	}
 	expvar.Publish("hystrix", h.Var())
 	es := metriceventstream.MetricEventStream{
@@ -72,8 +72,8 @@ func mustPass(err error) {
 	}
 }
 
-func setupAlwaysFails(h *hystrix.Manager, tickInterval time.Duration) {
-	failureCircuit := h.MustCreateCircuit("always-fails", hystrix.CircuitConfig{})
+func setupAlwaysFails(h *circuit.Manager, tickInterval time.Duration) {
+	failureCircuit := h.MustCreateCircuit("always-fails", circuit.Config{})
 	go func() {
 		for range time.Tick(tickInterval) {
 			mustFail(failureCircuit.Execute(context.Background(), func(ctx context.Context) error {
@@ -83,19 +83,19 @@ func setupAlwaysFails(h *hystrix.Manager, tickInterval time.Duration) {
 	}()
 }
 
-func setupBadRequest(h *hystrix.Manager, tickInterval time.Duration) {
-	failingBadRequest := h.MustCreateCircuit("always-fails-bad-request", hystrix.CircuitConfig{})
+func setupBadRequest(h *circuit.Manager, tickInterval time.Duration) {
+	failingBadRequest := h.MustCreateCircuit("always-fails-bad-request", circuit.Config{})
 	go func() {
 		for range time.Tick(tickInterval) {
 			mustFail(failingBadRequest.Execute(context.Background(), func(ctx context.Context) error {
-				return hystrix.SimpleBadRequest{Err: errors.New("bad user input")}
+				return circuit.SimpleBadRequest{Err: errors.New("bad user input")}
 			}, nil))
 		}
 	}()
 }
 
-func setupFailsOriginalContext(h *hystrix.Manager, tickInterval time.Duration) {
-	failingOriginalContextCanceled := h.MustCreateCircuit("always-fails-original-context", hystrix.CircuitConfig{})
+func setupFailsOriginalContext(h *circuit.Manager, tickInterval time.Duration) {
+	failingOriginalContextCanceled := h.MustCreateCircuit("always-fails-original-context", circuit.Config{})
 	go func() {
 		for range time.Tick(tickInterval) {
 			endedContext, cancel := context.WithCancel(context.Background())
@@ -107,8 +107,8 @@ func setupFailsOriginalContext(h *hystrix.Manager, tickInterval time.Duration) {
 	}()
 }
 
-func setupAlwaysPasses(h *hystrix.Manager, tickInterval time.Duration) {
-	passingCircuit := h.MustCreateCircuit("always-passes", hystrix.CircuitConfig{})
+func setupAlwaysPasses(h *circuit.Manager, tickInterval time.Duration) {
+	passingCircuit := h.MustCreateCircuit("always-passes", circuit.Config{})
 	go func() {
 		for range time.Tick(tickInterval) {
 			mustPass(passingCircuit.Execute(context.Background(), func(ctx context.Context) error {
@@ -118,9 +118,9 @@ func setupAlwaysPasses(h *hystrix.Manager, tickInterval time.Duration) {
 	}()
 }
 
-func setupTimesOut(h *hystrix.Manager, tickInterval time.Duration) {
-	timeOutCircuit := h.MustCreateCircuit("always-times-out", hystrix.CircuitConfig{
-		Execution: hystrix.ExecutionConfig{
+func setupTimesOut(h *circuit.Manager, tickInterval time.Duration) {
+	timeOutCircuit := h.MustCreateCircuit("always-times-out", circuit.Config{
+		Execution: circuit.ExecutionConfig{
 			Timeout: time.Millisecond,
 		},
 	})
@@ -134,9 +134,9 @@ func setupTimesOut(h *hystrix.Manager, tickInterval time.Duration) {
 	}()
 }
 
-func setupFallsBack(h *hystrix.Manager, tickInterval time.Duration) {
-	fallbackCircuit := h.MustCreateCircuit("always-falls-back", hystrix.CircuitConfig{
-		Execution: hystrix.ExecutionConfig{
+func setupFallsBack(h *circuit.Manager, tickInterval time.Duration) {
+	fallbackCircuit := h.MustCreateCircuit("always-falls-back", circuit.Config{
+		Execution: circuit.ExecutionConfig{
 			Timeout: time.Millisecond,
 		},
 	})
@@ -151,9 +151,9 @@ func setupFallsBack(h *hystrix.Manager, tickInterval time.Duration) {
 	}()
 }
 
-func setupRandomExecutionTime(h *hystrix.Manager, tickInterval time.Duration) {
-	randomExecutionTime := h.MustCreateCircuit("random-execution-time", hystrix.CircuitConfig{
-		Execution: hystrix.ExecutionConfig{},
+func setupRandomExecutionTime(h *circuit.Manager, tickInterval time.Duration) {
+	randomExecutionTime := h.MustCreateCircuit("random-execution-time", circuit.Config{
+		Execution: circuit.ExecutionConfig{},
 	})
 	go func() {
 		for range time.Tick(tickInterval) {
@@ -172,10 +172,10 @@ func setupRandomExecutionTime(h *hystrix.Manager, tickInterval time.Duration) {
 	}()
 }
 
-func setupFloppyCircuit(h *hystrix.Manager, tickInterval time.Duration) {
+func setupFloppyCircuit(h *circuit.Manager, tickInterval time.Duration) {
 	// Flop every 3 seconds, try to recover very quickly
-	floppyCircuit := h.MustCreateCircuit("floppy-circuit", hystrix.CircuitConfig{
-		General: hystrix.GeneralConfig{
+	floppyCircuit := h.MustCreateCircuit("floppy-circuit", circuit.Config{
+		General: circuit.GeneralConfig{
 			OpenToClosedFactory: hystrix2.SleepyCloseCheckFactory(hystrix2.ConfigureSleepyCloseCheck{
 				//		// This should allow a new request every 10 milliseconds
 				SleepWindow: time.Millisecond * 10,
@@ -214,9 +214,9 @@ func setupFloppyCircuit(h *hystrix.Manager, tickInterval time.Duration) {
 	}
 }
 
-func setupThrottledCircuit(h *hystrix.Manager, tickInterval time.Duration) {
-	throttledCircuit := h.MustCreateCircuit("throttled-circuit", hystrix.CircuitConfig{
-		Execution: hystrix.ExecutionConfig{
+func setupThrottledCircuit(h *circuit.Manager, tickInterval time.Duration) {
+	throttledCircuit := h.MustCreateCircuit("throttled-circuit", circuit.Config{
+		Execution: circuit.ExecutionConfig{
 			MaxConcurrentRequests: 2,
 		},
 	})
@@ -239,7 +239,7 @@ func setupThrottledCircuit(h *hystrix.Manager, tickInterval time.Duration) {
 	}
 }
 
-func createBackgroundCircuits(h *hystrix.Manager, tickInterval time.Duration) {
+func createBackgroundCircuits(h *circuit.Manager, tickInterval time.Duration) {
 	setupAlwaysFails(h, tickInterval)
 	setupBadRequest(h, tickInterval)
 	setupFailsOriginalContext(h, tickInterval)

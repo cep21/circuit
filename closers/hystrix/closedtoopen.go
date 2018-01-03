@@ -1,11 +1,11 @@
-package hystrix
+package circuit
 
 import (
 	"sync"
 	"time"
 
-	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/faststats"
+	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/faststats"
 )
 
 // OpenOnErrPercentage is ClosedToOpen that opens a circuit after a threshold and % error has been
@@ -21,11 +21,11 @@ type OpenOnErrPercentage struct {
 	config ConfigureOpenOnErrPercentage
 }
 
-var _ hystrix.ClosedToOpen = &OpenOnErrPercentage{}
+var _ circuit.ClosedToOpen = &OpenOnErrPercentage{}
 
 // OpenOnErrPercentageFactory creates a err % opener
-func OpenOnErrPercentageFactory(config ConfigureOpenOnErrPercentage) func() hystrix.ClosedToOpen {
-	return func() hystrix.ClosedToOpen {
+func OpenOnErrPercentageFactory(config ConfigureOpenOnErrPercentage) func() circuit.ClosedToOpen {
+	return func() circuit.ClosedToOpen {
 		s := OpenOnErrPercentage{}
 		config.Merge(defaultConfigureOpenOnErrPercentage)
 		s.SetConfigNotThreadSafe(config)

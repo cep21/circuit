@@ -9,15 +9,15 @@ import (
 
 	"io"
 
-	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/faststats"
-	"github.com/cep21/hystrix/metrics/rolling"
+	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/faststats"
+	"github.com/cep21/circuit/metrics/rolling"
 )
 
 // MetricEventStream is a HTTP handler that supports hystrix's metric stream API
 // See https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#metrics-event-stream
 type MetricEventStream struct {
-	Hystrix      *hystrix.Manager
+	Hystrix      *circuit.Manager
 	TickDuration time.Duration
 
 	eventStreams map[*http.Request]chan []byte
@@ -153,7 +153,7 @@ func (m *MetricEventStream) Close() error {
 	return nil
 }
 
-func collectCommandMetrics(cb *hystrix.Circuit) *streamCmdMetric {
+func collectCommandMetrics(cb *circuit.Circuit) *streamCmdMetric {
 	builtInRollingCmdMetricCollector := rolling.FindCommandMetrics(cb)
 	if builtInRollingCmdMetricCollector == nil {
 		// We still show the circuit, but everything shows up as zero

@@ -3,8 +3,8 @@ package simplelogic
 import (
 	"time"
 
-	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/faststats"
+	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/faststats"
 )
 
 // ConsecutiveErrOpener is simple closed->open logic that opens on consecutive error counts
@@ -14,8 +14,8 @@ type ConsecutiveErrOpener struct {
 }
 
 // ConsecutiveErrOpenerFactory constructs a new ConsecutiveErrOpener
-func ConsecutiveErrOpenerFactory(config ConfigConsecutiveErrOpener) func() hystrix.ClosedToOpen {
-	return func() hystrix.ClosedToOpen {
+func ConsecutiveErrOpenerFactory(config ConfigConsecutiveErrOpener) func() circuit.ClosedToOpen {
+	return func() circuit.ClosedToOpen {
 		ret := &ConsecutiveErrOpener{}
 		config.Merge(defaultConfigConsecutiveErrOpener)
 		ret.SetConfigThreadSafe(config)
@@ -96,4 +96,4 @@ func (c *ConsecutiveErrOpener) SetConfigNotThreadSafe(props ConfigConsecutiveErr
 	c.SetConfigThreadSafe(props)
 }
 
-var _ hystrix.ClosedToOpen = &ConsecutiveErrOpener{}
+var _ circuit.ClosedToOpen = &ConsecutiveErrOpener{}

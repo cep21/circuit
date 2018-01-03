@@ -4,31 +4,31 @@ import (
 	"expvar"
 	"time"
 
-	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/faststats"
+	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/faststats"
 )
 
 // CollectRollingStats enables stats needed to display metric event streams on a hystrix dashboard, as well as it
 // gives easy access to rolling and total latency stats
-func CollectRollingStats(runConfig RunStatsConfig, fallbackConfig FallbackStatsConfig) func(string) hystrix.CircuitConfig {
-	return func(_ string) hystrix.CircuitConfig {
+func CollectRollingStats(runConfig RunStatsConfig, fallbackConfig FallbackStatsConfig) func(string) circuit.Config {
+	return func(_ string) circuit.Config {
 		rs := RunStats{}
 		runConfig.Merge(defaultRunStatsConfig)
 		rs.SetConfigNotThreadSafe(runConfig)
 		fs := FallbackStats{}
 		fallbackConfig.Merge(defaultFallbackStatsConfig)
 		fs.SetConfigNotThreadSafe(fallbackConfig)
-		return hystrix.CircuitConfig{
-			Metrics: hystrix.MetricsCollectors{
-				Run:      []hystrix.RunMetrics{&rs},
-				Fallback: []hystrix.FallbackMetrics{&fs},
+		return circuit.Config{
+			Metrics: circuit.MetricsCollectors{
+				Run:      []circuit.RunMetrics{&rs},
+				Fallback: []circuit.FallbackMetrics{&fs},
 			},
 		}
 	}
 }
 
 // FindCommandMetrics searches a circuit for the previously stored run stats.  Returns nil if never set.
-func FindCommandMetrics(c *hystrix.Circuit) *RunStats {
+func FindCommandMetrics(c *circuit.Circuit) *RunStats {
 	for _, r := range c.CmdMetricCollector {
 		if ret, ok := r.(*RunStats); ok {
 			return ret
@@ -38,7 +38,7 @@ func FindCommandMetrics(c *hystrix.Circuit) *RunStats {
 }
 
 // FindFallbackMetrics searches a circuit for the previously stored fallback stats.  Returns nil if never set.
-func FindFallbackMetrics(c *hystrix.Circuit) *FallbackStats {
+func FindFallbackMetrics(c *circuit.Circuit) *FallbackStats {
 	for _, r := range c.FallbackMetricCollector {
 		if ret, ok := r.(*FallbackStats); ok {
 			return ret
@@ -285,7 +285,7 @@ var defaultFallbackStatsConfig = FallbackStatsConfig{
 	RollingStatsNumBuckets: 10,
 }
 
-var _ hystrix.FallbackMetrics = &FallbackStats{}
+var _ circuit.FallbackMetrics = &FallbackStats{}
 
 // SetConfigNotThreadSafe sets the configuration for fallback stats
 func (r *FallbackStats) SetConfigNotThreadSafe(config FallbackStatsConfig) {

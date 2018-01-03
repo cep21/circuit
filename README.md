@@ -1,15 +1,15 @@
 <!-- Image designed by Jack Lindamood, Licensed under the Creative Commons 3.0 Attributions license, originate from https://github.com/golang-samples/gopher-vector design by Takuya Ueda -->
 ![Mascot](https://cep21.github.io/hystrix/imgs/hystrix-gopher_100px.png)
-# Hystrix
+# Circuit
 [![Build Status](https://travis-ci.org/cep21/hystrix.svg?branch=master)](https://travis-ci.org/cep21/hystrix)
-[![GoDoc](https://godoc.org/github.com/cep21/hystrix?status.svg)](https://godoc.org/github.com/cep21/hystrix)
+[![GoDoc](https://godoc.org/github.com/cep21/circuit?status.svg)](https://godoc.org/github.com/cep21/circuit)
 
-Hystrix is an efficient and feature complete [Hystrix](https://github.com/Netflix/Hystrix) like Go implementation of the [circuit
+Circuit is an efficient and feature complete [Hystrix](https://github.com/Netflix/Hystrix) like Go implementation of the [circuit
 breaker pattern](https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker).
 
 Learn more about the problems Hystrix and other circuit breakers solve on the [Hystrix Wiki](https://github.com/Netflix/Hystrix/wiki).
 
-There are a large number of examples on the [godoc](https://godoc.org/github.com/cep21/hystrix#pkg-examples) that are worth looking at.  They tend to be more up to date than the README doc.
+There are a large number of examples on the [godoc](https://godoc.org/github.com/cep21/circuit#pkg-examples) that are worth looking at.  They tend to be more up to date than the README doc.
 
 # Feature set
 
@@ -19,7 +19,7 @@ There are a large number of examples on the [godoc](https://godoc.org/github.com
 * Comprehensive metric tracking
 * Efficient implementation with Benchmarks
 * Low/zero memory allocation costs
-* Support for Netflix Hystrix dashboards
+* Support for Netflix Hystrix dashboards, even with custom circuit transition logic
 * Multiple error handling features
 * Expose circuit health and configuration on expvar
 * SLO tracking
@@ -28,19 +28,13 @@ There are a large number of examples on the [godoc](https://godoc.org/github.com
 * Many tests and examples
 * Good inline documentation
 
-# Comparison to go-hystrix
-
-This library is most directly comparable to [go-hystrix](https://github.com/afex/hystrix-go),
-but differs in many ways including performance, no global mutable state, accuracy (more accurately does what it advertises),
-feature set, context support, panic behavior, and metric tracking.
-
 # Usage
 
 ## Hello world circuit
 
 ```go
   // Make one of these to manage all your circuits
-  h := hystrix.Hystrix{}
+  h := circuit.Manager{}
   
   // Create a named circuit from your hystrix manager
   circuit := h.MustCreateCircuit("hello-world", hystrix.CommandProperties{})
@@ -77,7 +71,7 @@ your run function early and leave it hanging (possibly forever), then you can ca
 ```go
   h := hystrix.Hystrix{}
   circuit := h.MustCreateCircuit("untrusting-circuit", hystrix.CommandProperties{
-    Execution: hystrix.ExecutionConfig{
+    Execution: circuit.ExecutionConfig{
       // Time out the context after one second
       ExecutionTimeout: time.Second,
     },
@@ -100,7 +94,7 @@ All configuration parameters are documented in config.go and mirror the configur
   h := hystrix.Hystrix{}
   
   circuitConfig := hystrix.CommandProperties {
-  	CircuitBreaker: hystrix.CircuitBreakerConfig{
+  	CircuitBreaker: circuit.CircuitBreakerConfig{
       // This should allow a new request every 10 milliseconds
       SleepWindow: time.Millisecond * 5,
       // The first failure should open the circuit
@@ -108,7 +102,7 @@ All configuration parameters are documented in config.go and mirror the configur
       // Only one request is required to fail the circuit
       RequestVolumeThreshold:   1,
     },
-    Execution: hystrix.ExecutionConfig{
+    Execution: circuit.ExecutionConfig{
       // Allow at most 2 requests at a time
       MaxConcurrentRequests: 2,
       // Time out the context after one second
@@ -190,7 +184,7 @@ internal to this project.
   circuit := h.MustCreateCircuit("changes-at-runtime", hystrix.CommandProperties{})
   // ... later on (during live)
   circuit.SetConfigThreadSafe(hystrix.CommandProperties{
-		Execution: hystrix.ExecutionConfig{
+		Execution: circuit.ExecutionConfig{
 			MaxConcurrentRequests: int64(12),
 		},
   })
@@ -205,11 +199,11 @@ behavior with the `IgnoreInterrputs` flag.
 ```go
   h := hystrix.Hystrix{}
   circuit := h.MustCreateCircuit("dont-fail-me-bro", hystrix.CommandProperties{
-    Execution: hystrix.ExecutionConfig{
+    Execution: circuit.ExecutionConfig{
       // healthy is allowing a full second
       ExecutionTimeout: time.Second,
     },
-    GoSpecific: hystrix.ExecutionConfig{
+    GoSpecific: circuit.ExecutionConfig{
     	// Do not count parent context failures as the circuit's fault
     	// This is the default
       IgnoreInterrputs: false,
@@ -246,7 +240,7 @@ circuit name.
   myFactory := func(circuitName string) hysrix.CommandProperties {
     customTimeout := lookup_timeout(circuitName)
     return hysrix.CommandProperties {
-      Execution: hystrix.ExecutionConfig{
+      Execution: circuit.ExecutionConfig{
         ExecutionTimeout: customTimeout,
       }
     },
@@ -293,11 +287,11 @@ requests that resopnd _quickly enough_.
 ```go
   h := hystrix.Hystrix{}
   circuit := h.MustCreateCircuit("track-my-slo", hystrix.CommandProperties{
-    Execution: hystrix.ExecutionConfig{
+    Execution: circuit.ExecutionConfig{
       // healthy is allowing a full second
       ExecutionTimeout: time.Second,
     },
-    GoSpecific: hystrix.ExecutionConfig{
+    GoSpecific: circuit.ExecutionConfig{
     	// But healthy requests should respond in < 100 ms
       ResponseTimeSLO: time.Millisecond * 100,
       MetricsCollectors:  {
@@ -348,7 +342,7 @@ there is a better way to benchmark one of these circuits, please let me know!
 cd benchmarking && go test -v -benchmem -run=^$ -bench=. . 2> /dev/null
 goos: darwin
 goarch: amd64
-pkg: github.com/cep21/hystrix/benchmarking
+pkg: github.com/cep21/circuit/benchmarking
 BenchmarkCiruits/Hystrix/Metrics/passing/1-8       	 5000000	       253 ns/op	       0 B/op	       0 allocs/op
 BenchmarkCiruits/Hystrix/Metrics/passing/75-8      	10000000	       108 ns/op	       0 B/op	       0 allocs/op
 BenchmarkCiruits/Hystrix/Metrics/failing/1-8       	 5000000	       297 ns/op	       0 B/op	       0 allocs/op
@@ -383,7 +377,7 @@ BenchmarkCiruits/iand_circuit/Default/failing/1-8            	100000000	        
 BenchmarkCiruits/iand_circuit/Default/failing/75-8           	300000000	         5.36 ns/op	       0 B/op	       0 allocs/op
 
 PASS
-ok  	github.com/cep21/hystrix/benchmarking	59.518s
+ok  	github.com/cep21/circuit/benchmarking	59.518s
 ``
 ```
 

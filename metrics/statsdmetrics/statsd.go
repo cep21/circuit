@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/cactus/go-statsd-client/statsd"
-	"github.com/cep21/hystrix"
+	"github.com/cep21/circuit"
 )
 
 // CommandFactory allows ingesting statsd metrics
@@ -46,16 +46,16 @@ func appendStatsdParts(parts ...string) string {
 }
 
 // CommandProperties creates statsd metrics for a circuit
-func (c *CommandFactory) CommandProperties(circuitName string) hystrix.CircuitConfig {
-	return hystrix.CircuitConfig{
-		Metrics: hystrix.MetricsCollectors{
-			Run: []hystrix.RunMetrics{
+func (c *CommandFactory) CommandProperties(circuitName string) circuit.Config {
+	return circuit.Config{
+		Metrics: circuit.MetricsCollectors{
+			Run: []circuit.RunMetrics{
 				&RunMetricsCollector{
 					SendTo:     c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "cmd")),
 					SampleRate: c.sampleRate(),
 				},
 			},
-			Fallback: []hystrix.FallbackMetrics{
+			Fallback: []circuit.FallbackMetrics{
 				&FallbackMetricsCollector{
 					SendTo:     c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "fallback")),
 					SampleRate: c.sampleRate(),
@@ -118,7 +118,7 @@ func (c *RunMetricsCollector) ErrConcurrencyLimitReject(now time.Time) {
 	c.check(c.SendTo.Inc("err_concurrency_limit_reject", 1, c.SampleRate))
 }
 
-var _ hystrix.RunMetrics = &RunMetricsCollector{}
+var _ circuit.RunMetrics = &RunMetricsCollector{}
 
 // FallbackMetricsCollector collects fallback metrics
 type FallbackMetricsCollector struct {
@@ -148,4 +148,4 @@ func (c *FallbackMetricsCollector) ErrFailure(now time.Time, duration time.Durat
 	c.check(c.SendTo.Inc("err_failure", 1, c.SampleRate))
 }
 
-var _ hystrix.FallbackMetrics = &FallbackMetricsCollector{}
+var _ circuit.FallbackMetrics = &FallbackMetricsCollector{}
