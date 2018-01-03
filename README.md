@@ -349,38 +349,39 @@ cd benchmarking && go test -v -benchmem -run=^$ -bench=. . 2> /dev/null
 goos: darwin
 goarch: amd64
 pkg: github.com/cep21/hystrix/benchmarking
-BenchmarkCiruits/Hystrix/passing/DefaultConfig/1-8       	 2000000	       856 ns/op	     192 B/op	       4 allocs/op
-BenchmarkCiruits/Hystrix/passing/DefaultConfig/75-8      	 5000000	       382 ns/op	     192 B/op	       4 allocs/op
-BenchmarkCiruits/Hystrix/passing/NoTimeout/1-8           	 5000000	       339 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/Hystrix/passing/NoTimeout/75-8          	10000000	       142 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/Hystrix/passing/UseGo/1-8               	 1000000	      1491 ns/op	     256 B/op	       5 allocs/op
-BenchmarkCiruits/Hystrix/passing/UseGo/75-8              	 5000000	       436 ns/op	     256 B/op	       5 allocs/op
-BenchmarkCiruits/Hystrix/failing/DefaultConfig/1-8       	10000000	       187 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/Hystrix/failing/DefaultConfig/75-8      	20000000	       109 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/Hystrix/failing/NoTimeout/1-8           	10000000	       189 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/Hystrix/failing/NoTimeout/75-8          	10000000	       114 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/Hystrix/failing/UseGo/1-8               	 5000000	       247 ns/op	      32 B/op	       1 allocs/op
-BenchmarkCiruits/Hystrix/failing/UseGo/75-8              	10000000	       129 ns/op	      32 B/op	       1 allocs/op
-BenchmarkCiruits/GoHystrix/passing/DefaultConfig/1-8     	  200000	      6729 ns/op	     995 B/op	      18 allocs/op
-BenchmarkCiruits/GoHystrix/passing/DefaultConfig/75-8    	  500000	      2317 ns/op	     988 B/op	      20 allocs/op
-BenchmarkCiruits/GoHystrix/failing/DefaultConfig/1-8     	  200000	      5324 ns/op	    1016 B/op	      19 allocs/op
-BenchmarkCiruits/GoHystrix/failing/DefaultConfig/75-8    	 1000000	      1464 ns/op	    1002 B/op	      20 allocs/op
-BenchmarkCiruits/rubyist/passing/Threshold-10/1-8        	 1000000	      1409 ns/op	     339 B/op	       5 allocs/op
-BenchmarkCiruits/rubyist/passing/Threshold-10/75-8       	 2000000	       799 ns/op	     309 B/op	       4 allocs/op
-BenchmarkCiruits/rubyist/failing/Threshold-10/1-8        	10000000	       113 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/rubyist/failing/Threshold-10/75-8       	10000000	       242 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/gobreaker/passing/Default/1-8           	10000000	       199 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/gobreaker/passing/Default/75-8          	 2000000	       677 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/gobreaker/failing/Default/1-8           	20000000	        89.5 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/gobreaker/failing/Default/75-8          	 5000000	       327 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/handy/passing/Default/1-8               	 1000000	      1087 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/handy/passing/Default/75-8              	 1000000	      1689 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/handy/failing/Default/1-8               	 1000000	      1316 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/handy/failing/Default/75-8              	 1000000	      1843 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/iand_circuit/passing/Default/1-8        	10000000	       121 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/iand_circuit/passing/Default/75-8       	 5000000	       317 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/iand_circuit/failing/Default/1-8        	50000000	        23.1 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/iand_circuit/failing/Default/75-8       	300000000	         5.65 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/Hystrix/Metrics/passing/1-8       	 5000000	       253 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/Hystrix/Metrics/passing/75-8      	10000000	       108 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/Hystrix/Metrics/failing/1-8       	 5000000	       297 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/Hystrix/Metrics/failing/75-8      	20000000	       115 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/Hystrix/Minimal/passing/1-8       	10000000	       177 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/Hystrix/Minimal/passing/75-8      	20000000	        92.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/Hystrix/Minimal/failing/1-8       	20000000	        60.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/Hystrix/Minimal/failing/75-8      	100000000	        17.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/Hystrix/UseGo/passing/1-8         	 1000000	      1242 ns/op	     256 B/op	       5 allocs/op
+BenchmarkCiruits/Hystrix/UseGo/passing/75-8        	 5000000	       335 ns/op	     256 B/op	       5 allocs/op
+BenchmarkCiruits/Hystrix/UseGo/failing/1-8         	 1000000	      1294 ns/op	     256 B/op	       5 allocs/op
+BenchmarkCiruits/Hystrix/UseGo/failing/75-8        	 5000000	       353 ns/op	     256 B/op	       5 allocs/op
+BenchmarkCiruits/GoHystrix/DefaultConfig/passing/1-8         	  200000	      7880 ns/op	    1007 B/op	      18 allocs/op
+BenchmarkCiruits/GoHystrix/DefaultConfig/passing/75-8        	  500000	      2832 ns/op	     990 B/op	      20 allocs/op
+BenchmarkCiruits/GoHystrix/DefaultConfig/failing/1-8         	  200000	      7338 ns/op	    1022 B/op	      19 allocs/op
+BenchmarkCiruits/GoHystrix/DefaultConfig/failing/75-8        	  500000	      2088 ns/op	    1004 B/op	      20 allocs/op
+BenchmarkCiruits/rubyist/Threshold-10/passing/1-8            	 1000000	      1699 ns/op	     332 B/op	       5 allocs/op
+BenchmarkCiruits/rubyist/Threshold-10/passing/75-8           	 2000000	       891 ns/op	     309 B/op	       4 allocs/op
+BenchmarkCiruits/rubyist/Threshold-10/failing/1-8            	20000000	       125 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/rubyist/Threshold-10/failing/75-8           	 5000000	       242 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/gobreaker/Default/passing/1-8               	10000000	       196 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/gobreaker/Default/passing/75-8              	 2000000	       654 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/gobreaker/Default/failing/1-8               	20000000	        94.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/gobreaker/Default/failing/75-8              	 5000000	       345 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/handy/Default/passing/1-8                   	 1000000	      1070 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/handy/Default/passing/75-8                  	 1000000	      1915 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/handy/Default/failing/1-8                   	 1000000	      1293 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/handy/Default/failing/75-8                  	 1000000	      1787 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/iand_circuit/Default/passing/1-8            	10000000	       116 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/iand_circuit/Default/passing/75-8           	 3000000	       351 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/iand_circuit/Default/failing/1-8            	100000000	        20.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCiruits/iand_circuit/Default/failing/75-8           	300000000	         5.36 ns/op	       0 B/op	       0 allocs/op
+
 PASS
 ok  	github.com/cep21/hystrix/benchmarking	59.518s
 ``
@@ -388,15 +389,6 @@ ok  	github.com/cep21/hystrix/benchmarking	59.518s
 
 I feel the most important benchmarks are the ones with high concurrency on a passing circuit, since
 that is the common case for heavily loaded systems.
-
-```
-BenchmarkCiruits/Hystrix/passing/NoTimeout/75-8          	10000000	       142 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/GoHystrix/passing/DefaultConfig/75-8    	  500000	      2317 ns/op	     988 B/op	      20 allocs/op
-BenchmarkCiruits/rubyist/passing/Threshold-10/75-8       	 2000000	       799 ns/op	     309 B/op	       4 allocs/op
-BenchmarkCiruits/gobreaker/passing/Default/75-8          	 2000000	       677 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/handy/passing/Default/75-8              	 1000000	      1689 ns/op	       0 B/op	       0 allocs/op
-BenchmarkCiruits/iand_circuit/passing/Default/75-8       	 5000000	       317 ns/op	       0 B/op	       0 allocs/op
-```
 
 # Development
 
