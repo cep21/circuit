@@ -44,22 +44,22 @@ func TestRollingCounter_NormalConsistency(t *testing.T) {
 	numBuckets := 20
 	x := NewRollingCounter(time.Millisecond*time.Duration(bucketSize), numBuckets, now)
 	concurrent := 20
-	end := 10000
-	wg := sync.WaitGroup{}
-	for i := 0; i < concurrent; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < end; j++ {
-				newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(j)))
-				x.Inc(newNow)
-				if j%bucketSize == 0 {
-					time.Sleep(time.Millisecond * 10)
+	eachIteration := bucketSize * (numBuckets / 2)
+	end := 50 * eachIteration
+	for k :=0;k<50;k++ {
+		wg := sync.WaitGroup{}
+		for i := 0; i < concurrent; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < eachIteration; j++ {
+					newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(j + k *eachIteration)))
+					x.Inc(newNow)
 				}
-			}
-		}()
+			}()
+		}
+		wg.Wait()
 	}
-	wg.Wait()
 	newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(end)))
 	if x.RollingSumAt(newNow) != int64(concurrent*bucketSize*(numBuckets-1)) {
 		t.Error("small rolling sum", x.RollingSumAt(newNow), "when we want", concurrent*bucketSize*(numBuckets-1))
