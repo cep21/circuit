@@ -11,7 +11,8 @@ import (
 )
 
 func TestHappyCircuit(t *testing.T) {
-	c := circuit.NewCircuitFromConfig("TestHappyCircuit", CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})(""))
+	s := StatFactory{}
+	c := circuit.NewCircuitFromConfig("TestHappyCircuit", s.CreateConfig(""))
 	err := c.Execute(context.Background(), testhelp.AlwaysPasses, nil)
 	if err != nil {
 		t.Error("saw error from circuit that always passes")
@@ -34,7 +35,8 @@ func TestHappyCircuit(t *testing.T) {
 }
 
 func TestBadRequest(t *testing.T) {
-	c := circuit.NewCircuitFromConfig("TestBadRequest", CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})(""))
+	s := StatFactory{}
+	c := circuit.NewCircuitFromConfig("TestBadRequest", s.CreateConfig(""))
 	err := c.Execute(context.Background(), func(_ context.Context) error {
 		return circuit.SimpleBadRequest{
 			Err: errors.New("this request is bad"),
@@ -59,7 +61,8 @@ func TestBadRequest(t *testing.T) {
 }
 
 func TestFallbackCircuit(t *testing.T) {
-	c := circuit.NewCircuitFromConfig("TestFallbackCircuit", CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})(""))
+	s := StatFactory{}
+	c := circuit.NewCircuitFromConfig("TestFallbackCircuit", s.CreateConfig(""))
 	err := c.Execute(context.Background(), testhelp.AlwaysFails, testhelp.AlwaysPassesFallback)
 	if err != nil {
 		t.Error("saw error from circuit that has happy fallback", err)
@@ -84,8 +87,9 @@ func TestFallbackCircuit(t *testing.T) {
 }
 
 func TestCircuitIgnoreContextFailures(t *testing.T) {
+	s := StatFactory{}
 	h := circuit.Manager{
-		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{CollectRollingStats(RunStatsConfig{}, FallbackStatsConfig{})},
+		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{s.CreateConfig},
 	}
 	c := h.MustCreateCircuit("TestFailingCircuit", circuit.Config{
 		Execution: circuit.ExecutionConfig{

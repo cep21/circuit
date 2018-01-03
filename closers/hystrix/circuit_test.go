@@ -13,11 +13,14 @@ import (
 )
 
 func TestCircuitCloses(t *testing.T) {
+	f := ConfigFactory{
+		ConfigureOpenOnErrPercentage: ConfigureOpenOnErrPercentage{
+			RequestVolumeThreshold: 1,
+		},
+	}
 	h := circuit.Manager{
 		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{
-			Config(ConfigureSleepyCloseCheck{}, ConfigureOpenOnErrPercentage{
-				RequestVolumeThreshold: 1,
-			}),
+			f.Configure,
 		},
 	}
 	c := h.MustCreateCircuit("TestCircuitCloses")
