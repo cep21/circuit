@@ -448,4 +448,4 @@ go run example/main.go
 
 If you load the Hystrix dasbhoard (following the above instructions), you should see metrics for all the example circuits.
 
-[![dashboard](https://cep21.github.io/hystrix/imgs/hystrix_ui.png)](https://cep21.github.io/hystrix/imgs/hystrix_ui.png)
+[![dashboard](https://cep21.github.io/circuit/imgs/hystrix_ui.png)](https://cep21.github.io/hystrix/imgs/hystrix_ui.png)
