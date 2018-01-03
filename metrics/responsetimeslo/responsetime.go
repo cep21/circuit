@@ -23,7 +23,9 @@ type Tracker struct {
 	Collectors         []Collector
 }
 
+// Config controls how SLO is tracked by default for a Tracker
 type Config struct {
+	// MaximumHealthyTime is the maximum amount of time a request can take and still be considered healthy
 	MaximumHealthyTime time.Duration
 }
 
