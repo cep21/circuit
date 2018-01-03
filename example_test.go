@@ -16,7 +16,7 @@ import (
 
 // This is a full example of using a circuit around HTTP requests.
 func Example_http() {
-	h := hystrix.Hystrix{}
+	h := hystrix.Manager{}
 	c := h.MustCreateCircuit("hello-http", hystrix.CircuitConfig{
 		Execution: hystrix.ExecutionConfig{
 			// Timeout after 3 seconds
@@ -88,7 +88,7 @@ func ExampleCircuit_Execute_helloworld() {
 }
 
 func ExampleCircuit_Go() {
-	h := hystrix.Hystrix{}
+	h := hystrix.Manager{}
 	circuit := h.MustCreateCircuit("untrusting-circuit", hystrix.CircuitConfig{
 		Execution: hystrix.ExecutionConfig{
 			// Time out the context after one second
@@ -110,7 +110,7 @@ func ExampleCircuit_Go() {
 
 // This example will panic, and the panic can be caught up the stack
 func ExampleCircuit_Execute_panics() {
-	h := hystrix.Hystrix{}
+	h := hystrix.Manager{}
 	circuit := h.MustCreateCircuit("panic_up", hystrix.CircuitConfig{})
 
 	defer func() {
@@ -145,7 +145,7 @@ func ExampleHystrix_DefaultCircuitProperties() {
 	}
 
 	// Hystrix manages circuits with unique names
-	h := hystrix.Hystrix{
+	h := hystrix.Manager{
 		DefaultCircuitProperties: []hystrix.CommandPropertiesConstructor{myFactory},
 	}
 	h.MustCreateCircuit("v1", hystrix.CircuitConfig{})
@@ -155,7 +155,7 @@ func ExampleHystrix_DefaultCircuitProperties() {
 
 // Many configuration variables can be set at runtime in a thread safe way
 func ExampleCircuit_SetConfigThreadSafe() {
-	h := hystrix.Hystrix{}
+	h := hystrix.Manager{}
 	circuit := h.MustCreateCircuit("changes-at-runtime", hystrix.CircuitConfig{})
 	// ... later on (during live)
 	circuit.SetConfigThreadSafe(hystrix.CircuitConfig{
@@ -168,7 +168,7 @@ func ExampleCircuit_SetConfigThreadSafe() {
 // Even though Go executes inside a goroutine, we catch that panic and bubble it up the same
 // call stack that called Go
 func ExampleCircuit_Go_panics() {
-	h := hystrix.Hystrix{}
+	h := hystrix.Manager{}
 	circuit := h.MustCreateCircuit("panic_up", hystrix.CircuitConfig{})
 
 	defer func() {
@@ -208,13 +208,13 @@ func ExampleBadRequest() {
 
 // If you wanted to publish hystrix information on Expvar, you can register your instance.
 func ExampleHystrix_Var() {
-	h := hystrix.Hystrix{}
+	h := hystrix.Manager{}
 	expvar.Publish("hystrix", h.Var())
 	// Output:
 }
 
 //func ExampleCommandProperties() {
-//	h := hystrix.Hystrix{}
+//	h := hystrix.Manager{}
 //
 //	circuitConfig := hystrix.CircuitConfig{
 //		CircuitBreaker: hystrix.CircuitBreakerConfig{

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix/faststats"
 )
 
 // Circuit is a hystrix circuit that can accept commands and open/close on failures
@@ -28,12 +28,12 @@ type Circuit struct {
 	threadSafeConfig      atomicCircuitConfig
 
 	// Tracks if the circuit has been shut open or closed
-	isOpen fastmath.AtomicBoolean
+	isOpen faststats.AtomicBoolean
 
 	// Tracks how many commands are currently running
-	concurrentCommands fastmath.AtomicInt64
+	concurrentCommands faststats.AtomicInt64
 	// Tracks how many fallbacks are currently running
-	concurrentFallbacks fastmath.AtomicInt64
+	concurrentFallbacks faststats.AtomicInt64
 
 	// closedToOpen controls when to open a closed circuit
 	closedToOpen ClosedToOpen

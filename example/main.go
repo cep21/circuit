@@ -15,15 +15,15 @@ import (
 	"flag"
 
 	"github.com/cep21/hystrix"
-	hystrix2 "github.com/cep21/hystrix/hystrix"
-	"github.com/cep21/hystrix/hystrix/metriceventstream"
-	"github.com/cep21/hystrix/metric_implementations/rolling"
+	hystrix2 "github.com/cep21/hystrix/closers/hystrix"
+	"github.com/cep21/hystrix/closers/hystrix/metriceventstream"
+	"github.com/cep21/hystrix/metrics/rolling"
 )
 
 const exampleURL = "http://localhost:7979/hystrix-dashboard/monitor/monitor.html?streams=%5B%7B%22name%22%3A%22%22%2C%22stream%22%3A%22http%3A%2F%2Flocalhost%3A8123%2Fhystrix.stream%22%2C%22auth%22%3A%22%22%2C%22delay%22%3A%22%22%7D%5D"
 
 func main() {
-	h := hystrix.Hystrix{
+	h := hystrix.Manager{
 		DefaultCircuitProperties: []hystrix.CommandPropertiesConstructor{rolling.CollectRollingStats(rolling.RunStatsConfig{}, rolling.FallbackStatsConfig{})},
 	}
 	expvar.Publish("hystrix", h.Var())
@@ -72,7 +72,7 @@ func mustPass(err error) {
 	}
 }
 
-func setupAlwaysFails(h *hystrix.Hystrix, tickInterval time.Duration) {
+func setupAlwaysFails(h *hystrix.Manager, tickInterval time.Duration) {
 	failureCircuit := h.MustCreateCircuit("always-fails", hystrix.CircuitConfig{})
 	go func() {
 		for range time.Tick(tickInterval) {
@@ -83,7 +83,7 @@ func setupAlwaysFails(h *hystrix.Hystrix, tickInterval time.Duration) {
 	}()
 }
 
-func setupBadRequest(h *hystrix.Hystrix, tickInterval time.Duration) {
+func setupBadRequest(h *hystrix.Manager, tickInterval time.Duration) {
 	failingBadRequest := h.MustCreateCircuit("always-fails-bad-request", hystrix.CircuitConfig{})
 	go func() {
 		for range time.Tick(tickInterval) {
@@ -94,7 +94,7 @@ func setupBadRequest(h *hystrix.Hystrix, tickInterval time.Duration) {
 	}()
 }
 
-func setupFailsOriginalContext(h *hystrix.Hystrix, tickInterval time.Duration) {
+func setupFailsOriginalContext(h *hystrix.Manager, tickInterval time.Duration) {
 	failingOriginalContextCanceled := h.MustCreateCircuit("always-fails-original-context", hystrix.CircuitConfig{})
 	go func() {
 		for range time.Tick(tickInterval) {
@@ -107,7 +107,7 @@ func setupFailsOriginalContext(h *hystrix.Hystrix, tickInterval time.Duration) {
 	}()
 }
 
-func setupAlwaysPasses(h *hystrix.Hystrix, tickInterval time.Duration) {
+func setupAlwaysPasses(h *hystrix.Manager, tickInterval time.Duration) {
 	passingCircuit := h.MustCreateCircuit("always-passes", hystrix.CircuitConfig{})
 	go func() {
 		for range time.Tick(tickInterval) {
@@ -118,7 +118,7 @@ func setupAlwaysPasses(h *hystrix.Hystrix, tickInterval time.Duration) {
 	}()
 }
 
-func setupTimesOut(h *hystrix.Hystrix, tickInterval time.Duration) {
+func setupTimesOut(h *hystrix.Manager, tickInterval time.Duration) {
 	timeOutCircuit := h.MustCreateCircuit("always-times-out", hystrix.CircuitConfig{
 		Execution: hystrix.ExecutionConfig{
 			Timeout: time.Millisecond,
@@ -134,7 +134,7 @@ func setupTimesOut(h *hystrix.Hystrix, tickInterval time.Duration) {
 	}()
 }
 
-func setupFallsBack(h *hystrix.Hystrix, tickInterval time.Duration) {
+func setupFallsBack(h *hystrix.Manager, tickInterval time.Duration) {
 	fallbackCircuit := h.MustCreateCircuit("always-falls-back", hystrix.CircuitConfig{
 		Execution: hystrix.ExecutionConfig{
 			Timeout: time.Millisecond,
@@ -151,7 +151,7 @@ func setupFallsBack(h *hystrix.Hystrix, tickInterval time.Duration) {
 	}()
 }
 
-func setupRandomExecutionTime(h *hystrix.Hystrix, tickInterval time.Duration) {
+func setupRandomExecutionTime(h *hystrix.Manager, tickInterval time.Duration) {
 	randomExecutionTime := h.MustCreateCircuit("random-execution-time", hystrix.CircuitConfig{
 		Execution: hystrix.ExecutionConfig{},
 	})
@@ -172,7 +172,7 @@ func setupRandomExecutionTime(h *hystrix.Hystrix, tickInterval time.Duration) {
 	}()
 }
 
-func setupFloppyCircuit(h *hystrix.Hystrix, tickInterval time.Duration) {
+func setupFloppyCircuit(h *hystrix.Manager, tickInterval time.Duration) {
 	// Flop every 3 seconds, try to recover very quickly
 	floppyCircuit := h.MustCreateCircuit("floppy-circuit", hystrix.CircuitConfig{
 		General: hystrix.GeneralConfig{
@@ -214,7 +214,7 @@ func setupFloppyCircuit(h *hystrix.Hystrix, tickInterval time.Duration) {
 	}
 }
 
-func setupThrottledCircuit(h *hystrix.Hystrix, tickInterval time.Duration) {
+func setupThrottledCircuit(h *hystrix.Manager, tickInterval time.Duration) {
 	throttledCircuit := h.MustCreateCircuit("throttled-circuit", hystrix.CircuitConfig{
 		Execution: hystrix.ExecutionConfig{
 			MaxConcurrentRequests: 2,
@@ -239,7 +239,7 @@ func setupThrottledCircuit(h *hystrix.Hystrix, tickInterval time.Duration) {
 	}
 }
 
-func createBackgroundCircuits(h *hystrix.Hystrix, tickInterval time.Duration) {
+func createBackgroundCircuits(h *hystrix.Manager, tickInterval time.Duration) {
 	setupAlwaysFails(h, tickInterval)
 	setupBadRequest(h, tickInterval)
 	setupFailsOriginalContext(h, tickInterval)

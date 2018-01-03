@@ -13,14 +13,14 @@ import (
 )
 
 func TestCircuitCloses(t *testing.T) {
-	c := hystrix.NewCircuitFromConfig("TestCircuitCloses", hystrix.CircuitConfig{
-		General: hystrix.GeneralConfig{
-			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{}),
-			ClosedToOpenFactory: OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
+	h := hystrix.Manager{
+		DefaultCircuitProperties: []hystrix.CommandPropertiesConstructor{
+			Config(ConfigureSleepyCloseCheck{}, ConfigureOpenOnErrPercentage{
 				RequestVolumeThreshold: 1,
 			}),
 		},
-	})
+	}
+	c := h.MustCreateCircuit("TestCircuitCloses")
 
 	if c.IsOpen() {
 		t.Fatal("Circuit should not start out open")

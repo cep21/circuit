@@ -4,6 +4,9 @@ BENCH_RUN ?= .
 test:
 	env "GORACE=halt_on_error=1" go test -v -race ./...
 
+build:
+	go build -t ./...
+
 # Format the code
 fix:
 	find . -iname '*.go' -not -path '*/vendor/*' -print0 | xargs -0 gofmt -s -w

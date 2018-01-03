@@ -11,7 +11,7 @@ import (
 type CommandPropertiesConstructor func(circuitName string) CircuitConfig
 
 // Hystrix manages circuits with unique names
-type Hystrix struct {
+type Manager struct {
 	// DefaultCircuitProperties is a list of CircuitConfig constructors called, in reverse order,
 	// to append or modify configuration for your circuit.
 	DefaultCircuitProperties []CommandPropertiesConstructor
@@ -22,7 +22,7 @@ type Hystrix struct {
 }
 
 // AllCircuits returns every hystrix circuit tracked
-func (h *Hystrix) AllCircuits() []*Circuit {
+func (h *Manager) AllCircuits() []*Circuit {
 	if h == nil {
 		return nil
 	}
@@ -36,7 +36,7 @@ func (h *Hystrix) AllCircuits() []*Circuit {
 }
 
 // Var allows you to expose all your hystrix circuits on expvar
-func (h *Hystrix) Var() expvar.Var {
+func (h *Manager) Var() expvar.Var {
 	return expvar.Func(func() interface{} {
 		h.mu.RLock()
 		defer h.mu.RUnlock()
@@ -53,7 +53,7 @@ func (h *Hystrix) Var() expvar.Var {
 
 // GetCircuit returns the circuit with a given name, or nil if the circuit does not exist.  You should not call this
 // in live code.  Instead, store the circuit somewhere and use the circuit directly.
-func (h *Hystrix) GetCircuit(name string) *Circuit {
+func (h *Manager) GetCircuit(name string) *Circuit {
 	if h == nil {
 		return nil
 	}
@@ -63,8 +63,8 @@ func (h *Hystrix) GetCircuit(name string) *Circuit {
 }
 
 // MustCreateCircuit calls CreateCircuit, but panics if the circuit name already exists
-func (h *Hystrix) MustCreateCircuit(name string, config CircuitConfig) *Circuit {
-	c, err := h.CreateCircuit(name, config)
+func (h *Manager) MustCreateCircuit(name string, config ...CircuitConfig) *Circuit {
+	c, err := h.CreateCircuit(name, config...)
 	if err != nil {
 		panic(err)
 	}
@@ -72,20 +72,24 @@ func (h *Hystrix) MustCreateCircuit(name string, config CircuitConfig) *Circuit 
 }
 
 // CreateCircuit creates a new circuit, or returns error if a circuit with that name already exists
-func (h *Hystrix) CreateCircuit(name string, config CircuitConfig) (*Circuit, error) {
+func (h *Manager) CreateCircuit(name string, configs ...CircuitConfig) (*Circuit, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.circuitMap == nil {
 		h.circuitMap = make(map[string]*Circuit, 5)
 	}
+	finalConfig := CircuitConfig{}
+	for _, c := range configs {
+		finalConfig.Merge(c)
+	}
 	// Merge in reverse order so the most recently appending constructor is more important
 	for i := len(h.DefaultCircuitProperties) - 1; i >= 0; i-- {
-		config.Merge(h.DefaultCircuitProperties[i](name))
+		finalConfig.Merge(h.DefaultCircuitProperties[i](name))
 	}
 	_, exists := h.circuitMap[name]
 	if exists {
 		return nil, errors.New("circuit with that name already exists")
 	}
-	h.circuitMap[name] = NewCircuitFromConfig(name, config)
+	h.circuitMap[name] = NewCircuitFromConfig(name, finalConfig)
 	return h.circuitMap[name], nil
 }

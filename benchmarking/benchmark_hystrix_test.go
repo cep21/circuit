@@ -10,8 +10,8 @@ import (
 
 	gohystrix "github.com/afex/hystrix-go/hystrix"
 	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/metric_implementations/rolling"
-	"github.com/cep21/hystrix/simplelogic"
+	"github.com/cep21/hystrix/metrics/rolling"
+	"github.com/cep21/hystrix/closers/simplelogic"
 	iandCircuit "github.com/iand/circuit"
 	"github.com/rubyist/circuitbreaker"
 	"github.com/sony/gobreaker"
@@ -168,7 +168,7 @@ func BenchmarkCiruits(b *testing.B) {
 
 func hystrixRunner(b *testing.B, configIn interface{}, concurrent int, funcToRun interface{}, pass bool) {
 	f := funcToRun.(func(context.Context) error)
-	h := hystrix.Hystrix{}
+	h := hystrix.Manager{}
 	config := configIn.(hystrix.CircuitConfig)
 	config.Execution.MaxConcurrentRequests = int64(concurrent)
 	c := h.MustCreateCircuit("hello-world", config)

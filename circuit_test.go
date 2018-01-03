@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix/faststats"
 	"github.com/cep21/hystrix/internal/testhelp"
 )
 
@@ -270,8 +270,8 @@ func TestFallbackCircuitConcurrency(t *testing.T) {
 	})
 	wg := sync.WaitGroup{}
 	workingCircuitCount := int64(0)
-	var fallbackExecuted fastmath.AtomicInt64
-	var totalExecuted fastmath.AtomicInt64
+	var fallbackExecuted faststats.AtomicInt64
+	var totalExecuted faststats.AtomicInt64
 	for i := 0; i < 3; i++ {
 		wg.Add(1)
 		go func() {

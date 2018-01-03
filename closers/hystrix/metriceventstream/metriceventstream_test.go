@@ -11,7 +11,7 @@ import (
 )
 
 func TestMetricEventStream(t *testing.T) {
-	h := &hystrix.Hystrix{}
+	h := &hystrix.Manager{}
 	c := h.MustCreateCircuit("hello-world", hystrix.CircuitConfig{})
 	if err := c.Execute(context.Background(), func(_ context.Context) error {
 		return nil

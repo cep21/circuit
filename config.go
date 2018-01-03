@@ -3,15 +3,15 @@ package hystrix
 import (
 	"time"
 
-	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix/faststats"
 )
 
 // CircuitConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#command-properties
 type CircuitConfig struct {
-	General    GeneralConfig
-	Execution  ExecutionConfig
-	Fallback   FallbackConfig
-	Metrics    MetricsCollectors
+	General   GeneralConfig
+	Execution ExecutionConfig
+	Fallback  FallbackConfig
+	Metrics   MetricsCollectors
 }
 
 type GeneralConfig struct {
@@ -162,20 +162,20 @@ func (c *CircuitConfig) Merge(other CircuitConfig) *CircuitConfig {
 // change config at runtime without requiring locks on common operations
 type atomicCircuitConfig struct {
 	Execution struct {
-		ExecutionTimeout      fastmath.AtomicInt64
-		MaxConcurrentRequests fastmath.AtomicInt64
+		ExecutionTimeout      faststats.AtomicInt64
+		MaxConcurrentRequests faststats.AtomicInt64
 	}
 	Fallback struct {
-		Disabled              fastmath.AtomicBoolean
-		MaxConcurrentRequests fastmath.AtomicInt64
+		Disabled              faststats.AtomicBoolean
+		MaxConcurrentRequests faststats.AtomicInt64
 	}
 	CircuitBreaker struct {
-		ForceOpen    fastmath.AtomicBoolean
-		ForcedClosed fastmath.AtomicBoolean
-		Disabled     fastmath.AtomicBoolean
+		ForceOpen    faststats.AtomicBoolean
+		ForcedClosed faststats.AtomicBoolean
+		Disabled     faststats.AtomicBoolean
 	}
 	GoSpecific struct {
-		IgnoreInterrputs fastmath.AtomicBoolean
+		IgnoreInterrputs faststats.AtomicBoolean
 	}
 }
 
@@ -212,7 +212,7 @@ var defaultGoSpecificConfig = GeneralConfig{
 }
 
 var defaultCommandProperties = CircuitConfig{
-	Execution:  defaultExecutionConfig,
-	Fallback:   defaultFallbackConfig,
-	General: defaultGoSpecificConfig,
+	Execution: defaultExecutionConfig,
+	Fallback:  defaultFallbackConfig,
+	General:   defaultGoSpecificConfig,
 }

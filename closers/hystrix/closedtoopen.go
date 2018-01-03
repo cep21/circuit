@@ -5,17 +5,17 @@ import (
 	"time"
 
 	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix/faststats"
 )
 
 // OpenOnErrPercentage is ClosedToOpen that opens a circuit after a threshold and % error has been
 // reached.  It is the default hystrix implementation.
 type OpenOnErrPercentage struct {
-	errorsCount             fastmath.RollingCounter
-	legitimateAttemptsCount fastmath.RollingCounter
+	errorsCount             faststats.RollingCounter
+	legitimateAttemptsCount faststats.RollingCounter
 
-	errorPercentage        fastmath.AtomicInt64
-	requestVolumeThreshold fastmath.AtomicInt64
+	errorPercentage        faststats.AtomicInt64
+	requestVolumeThreshold faststats.AtomicInt64
 
 	mu     sync.Mutex
 	config ConfigureOpenOnErrPercentage
@@ -148,6 +148,6 @@ func (e *OpenOnErrPercentage) SetConfigNotThreadSafe(props ConfigureOpenOnErrPer
 	e.SetConfigThreadSafe(props)
 	now := props.Now()
 	rollingCounterBucketWidth := time.Duration(props.RollingDuration.Nanoseconds() / int64(props.NumBuckets))
-	e.errorsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, props.NumBuckets, now)
-	e.legitimateAttemptsCount = fastmath.NewRollingCounter(rollingCounterBucketWidth, props.NumBuckets, now)
+	e.errorsCount = faststats.NewRollingCounter(rollingCounterBucketWidth, props.NumBuckets, now)
+	e.legitimateAttemptsCount = faststats.NewRollingCounter(rollingCounterBucketWidth, props.NumBuckets, now)
 }

@@ -4,13 +4,13 @@ import (
 	"time"
 
 	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/internal/fastmath"
+	"github.com/cep21/hystrix/faststats"
 )
 
 // ConsecutiveErrOpener is simple closed->open logic that opens on consecutive error counts
 type ConsecutiveErrOpener struct {
-	consecutiveCount fastmath.AtomicInt64
-	closeThreshold   fastmath.AtomicInt64
+	consecutiveCount faststats.AtomicInt64
+	closeThreshold   faststats.AtomicInt64
 }
 
 // ConsecutiveErrOpenerFactory constructs a new ConsecutiveErrOpener

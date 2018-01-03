@@ -10,14 +10,14 @@ import (
 	"io"
 
 	"github.com/cep21/hystrix"
-	"github.com/cep21/hystrix/internal/fastmath"
-	"github.com/cep21/hystrix/metric_implementations/rolling"
+	"github.com/cep21/hystrix/faststats"
+	"github.com/cep21/hystrix/metrics/rolling"
 )
 
 // MetricEventStream is a HTTP handler that supports hystrix's metric stream API
 // See https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#metrics-event-stream
 type MetricEventStream struct {
-	Hystrix      *hystrix.Hystrix
+	Hystrix      *hystrix.Manager
 	TickDuration time.Duration
 
 	eventStreams map[*http.Request]chan []byte
@@ -231,7 +231,7 @@ func collectCommandMetrics(cb *hystrix.Circuit) *streamCmdMetric {
 	}
 }
 
-func generateLatencyTimings(snap fastmath.SortedDurations) streamCmdLatency {
+func generateLatencyTimings(snap faststats.SortedDurations) streamCmdLatency {
 	return streamCmdLatency{
 		Timing0:   snap.Percentile(0).Nanoseconds() / time.Millisecond.Nanoseconds(),
 		Timing25:  snap.Percentile(25).Nanoseconds() / time.Millisecond.Nanoseconds(),
