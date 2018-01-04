@@ -30,7 +30,9 @@ There are a large number of examples on the [godoc](https://godoc.org/github.com
 
 # Usage
 
-## Hello world circuit
+## [Hello world circuit](https://godoc.org/github.com/cep21/circuit#example-Manager-MustCreateCircuit-Helloworld)
+
+This example shows how to create a hello-world circuit from the circuit manager
 
 ```go
 // Manages all our circuits
@@ -253,7 +255,7 @@ fmt.Println("The error and timeout count is", rs.ErrTimeouts.TotalSum() + rs.Err
 
 ## Configuration factories
 
-Configuration factories are supported on the root hystrix object.  This allows you to create dynamic configuration per
+Configuration factories are supported on the root manager object.  This allows you to create dynamic configuration per
 circuit name.
 
 ```go

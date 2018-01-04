@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/cep21/circuit/internal/clock"
+	"github.com/cep21/circuit/internal/testhelp"
 )
 
 func TestTimedCheck_Empty(t *testing.T) {
@@ -42,6 +43,32 @@ func TestTimedCheck_Check(t *testing.T) {
 	}
 	if !x.Check(c.Set(now.Add(time.Second * 2))) {
 		t.Fatal("Should check again at 2 sec")
+	}
+}
+
+func TestTimedCheck(t *testing.T) {
+	sleepDuration := time.Millisecond * 100
+	now := time.Now()
+	neverFinishesBefore := now.Add(sleepDuration)
+	// Travis is so slow we need a big buffer
+	alwaysFinishesBy := now.Add(sleepDuration + time.Second)
+	x := TimedCheck{}
+	x.SetEventCountToAllow(1)
+	x.SetSleepDuration(sleepDuration)
+	x.SleepStart(time.Now())
+	hasFinished := false
+	var wg sync.WaitGroup
+	testhelp.DoTillTime(alwaysFinishesBy, &wg, func() {
+		if x.Check(time.Now()) {
+			if time.Now().Before(neverFinishesBefore) {
+				t.Error("It should never finish by this time")
+			}
+			hasFinished = true
+		}
+	})
+	wg.Wait()
+	if !hasFinished {
+		t.Error("It should be finished by this late")
 	}
 }
 

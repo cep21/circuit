@@ -65,7 +65,7 @@ func ExampleManager_MustCreateCircuit_helloworld() {
 	// Manages all our circuits
 	h := circuit.Manager{}
 	// Create a circuit with a unique name
-	c := h.MustCreateCircuit("hello-world", circuit.Config{})
+	c := h.MustCreateCircuit("hello-world")
 	// Call the circuit
 	errResult := c.Execute(context.Background(), func(ctx context.Context) error {
 		return nil
