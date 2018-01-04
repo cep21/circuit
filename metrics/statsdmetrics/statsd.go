@@ -60,13 +60,19 @@ func (c *CommandFactory) CommandProperties(circuitName string) circuit.Config {
 		Metrics: circuit.MetricsCollectors{
 			Run: []circuit.RunMetrics{
 				&RunMetricsCollector{
-					SendTo:     c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "cmd")),
+					SendTo:     c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "run")),
 					SampleRate: c.sampleRate(),
 				},
 			},
 			Fallback: []circuit.FallbackMetrics{
 				&FallbackMetricsCollector{
 					SendTo:     c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "fallback")),
+					SampleRate: c.sampleRate(),
+				},
+			},
+			Circuit: []circuit.Metrics{
+				&CircuitMetricsCollector{
+					SendTo:     c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "circuit")),
 					SampleRate: c.sampleRate(),
 				},
 			},
@@ -84,6 +90,25 @@ func (e *errorChecker) check(err error) {
 	}
 }
 
+// CircuitMetricsCollector collects opened/closed metrics
+type CircuitMetricsCollector struct {
+	errorChecker
+	SendTo     statsd.StatSender
+	SampleRate float32
+}
+
+// Closed sets a gauge as closed for the collector
+func (c *CircuitMetricsCollector) Closed(now time.Time) {
+	c.check(c.SendTo.Gauge("closed", 1, c.SampleRate))
+}
+
+// Opened sets a gauge as opened for the collector
+func (c *CircuitMetricsCollector) Opened(now time.Time) {
+	c.check(c.SendTo.Gauge("opened", 1, c.SampleRate))
+}
+
+var _ circuit.Metrics = &CircuitMetricsCollector{}
+
 // SLOCollector collects SLO level metrics
 type SLOCollector struct {
 	errorChecker
@@ -100,6 +125,8 @@ func (s *SLOCollector) Failed() {
 func (s *SLOCollector) Passed() {
 	s.check(s.SendTo.Inc("passed", 1, s.SampleRate))
 }
+
+var _ responsetimeslo.Collector = &SLOCollector{}
 
 // RunMetricsCollector collects command metrics
 type RunMetricsCollector struct {
