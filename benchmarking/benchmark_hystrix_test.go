@@ -10,6 +10,7 @@ import (
 
 	gohystrix "github.com/afex/hystrix-go/hystrix"
 	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/closers/hystrix"
 	"github.com/cep21/circuit/closers/simplelogic"
 	"github.com/cep21/circuit/metrics/rolling"
 	iandCircuit "github.com/iand/circuit"
@@ -32,13 +33,13 @@ type circuitImpls struct {
 
 func BenchmarkCiruits(b *testing.B) {
 	sf := rolling.StatFactory{}
-	rollingTimeoutStats := sf.CreateConfig("")
-	//rollingTimeoutStats := rolling.CollectRollingStats(rolling.RunStatsConfig{}, rolling.FallbackStatsConfig{})("")
-	rollingTimeoutStats.Merge(circuit.Config{
-		Execution: circuit.ExecutionConfig{
-			Timeout: -1,
-		},
+	hystrixDefaultStats := sf.CreateConfig("")
+	hystrixDefaultStats.Merge(circuit.Config{
+		Execution: circuit.ExecutionConfig{},
 	})
+
+	h := hystrix.ConfigFactory{}
+	hystrixDefaultStats.Merge(h.Configure(""))
 	concurrents := []int{1, 75}
 	passesParam := []bool{true, false}
 	impls := []circuitImpls{
@@ -47,8 +48,8 @@ func BenchmarkCiruits(b *testing.B) {
 			runner: circuitRunner,
 			configs: []circuitConfigs{
 				{
-					name:   "Metrics",
-					config: rollingTimeoutStats,
+					name:   "Hystrix",
+					config: hystrixDefaultStats,
 				}, {
 					name: "Minimal",
 					config: circuit.Config{
