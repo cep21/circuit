@@ -8,8 +8,8 @@ import (
 	"github.com/cep21/circuit/faststats"
 )
 
-// SleepyCloseCheck is hystrix's default half-open logic: try again ever X ms
-type SleepyCloseCheck struct {
+// Closer is hystrix's default half-open logic: try again ever X ms
+type Closer struct {
 	// Tracks when we should try to close an open circuit again
 	reopenCircuitCheck faststats.TimedCheck
 
@@ -17,23 +17,23 @@ type SleepyCloseCheck struct {
 	closeOnCurrentCount          faststats.AtomicInt64
 
 	mu     sync.Mutex
-	config ConfigureSleepyCloseCheck
+	config ConfigureCloser
 }
 
-// SleepyCloseCheckFactory creates SleepyCloseCheck closer
-func SleepyCloseCheckFactory(config ConfigureSleepyCloseCheck) func() circuit.OpenToClosed {
+// CloserFactory creates Closer closer
+func CloserFactory(config ConfigureCloser) func() circuit.OpenToClosed {
 	return func() circuit.OpenToClosed {
-		s := SleepyCloseCheck{}
-		config.Merge(defaultConfigureSleepyCloseCheck)
+		s := Closer{}
+		config.Merge(defaultConfigureCloser)
 		s.SetConfigNotThreadSafe(config)
 		return &s
 	}
 }
 
-var _ circuit.OpenToClosed = &SleepyCloseCheck{}
+var _ circuit.OpenToClosed = &Closer{}
 
-// ConfigureSleepyCloseCheck configures values for SleepyCloseCheck
-type ConfigureSleepyCloseCheck struct {
+// ConfigureCloser configures values for Closer
+type ConfigureCloser struct {
 	// SleepWindow is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakersleepwindowinmilliseconds
 	SleepWindow time.Duration
 	// HalfOpenAttempts is how many attempts to allow per SleepWindow
@@ -43,7 +43,7 @@ type ConfigureSleepyCloseCheck struct {
 }
 
 // Merge this configuration with another
-func (c *ConfigureSleepyCloseCheck) Merge(other ConfigureSleepyCloseCheck) {
+func (c *ConfigureCloser) Merge(other ConfigureCloser) {
 	if c.SleepWindow == 0 {
 		c.SleepWindow = other.SleepWindow
 	}
@@ -55,20 +55,20 @@ func (c *ConfigureSleepyCloseCheck) Merge(other ConfigureSleepyCloseCheck) {
 	}
 }
 
-var defaultConfigureSleepyCloseCheck = ConfigureSleepyCloseCheck{
+var defaultConfigureCloser = ConfigureCloser{
 	SleepWindow:                  5 * time.Second,
 	HalfOpenAttempts:             1,
 	RequiredConcurrentSuccessful: 1,
 }
 
 // Opened circuit. It should now check to see if it should ever allow various requests in an attempt to become closed
-func (s *SleepyCloseCheck) Opened(now time.Time) {
+func (s *Closer) Opened(now time.Time) {
 	s.concurrentSuccessfulAttempts.Set(0)
 	s.reopenCircuitCheck.SleepStart(now)
 }
 
 // Closed circuit.  It can turn off now.
-func (s *SleepyCloseCheck) Closed(now time.Time) {
+func (s *Closer) Closed(now time.Time) {
 	s.concurrentSuccessfulAttempts.Set(0)
 	s.reopenCircuitCheck.SleepStart(now)
 }
@@ -77,55 +77,55 @@ func (s *SleepyCloseCheck) Closed(now time.Time) {
 // The circuit is currently closed.  Check and return true if this request should be allowed.  This will signal
 // the circuit in a "half-open" state, allowing that one request.
 // If any requests are allowed, the circuit moves into a half open state.
-func (s *SleepyCloseCheck) Allow(now time.Time) (shouldAllow bool) {
+func (s *Closer) Allow(now time.Time) (shouldAllow bool) {
 	return s.reopenCircuitCheck.Check(now)
 }
 
 // Success any time runFunc was called and appeared healthy
-func (s *SleepyCloseCheck) Success(now time.Time, duration time.Duration) {
+func (s *Closer) Success(now time.Time, duration time.Duration) {
 	s.concurrentSuccessfulAttempts.Add(1)
 }
 
 // ErrBadRequest is ignored
-func (s *SleepyCloseCheck) ErrBadRequest(now time.Time, duration time.Duration) {
+func (s *Closer) ErrBadRequest(now time.Time, duration time.Duration) {
 }
 
 // ErrInterrupt is ignored
-func (s *SleepyCloseCheck) ErrInterrupt(now time.Time, duration time.Duration) {
+func (s *Closer) ErrInterrupt(now time.Time, duration time.Duration) {
 }
 
 // ErrConcurrencyLimitReject is ignored
-func (s *SleepyCloseCheck) ErrConcurrencyLimitReject(now time.Time) {
+func (s *Closer) ErrConcurrencyLimitReject(now time.Time) {
 }
 
 // ErrShortCircuit is ignored
-func (s *SleepyCloseCheck) ErrShortCircuit(now time.Time) {
+func (s *Closer) ErrShortCircuit(now time.Time) {
 }
 
 // ErrFailure resets the consecutive Successful count
-func (s *SleepyCloseCheck) ErrFailure(now time.Time, duration time.Duration) {
+func (s *Closer) ErrFailure(now time.Time, duration time.Duration) {
 	s.concurrentSuccessfulAttempts.Set(0)
 }
 
 // ErrTimeout resets the consecutive Successful count
-func (s *SleepyCloseCheck) ErrTimeout(now time.Time, duration time.Duration) {
+func (s *Closer) ErrTimeout(now time.Time, duration time.Duration) {
 	s.concurrentSuccessfulAttempts.Set(0)
 }
 
 // ShouldClose is true if we hav enough successful attempts in a row.
-func (s *SleepyCloseCheck) ShouldClose(now time.Time) bool {
+func (s *Closer) ShouldClose(now time.Time) bool {
 	return s.concurrentSuccessfulAttempts.Get() > s.closeOnCurrentCount.Get()
 }
 
 // Config returns the current configuration.  Use SetConfigThreadSafe to modify the current configuration.
-func (s *SleepyCloseCheck) Config() ConfigureSleepyCloseCheck {
+func (s *Closer) Config() ConfigureCloser {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.config
 }
 
 // SetConfigThreadSafe resets the sleep duration during reopen attempts
-func (s *SleepyCloseCheck) SetConfigThreadSafe(config ConfigureSleepyCloseCheck) {
+func (s *Closer) SetConfigThreadSafe(config ConfigureCloser) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.config = config
@@ -135,6 +135,6 @@ func (s *SleepyCloseCheck) SetConfigThreadSafe(config ConfigureSleepyCloseCheck)
 }
 
 // SetConfigNotThreadSafe just calls SetConfigThreadSafe. It is not safe to call while the circuit is active.
-func (s *SleepyCloseCheck) SetConfigNotThreadSafe(config ConfigureSleepyCloseCheck) {
+func (s *Closer) SetConfigNotThreadSafe(config ConfigureCloser) {
 	s.SetConfigThreadSafe(config)
 }

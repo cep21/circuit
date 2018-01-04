@@ -99,13 +99,13 @@ This example configures the circuit to use Hystrix open/close logic with the def
 ```go
 configuration := hystrix.ConfigFactory{
   // Hystrix open logic is to open the circuit after an % of errors
-  ConfigureOpenOnErrPercentage: hystrix.ConfigureOpenOnErrPercentage{
+  ConfigureOpener: hystrix.ConfigureOpener{
     // We change the default to wait for 10 requests, not 20, before checking to close
     RequestVolumeThreshold: 10,
     // The default values match what hystrix does by default
   },
   // Hystrix close logic is to sleep then check
-  ConfigureSleepyCloseCheck: hystrix.ConfigureSleepyCloseCheck{
+  ConfigureCloser: hystrix.ConfigureCloser{
     // The default values match what hystrix does by default
   },
 }
@@ -193,7 +193,7 @@ c.Execute(context.Background(), func(ctx context.Context) error {
 // Output: I recovered from a panic oh no
 ```
 
-## [Runtime configuration changes](https://godoc.org/github.com/cep21/circuit/closers/hystrix#example-SleepyCloseCheck-SetConfigThreadSafe)
+## [Runtime configuration changes](https://godoc.org/github.com/cep21/circuit/closers/hystrix#example-Closer-SetConfigThreadSafe)
 
 Most configuration properties on [the Hystrix Configuration page](https://github.com/Netflix/Hystrix/wiki/Configuration) that say
 they are modifyable at runtime can be changed on the Circuit in a thread safe way.  Most of the ones that cannot are
@@ -209,12 +209,12 @@ h := circuit.Manager{
   DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{configuration.Configure},
 }
 c := h.MustCreateCircuit("hystrix-circuit")
-fmt.Println("The default sleep window", c.OpenToClose.(*hystrix.SleepyCloseCheck).Config().SleepWindow)
+fmt.Println("The default sleep window", c.OpenToClose.(*hystrix.Closer).Config().SleepWindow)
 // This configuration update function is thread safe.  We can modify this at runtime while the circuit is active
-c.OpenToClose.(*hystrix.SleepyCloseCheck).SetConfigThreadSafe(hystrix.ConfigureSleepyCloseCheck{
+c.OpenToClose.(*hystrix.Closer).SetConfigThreadSafe(hystrix.ConfigureCloser{
   SleepWindow: time.Second * 3,
 })
-fmt.Println("The new sleep window", c.OpenToClose.(*hystrix.SleepyCloseCheck).Config().SleepWindow)
+fmt.Println("The new sleep window", c.OpenToClose.(*hystrix.Closer).Config().SleepWindow)
 // Output:
 // The default sleep window 5s
 // The new sleep window 3s

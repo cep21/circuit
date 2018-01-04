@@ -177,11 +177,11 @@ func setupFloppyCircuit(h *circuit.Manager, tickInterval time.Duration) {
 	// Flop every 3 seconds, try to recover very quickly
 	floppyCircuit := h.MustCreateCircuit("floppy-circuit", circuit.Config{
 		General: circuit.GeneralConfig{
-			OpenToClosedFactory: hystrix2.SleepyCloseCheckFactory(hystrix2.ConfigureSleepyCloseCheck{
+			OpenToClosedFactory: hystrix2.CloserFactory(hystrix2.ConfigureCloser{
 				//		// This should allow a new request every 10 milliseconds
 				SleepWindow: time.Millisecond * 10,
 			}),
-			ClosedToOpenFactory: hystrix2.OpenOnErrPercentageFactory(hystrix2.ConfigureOpenOnErrPercentage{
+			ClosedToOpenFactory: hystrix2.OpenerFactory(hystrix2.ConfigureOpener{
 				RequestVolumeThreshold: 2,
 			}),
 		},

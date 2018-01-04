@@ -13,9 +13,9 @@ import (
 	"github.com/cep21/circuit/internal/testhelp"
 )
 
-func TestCircuitCloses(t *testing.T) {
-	f := ConfigFactory{
-		ConfigureOpenOnErrPercentage: ConfigureOpenOnErrPercentage{
+func TestCloser_closes(t *testing.T) {
+	f := Factory{
+		ConfigureOpener: ConfigureOpener{
 			RequestVolumeThreshold: 1,
 		},
 	}
@@ -45,10 +45,10 @@ func TestCircuitCloses(t *testing.T) {
 func TestCircuitAttemptsToReopen(t *testing.T) {
 	c := circuit.NewCircuitFromConfig("TestCircuitAttemptsToReopen", circuit.Config{
 		General: circuit.GeneralConfig{
-			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
+			OpenToClosedFactory: CloserFactory(ConfigureCloser{
 				SleepWindow: time.Millisecond,
 			}),
-			ClosedToOpenFactory: OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
+			ClosedToOpenFactory: OpenerFactory(ConfigureOpener{
 				RequestVolumeThreshold: 1,
 			}),
 		},
@@ -78,10 +78,10 @@ func TestCircuitAttemptsToReopen(t *testing.T) {
 func TestCircuitAttemptsToReopenOnlyOnce(t *testing.T) {
 	c := circuit.NewCircuitFromConfig("TestCircuitAttemptsToReopenOnlyOnce", circuit.Config{
 		General: circuit.GeneralConfig{
-			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
+			OpenToClosedFactory: CloserFactory(ConfigureCloser{
 				SleepWindow: time.Millisecond,
 			}),
-			ClosedToOpenFactory: OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
+			ClosedToOpenFactory: OpenerFactory(ConfigureOpener{
 				RequestVolumeThreshold: 1,
 			}),
 		},
@@ -115,10 +115,10 @@ func TestCircuitAttemptsToReopenOnlyOnce(t *testing.T) {
 func TestLargeSleepWindow(t *testing.T) {
 	c := circuit.NewCircuitFromConfig("TestLargeSleepWindow", circuit.Config{
 		General: circuit.GeneralConfig{
-			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
+			OpenToClosedFactory: CloserFactory(ConfigureCloser{
 				SleepWindow: time.Hour,
 			}),
-			ClosedToOpenFactory: OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
+			ClosedToOpenFactory: OpenerFactory(ConfigureOpener{
 				RequestVolumeThreshold:   1,
 				ErrorThresholdPercentage: 1,
 			}),
@@ -163,10 +163,10 @@ func TestSleepDurationWorks(t *testing.T) {
 			MaxConcurrentRequests: int64(concurrentThreads),
 		},
 		General: circuit.GeneralConfig{
-			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
+			OpenToClosedFactory: CloserFactory(ConfigureCloser{
 				SleepWindow: sleepWindow + time.Millisecond*5,
 			}),
-			ClosedToOpenFactory: OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
+			ClosedToOpenFactory: OpenerFactory(ConfigureOpener{
 				RequestVolumeThreshold:   1,
 				ErrorThresholdPercentage: 1,
 			}),
@@ -181,7 +181,7 @@ func TestSleepDurationWorks(t *testing.T) {
 		t.Errorf("I expect this to not fail since it has a fallback")
 	}
 
-	if c.OpenToClose.(*SleepyCloseCheck).Config().SleepWindow != time.Millisecond*30 {
+	if c.OpenToClose.(*Closer).Config().SleepWindow != time.Millisecond*30 {
 		t.Errorf("I expect a 30 ms sleep window")
 	}
 
@@ -226,11 +226,11 @@ func TestCircuitRecovers(t *testing.T) {
 	sleepWindow := time.Millisecond * 5
 	c := circuit.NewCircuitFromConfig("TestCircuitRecovers", circuit.Config{
 		General: circuit.GeneralConfig{
-			OpenToClosedFactory: SleepyCloseCheckFactory(ConfigureSleepyCloseCheck{
+			OpenToClosedFactory: CloserFactory(ConfigureCloser{
 				//		// This should allow a new request every 10 milliseconds
 				SleepWindow: time.Millisecond * 5,
 			}),
-			ClosedToOpenFactory: OpenOnErrPercentageFactory(ConfigureOpenOnErrPercentage{
+			ClosedToOpenFactory: OpenerFactory(ConfigureOpener{
 				RequestVolumeThreshold:   1,
 				ErrorThresholdPercentage: 1,
 			}),

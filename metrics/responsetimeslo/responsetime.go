@@ -3,6 +3,8 @@ package responsetimeslo
 import (
 	"time"
 
+	"sync"
+
 	"github.com/cep21/circuit"
 	"github.com/cep21/circuit/faststats"
 )
@@ -21,6 +23,9 @@ type Tracker struct {
 	MeetsSLOCount      faststats.AtomicInt64
 	FailsSLOCount      faststats.AtomicInt64
 	Collectors         []Collector
+
+	mu     sync.Mutex
+	config Config
 }
 
 // Config controls how SLO is tracked by default for a Tracker
@@ -29,13 +34,36 @@ type Config struct {
 	MaximumHealthyTime time.Duration
 }
 
+var defaultConfig = Config{
+	MaximumHealthyTime: time.Millisecond * 250,
+}
+
+// Merge this configuration with another, changing any values that are non zero into other's value
+func (c *Config) Merge(other Config) {
+	if c.MaximumHealthyTime == 0 {
+		c.MaximumHealthyTime = other.MaximumHealthyTime
+	}
+}
+
 // Factory creates SLO monitors for a circuit
 type Factory struct {
 	Config                Config
+	ConfigConstructor     []func(circuitName string) Config
 	CollectorConstructors []func(circuitName string) Collector
 }
 
 var _ circuit.RunMetrics = &Tracker{}
+
+func (r *Factory) getConfig(circuitName string) Config {
+	finalConfig := Config{}
+	// Merge in reverse order so the most recently appending constructor is more important
+	for i := len(r.ConfigConstructor) - 1; i >= 0; i-- {
+		finalConfig.Merge(r.ConfigConstructor[i](circuitName))
+	}
+	finalConfig.Merge(r.Config)
+	finalConfig.Merge(defaultConfig)
+	return finalConfig
+}
 
 // CommandProperties appends SLO tracking to a circuit
 func (r *Factory) CommandProperties(circuitName string) circuit.Config {
@@ -46,7 +74,9 @@ func (r *Factory) CommandProperties(circuitName string) circuit.Config {
 	tracker := &Tracker{
 		Collectors: collectors,
 	}
-	tracker.MaximumHealthyTime.Set(r.Config.MaximumHealthyTime.Nanoseconds())
+
+	cfg := r.getConfig(circuitName)
+	tracker.SetConfigThreadSafe(cfg)
 	return circuit.Config{
 		Metrics: circuit.MetricsCollectors{
 			Run: []circuit.RunMetrics{tracker},
@@ -105,6 +135,21 @@ func (r *Tracker) ErrShortCircuit(now time.Time) {
 
 // ErrBadRequest is ignored
 func (r *Tracker) ErrBadRequest(now time.Time, duration time.Duration) {}
+
+// SetConfigThreadSafe updates the configuration stored in the tracker
+func (r *Tracker) SetConfigThreadSafe(config Config) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.config = config
+	r.MaximumHealthyTime.Set(config.MaximumHealthyTime.Nanoseconds())
+}
+
+// Config returns the tracker's config
+func (r *Tracker) Config() Config {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.config
+}
 
 // ErrInterrupt is only a failure if healthy time has passed
 func (r *Tracker) ErrInterrupt(now time.Time, duration time.Duration) {
