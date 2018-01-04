@@ -3,10 +3,11 @@ package hystrix
 import (
 	"context"
 	"errors"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
+
+	"sync/atomic"
 
 	"github.com/cep21/circuit"
 	"github.com/cep21/circuit/internal/testhelp"
@@ -180,43 +181,39 @@ func TestSleepDurationWorks(t *testing.T) {
 		t.Errorf("I expect this to not fail since it has a fallback")
 	}
 
+	if c.OpenToClose.(*SleepyCloseCheck).Config().SleepWindow != time.Millisecond*30 {
+		t.Errorf("I expect a 30 ms sleep window")
+	}
+
 	bc := testhelp.BehaviorCheck{
 		RunFunc: testhelp.AlwaysFails,
 	}
 
-	lastRequestTime := time.Now()
+	var lastRequestTime atomic.Value
+	lastRequestTime.Store(time.Now())
 	c.OpenCircuit()
 	if !c.IsOpen() {
 		t.Errorf("circuit should be open after I open it")
 	}
-	var mu sync.Mutex
 
 	wg := sync.WaitGroup{}
 	for ct := 0; ct < concurrentThreads; ct++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				if time.Now().After(doNotPassTime) {
-					break
+		testhelp.DoTillTime(doNotPassTime, &wg, func() {
+			err := c.Execute(context.Background(), func(_ context.Context) error {
+				now := time.Now()
+				if now.Sub(lastRequestTime.Load().(time.Time)) < sleepWindow {
+					t.Errorf("I am getting too many requests: %s", time.Since(lastRequestTime.Load().(time.Time)))
 				}
-				err := c.Execute(context.Background(), func(_ context.Context) error {
-					now := time.Now()
-					mu.Lock()
-					if now.Sub(lastRequestTime) < sleepWindow {
-						t.Errorf("I am getting too many requests: %s", time.Since(lastRequestTime))
-					}
-					lastRequestTime = now
-					mu.Unlock()
-					return errors.New("failure")
-				}, testhelp.AlwaysPassesFallback)
-				if err != nil {
-					t.Errorf("The fallback was fine.  It should not fail (but should stay open): %s", err)
+				lastRequestTime.Store(now)
+				if !c.IsOpen() {
+					t.Error("This circuit should never close itself")
 				}
-				// Don't need to sleep.  Just busy loop.  But let another thread take over if it wants (to get some concurrency)
-				runtime.Gosched()
+				return errors.New("failure")
+			}, testhelp.AlwaysPassesFallback)
+			if err != nil {
+				t.Errorf("The fallback was fine.  It should not fail (but should stay open): %s", err)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	if bc.TotalRuns > 3 {

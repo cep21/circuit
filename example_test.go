@@ -225,8 +225,7 @@ func ExampleCircuit_SetConfigThreadSafe() {
 // Even though Go executes inside a goroutine, we catch that panic and bubble it up the same
 // call stack that called Go
 func ExampleCircuit_Go_panics() {
-	h := circuit.Manager{}
-	c := h.MustCreateCircuit("panic_up", circuit.Config{})
+	c := circuit.NewCircuitFromConfig("panic_up", circuit.Config{})
 
 	defer func() {
 		r := recover()

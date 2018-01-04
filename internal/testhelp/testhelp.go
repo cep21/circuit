@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"runtime"
 	"sync"
 	"testing"
@@ -106,7 +107,9 @@ func DoTillTime(endTime time.Time, wg *sync.WaitGroup, f func()) {
 		for time.Now().Before(endTime) {
 			f()
 			// Don't need to sleep.  Just busy loop.  But let another thread take over if it wants (to get some concurrency)
-			runtime.Gosched()
+			if rand.Float64() > .5 {
+				runtime.Gosched()
+			}
 		}
 	}()
 }
