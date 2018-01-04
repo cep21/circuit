@@ -258,10 +258,12 @@ fmt.Println("The error and timeout count is", rs.ErrTimeouts.TotalSum() + rs.Err
 // The error and timeout count is 0
 ```
 
-## Configuration factories
+## [Configuration factories](https://godoc.org/github.com/cep21/circuit#example-CommandPropertiesConstructor)
 
 Configuration factories are supported on the root manager object.  This allows you to create dynamic configuration per
 circuit name.
+
+You can use DefaultCircuitProperties to set configuration dynamically for any circuit
 
 ```go
 myFactory := func(circuitName string) circuit.Config {
