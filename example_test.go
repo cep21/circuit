@@ -74,6 +74,10 @@ func ExampleManager_MustCreateCircuit_helloworld() {
 	// Output: Result of execution: <nil>
 }
 
+// If the context passed into a circuit function ends, before the circuit can
+//finish, it does not count the circuit as unhealthy.  You can disable this
+//behavior with the `IgnoreInterrputs` flag.
+//
 // This example proves that terminating a circuit call early because the passed in context died does not, by default,
 // count as an error on the circuit.  It also demonstrates setting up internal stat collection by default for all
 // circuits
@@ -105,8 +109,10 @@ func ExampleCircuit_noearlyterminate() {
 	// The error and timeout count is 0
 }
 
-// This example shows how fallbacks execute to return alternate errors
+// This example shows how fallbacks execute to return alternate errors or provide
+// logic when the circuit is open.
 func ExampleCircuit_Execute_fallbackhelloworld() {
+	// You can create circuits without using the manager
 	c := circuit.NewCircuitFromConfig("hello-world-fallback", circuit.Config{})
 	errResult := c.Execute(context.Background(), func(ctx context.Context) error {
 		return errors.New("this will fail")
@@ -147,6 +153,8 @@ func ExampleCircuit_Execute_helloworld() {
 	// Output: err=<nil>
 }
 
+// It is recommended to use `circuit.Execute` and a context aware function.  If, however, you want to exit
+// your run function early and leave it hanging (possibly forever), then you can call `circuit.Go`.
 func ExampleCircuit_Go() {
 	h := circuit.Manager{}
 	c := h.MustCreateCircuit("untrusting-circuit", circuit.Config{
@@ -165,7 +173,9 @@ func ExampleCircuit_Go() {
 	// Output: err=context deadline exceeded
 }
 
-// This example will panic, and the panic can be caught up the stack
+// Code executed with `Execute` does not spawn a goroutine and panics naturally go up the call stack to the caller.
+// This is also true for `Go`, where we attempt to recover and throw panics on the same stack that
+// calls Go.  This example will panic, and the panic can be caught up the stack.
 func ExampleCircuit_Execute_panics() {
 	h := circuit.Manager{}
 	c := h.MustCreateCircuit("panic_up", circuit.Config{})
@@ -183,7 +193,7 @@ func ExampleCircuit_Execute_panics() {
 }
 
 // You can use DefaultCircuitProperties to set configuration dynamically for any circuit
-func ExampleManager_DefaultCircuitProperties() {
+func ExampleCommandPropertiesConstructor() {
 	myFactory := func(circuitName string) circuit.Config {
 		timeoutsByName := map[string]time.Duration{
 			"v1": time.Second,
@@ -263,13 +273,15 @@ func ExampleBadRequest() {
 	// Output: Result of 10/0 is someone tried to divide by zero
 }
 
-// If you wanted to publish hystrix information on Expvar, you can register your instance.
+// If you wanted to publish hystrix information on Expvar, you can register your manager.
 func ExampleManager_Var() {
 	h := circuit.Manager{}
 	expvar.Publish("hystrix", h.Var())
 	// Output:
 }
 
+// Implement interfaces CmdMetricCollector or FallbackMetricCollector to know what happens with commands or fallbacks.
+//  Then pass those implementations to configure.
 func ExampleConfig_custommetrics() {
 	config := circuit.Config{
 		Metrics: circuit.MetricsCollectors{

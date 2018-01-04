@@ -6,6 +6,7 @@ import (
 	"github.com/cep21/circuit/metrics/statsdmetrics"
 )
 
+// This example shows how to inject a statsd metric collector into a circuit
 func ExampleCommandFactory_CommandProperties() {
 	// This factory allows us to report statsd metrics from the circuit
 	f := statsdmetrics.CommandFactory{

@@ -8,7 +8,7 @@ import (
 	"github.com/cep21/circuit/closers/hystrix"
 )
 
-// This example configures the circuit to use Manager open/close logic with the default Manager parameters
+// This example configures the circuit to use Hystrix open/close logic with the default Hystrix parameters
 func ExampleConfigFactory_Configure() {
 	configuration := hystrix.ConfigFactory{
 		// Hystrix open logic is to open the circuit after an % of errors
@@ -32,7 +32,11 @@ func ExampleConfigFactory_Configure() {
 	// Output: This is a hystrix configured circuit hystrix-circuit
 }
 
-// This example shows how most circuits can update their configuration at runtime.
+// Most configuration properties on [the Hystrix Configuration page](https://github.com/Netflix/Hystrix/wiki/Configuration) that say
+// they are modifyable at runtime can be changed on the Circuit in a thread safe way.  Most of the ones that cannot are
+// related to stat collection.
+//
+// This example shows how to update hystrix configuration at runtime.
 func ExampleSleepyCloseCheck_SetConfigThreadSafe() {
 	// Start off using the defaults
 	configuration := hystrix.ConfigFactory{}
