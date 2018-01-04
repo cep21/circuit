@@ -5,7 +5,9 @@ import (
 	"time"
 )
 
-// TimedCheck lets X events happen every sleepDuration units of time
+// TimedCheck lets X events happen every sleepDuration units of time.  For optimizations, it uses TimeAfterFunc to reset
+// an internal atomic boolean for when events are allowed.  This timer could run a little bit behind real time since
+// it depends on when the OS decides to trigger the timer.
 type TimedCheck struct {
 	sleepDuration     AtomicInt64
 	eventCountToAllow AtomicInt64
@@ -13,7 +15,9 @@ type TimedCheck struct {
 	isFastFail        AtomicBoolean
 	isFailFastVersion AtomicInt64
 
-	TimeAfterFunc              func(time.Duration, func()) *time.Timer
+	TimeAfterFunc func(time.Duration, func()) *time.Timer
+
+	// All 3 of these variables must be accessed with the RWMutex
 	nextOpenTime               time.Time
 	currentlyAllowedEventCount int64
 	lastSetTimer               *time.Timer
@@ -42,6 +46,11 @@ func (c *TimedCheck) SetEventCountToAllow(newCount int64) {
 // SleepStart resets the checker to trigger after now + sleepDuration
 func (c *TimedCheck) SleepStart(now time.Time) {
 	c.mu.Lock()
+	c.resetOpenTimeWithLock(now)
+	c.mu.Unlock()
+}
+
+func (c *TimedCheck) resetOpenTimeWithLock(now time.Time) {
 	if c.lastSetTimer != nil {
 		c.lastSetTimer.Stop()
 		c.lastSetTimer = nil
@@ -56,7 +65,6 @@ func (c *TimedCheck) SleepStart(now time.Time) {
 			c.isFastFail.Set(false)
 		}
 	})
-	c.mu.Unlock()
 }
 
 // Check returns true if a check is allowed at this time
@@ -73,15 +81,13 @@ func (c *TimedCheck) Check(now time.Time) bool {
 	c.mu.RUnlock()
 
 	c.mu.Lock()
-	if !c.nextOpenTime.After(now) {
-		c.currentlyAllowedEventCount++
-		if c.currentlyAllowedEventCount >= c.eventCountToAllow.Get() {
-			c.currentlyAllowedEventCount = 0
-			c.nextOpenTime = now.Add(c.sleepDuration.Duration())
-		}
-		c.mu.Unlock()
-		return true
+	defer c.mu.Unlock()
+	if c.nextOpenTime.After(now) {
+		return false
 	}
-	c.mu.Unlock()
-	return false
+	c.currentlyAllowedEventCount++
+	if c.currentlyAllowedEventCount >= c.eventCountToAllow.Get() {
+		c.resetOpenTimeWithLock(now)
+	}
+	return true
 }
