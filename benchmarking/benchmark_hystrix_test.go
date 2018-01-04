@@ -38,7 +38,7 @@ func BenchmarkCiruits(b *testing.B) {
 		Execution: circuit.ExecutionConfig{},
 	})
 
-	h := hystrix.ConfigFactory{}
+	h := hystrix.Factory{}
 	hystrixDefaultStats.Merge(h.Configure(""))
 	concurrents := []int{1, 75}
 	passesParam := []bool{true, false}

@@ -8,9 +8,9 @@ import (
 	"github.com/cep21/circuit/faststats"
 )
 
-// OpenOnErrPercentage is ClosedToOpen that opens a circuit after a threshold and % error has been
+// Opener is ClosedToOpen that opens a circuit after a threshold and % error has been
 // reached.  It is the default hystrix implementation.
-type OpenOnErrPercentage struct {
+type Opener struct {
 	errorsCount             faststats.RollingCounter
 	legitimateAttemptsCount faststats.RollingCounter
 
@@ -18,23 +18,23 @@ type OpenOnErrPercentage struct {
 	requestVolumeThreshold faststats.AtomicInt64
 
 	mu     sync.Mutex
-	config ConfigureOpenOnErrPercentage
+	config ConfigureOpener
 }
 
-var _ circuit.ClosedToOpen = &OpenOnErrPercentage{}
+var _ circuit.ClosedToOpen = &Opener{}
 
-// OpenOnErrPercentageFactory creates a err % opener
-func OpenOnErrPercentageFactory(config ConfigureOpenOnErrPercentage) func() circuit.ClosedToOpen {
+// OpenerFactory creates a err % opener
+func OpenerFactory(config ConfigureOpener) func() circuit.ClosedToOpen {
 	return func() circuit.ClosedToOpen {
-		s := OpenOnErrPercentage{}
-		config.Merge(defaultConfigureOpenOnErrPercentage)
+		s := Opener{}
+		config.Merge(defaultConfigureOpener)
 		s.SetConfigNotThreadSafe(config)
 		return &s
 	}
 }
 
-// ConfigureOpenOnErrPercentage configures OpenOnErrPercentage
-type ConfigureOpenOnErrPercentage struct {
+// ConfigureOpener configures Opener
+type ConfigureOpener struct {
 	// ErrorThresholdPercentage is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakererrorthresholdpercentage
 	ErrorThresholdPercentage int64
 	// RequestVolumeThreshold is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerrequestvolumethreshold
@@ -48,7 +48,7 @@ type ConfigureOpenOnErrPercentage struct {
 }
 
 // Merge this configuration with another
-func (c *ConfigureOpenOnErrPercentage) Merge(other ConfigureOpenOnErrPercentage) {
+func (c *ConfigureOpener) Merge(other ConfigureOpener) {
 	if c.ErrorThresholdPercentage == 0 {
 		c.ErrorThresholdPercentage = other.ErrorThresholdPercentage
 	}
@@ -66,7 +66,7 @@ func (c *ConfigureOpenOnErrPercentage) Merge(other ConfigureOpenOnErrPercentage)
 	}
 }
 
-var defaultConfigureOpenOnErrPercentage = ConfigureOpenOnErrPercentage{
+var defaultConfigureOpener = ConfigureOpener{
 	RequestVolumeThreshold:   20,
 	ErrorThresholdPercentage: 50,
 	Now:             time.Now,
@@ -75,54 +75,54 @@ var defaultConfigureOpenOnErrPercentage = ConfigureOpenOnErrPercentage{
 }
 
 // Closed resets the error and attempt count
-func (e *OpenOnErrPercentage) Closed(now time.Time) {
+func (e *Opener) Closed(now time.Time) {
 	e.errorsCount.Reset(now)
 	e.legitimateAttemptsCount.Reset(now)
 }
 
 // Opened resets the error and attempt count
-func (e *OpenOnErrPercentage) Opened(now time.Time) {
+func (e *Opener) Opened(now time.Time) {
 	e.errorsCount.Reset(now)
 	e.legitimateAttemptsCount.Reset(now)
 }
 
 // Success increases the number of correct attempts
-func (e *OpenOnErrPercentage) Success(now time.Time, duration time.Duration) {
+func (e *Opener) Success(now time.Time, duration time.Duration) {
 	e.legitimateAttemptsCount.Inc(now)
 }
 
 // Prevent never returns true
-func (e *OpenOnErrPercentage) Prevent(now time.Time) (shouldAllow bool) {
+func (e *Opener) Prevent(now time.Time) (shouldAllow bool) {
 	return false
 }
 
 // ErrBadRequest is ignored
-func (e *OpenOnErrPercentage) ErrBadRequest(now time.Time, duration time.Duration) {}
+func (e *Opener) ErrBadRequest(now time.Time, duration time.Duration) {}
 
 // ErrInterrupt is ignored
-func (e *OpenOnErrPercentage) ErrInterrupt(now time.Time, duration time.Duration) {}
+func (e *Opener) ErrInterrupt(now time.Time, duration time.Duration) {}
 
 // ErrFailure increases error count for the circuit
-func (e *OpenOnErrPercentage) ErrFailure(now time.Time, duration time.Duration) {
+func (e *Opener) ErrFailure(now time.Time, duration time.Duration) {
 	e.legitimateAttemptsCount.Inc(now)
 	e.errorsCount.Inc(now)
 }
 
 // ErrTimeout increases error count for the circuit
-func (e *OpenOnErrPercentage) ErrTimeout(now time.Time, duration time.Duration) {
+func (e *Opener) ErrTimeout(now time.Time, duration time.Duration) {
 	e.legitimateAttemptsCount.Inc(now)
 	e.errorsCount.Inc(now)
 }
 
 // ErrConcurrencyLimitReject is ignored
-func (e *OpenOnErrPercentage) ErrConcurrencyLimitReject(now time.Time) {}
+func (e *Opener) ErrConcurrencyLimitReject(now time.Time) {}
 
 // ErrShortCircuit is ignored
-func (e *OpenOnErrPercentage) ErrShortCircuit(now time.Time) {}
+func (e *Opener) ErrShortCircuit(now time.Time) {}
 
 // ShouldOpen returns true if rolling count >= threshold and
 // error % is high enough.
-func (e *OpenOnErrPercentage) ShouldOpen(now time.Time) bool {
+func (e *Opener) ShouldOpen(now time.Time) bool {
 	attemptCount := e.legitimateAttemptsCount.RollingSumAt(now)
 	if attemptCount == 0 || attemptCount < e.requestVolumeThreshold.Get() {
 		// not enough requests. Will not open circuit
@@ -135,7 +135,7 @@ func (e *OpenOnErrPercentage) ShouldOpen(now time.Time) bool {
 }
 
 // SetConfigThreadSafe modifies error % and request volume threshold
-func (e *OpenOnErrPercentage) SetConfigThreadSafe(props ConfigureOpenOnErrPercentage) {
+func (e *Opener) SetConfigThreadSafe(props ConfigureOpener) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.config = props
@@ -144,7 +144,7 @@ func (e *OpenOnErrPercentage) SetConfigThreadSafe(props ConfigureOpenOnErrPercen
 }
 
 // SetConfigNotThreadSafe recreates the buckets.  It is not safe to call while the circuit is active.
-func (e *OpenOnErrPercentage) SetConfigNotThreadSafe(props ConfigureOpenOnErrPercentage) {
+func (e *Opener) SetConfigNotThreadSafe(props ConfigureOpener) {
 	e.SetConfigThreadSafe(props)
 	now := props.Now()
 	rollingCounterBucketWidth := time.Duration(props.RollingDuration.Nanoseconds() / int64(props.NumBuckets))
@@ -154,7 +154,7 @@ func (e *OpenOnErrPercentage) SetConfigNotThreadSafe(props ConfigureOpenOnErrPer
 
 // Config returns the current configuration.  To update configuration, please call SetConfigThreadSafe or
 // SetConfigNotThreadSafe
-func (e *OpenOnErrPercentage) Config() ConfigureOpenOnErrPercentage {
+func (e *Opener) Config() ConfigureOpener {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.config
