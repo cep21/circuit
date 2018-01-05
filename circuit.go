@@ -142,6 +142,8 @@ func (c *Circuit) Var() expvar.Var {
 			"run_metrics":          expvarToVal(c.CmdMetricCollector.Var()),
 			"concurrent_commands":  c.ConcurrentCommands(),
 			"concurrent_fallbacks": c.ConcurrentFallbacks(),
+			"closer":               c.OpenToClose,
+			"opener":               c.ClosedToOpen,
 			"fallback_metrics":     expvarToVal(c.FallbackMetricCollector.Var()),
 		}
 		return ret

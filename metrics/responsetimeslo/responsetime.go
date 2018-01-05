@@ -5,6 +5,8 @@ import (
 
 	"sync"
 
+	"expvar"
+
 	"github.com/cep21/circuit"
 	"github.com/cep21/circuit/faststats"
 )
@@ -82,6 +84,17 @@ func (r *Factory) CommandProperties(circuitName string) circuit.Config {
 			Run: []circuit.RunMetrics{tracker},
 		},
 	}
+}
+
+// Var returns something to pass to expvar
+func (r *Tracker) Var() expvar.Var {
+	return expvar.Func(func() interface{} {
+		return map[string]interface{}{
+			"config": r.Config(),
+			"pass":   r.MeetsSLOCount.Get(),
+			"fail":   r.FailsSLOCount.Get(),
+		}
+	})
 }
 
 // Success adds a healthy check if duration <= maximum healthy time
