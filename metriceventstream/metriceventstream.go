@@ -10,6 +10,7 @@ import (
 	"io"
 
 	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/closers/hystrix"
 	"github.com/cep21/circuit/faststats"
 	"github.com/cep21/circuit/metrics/rolling"
 )
@@ -165,10 +166,10 @@ func collectCommandMetrics(cb *circuit.Circuit) *streamCmdMetric {
 		// We still show the circuit, but everything shows up as zero
 		builtInRollingFallbackMetricCollector = &rolling.FallbackStats{}
 	}
-	now := time.Now() //cb.now()
+	now := cb.Config().General.TimeKeeper.Now()
 	snap := builtInRollingCmdMetricCollector.Latencies.SnapshotAt(now)
 	circuitConfig := cb.Config()
-	return &streamCmdMetric{
+	return attachHystrixProperties(cb, &streamCmdMetric{
 		Type:           "HystrixCommand",
 		Name:           cb.Name(),
 		Group:          "",
@@ -217,9 +218,6 @@ func collectCommandMetrics(cb *circuit.Circuit) *streamCmdMetric {
 		CircuitBreakerEnabled:     !circuitConfig.General.Disabled,
 		CircuitBreakerForceClosed: circuitConfig.General.ForcedClosed,
 		CircuitBreakerForceOpen:   circuitConfig.General.ForceOpen,
-		//CircuitBreakerErrorThresholdPercent:  circuitConfig.CircuitBreaker.ErrorThresholdPercentage,
-		//CircuitBreakerSleepWindow:            circuitConfig.CircuitBreaker.SleepWindow.Nanoseconds() / time.Millisecond.Nanoseconds(),
-		//CircuitBreakerRequestVolumeThreshold: circuitConfig.CircuitBreaker.RequestVolumeThreshold,
 
 		// Execution config
 		ExecutionIsolationSemaphoreMaxConcurrentRequests: circuitConfig.Execution.MaxConcurrentRequests,
@@ -228,8 +226,18 @@ func collectCommandMetrics(cb *circuit.Circuit) *streamCmdMetric {
 		// Fallback config
 		FallbackIsolationSemaphoreMaxConcurrentRequests: circuitConfig.Fallback.MaxConcurrentRequests,
 
-		//RollingStatsWindow: circuitConfig.Metrics.RollingStatsDuration.Nanoseconds() / time.Millisecond.Nanoseconds(),
+		RollingStatsWindow: builtInRollingCmdMetricCollector.Config().RollingStatsDuration.Nanoseconds() / time.Millisecond.Nanoseconds(),
+	})
+}
+func attachHystrixProperties(cb *circuit.Circuit, into *streamCmdMetric) *streamCmdMetric {
+	if asHystrix, ok := cb.ClosedToOpen.(*hystrix.Opener); ok {
+		into.CircuitBreakerErrorThresholdPercent = asHystrix.Config().ErrorThresholdPercentage
+		into.CircuitBreakerRequestVolumeThreshold = asHystrix.Config().RequestVolumeThreshold
 	}
+	if asHystrix, ok := cb.OpenToClose.(*hystrix.Closer); ok {
+		into.CircuitBreakerSleepWindow = asHystrix.Config().SleepWindow.Nanoseconds() / time.Millisecond.Nanoseconds()
+	}
+	return into
 }
 
 func generateLatencyTimings(snap faststats.SortedDurations) streamCmdLatency {
