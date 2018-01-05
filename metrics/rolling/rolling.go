@@ -97,6 +97,9 @@ type RunStats struct {
 
 	// It is analogous to https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#latency-percentiles-hystrixcommandrun-execution-gauge
 	Latencies faststats.RollingPercentile
+
+	mu     sync.Mutex
+	config RunStatsConfig
 }
 
 func expvarToVal(in expvar.Var) interface{} {
@@ -177,8 +180,18 @@ var defaultRunStatsConfig = RunStatsConfig{
 	RollingPercentileBucketSize: 100,
 }
 
+// Config returns the current configuration
+func (r *RunStats) Config() RunStatsConfig {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.config
+}
+
 // SetConfigNotThreadSafe updates the RunStats buckets
 func (r *RunStats) SetConfigNotThreadSafe(config RunStatsConfig) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.config = config
 	now := config.Now()
 	bucketWidth := time.Duration(config.RollingStatsDuration.Nanoseconds() / int64(config.RollingStatsNumBuckets))
 	numBuckets := config.RollingStatsNumBuckets
