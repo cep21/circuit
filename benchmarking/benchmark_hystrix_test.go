@@ -44,7 +44,7 @@ func BenchmarkCiruits(b *testing.B) {
 	passesParam := []bool{true, false}
 	impls := []circuitImpls{
 		{
-			name:   "circuit",
+			name:   "cep21-circuit",
 			runner: circuitRunner,
 			configs: []circuitConfigs{
 				{
