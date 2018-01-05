@@ -4,6 +4,8 @@ import (
 	"sync"
 	"time"
 
+	"encoding/json"
+
 	"github.com/cep21/circuit"
 	"github.com/cep21/circuit/faststats"
 )
@@ -40,7 +42,7 @@ type ConfigureOpener struct {
 	// RequestVolumeThreshold is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerrequestvolumethreshold
 	RequestVolumeThreshold int64
 	// Now should simulate time.Now
-	Now func() time.Time
+	Now func() time.Time `json:"-"`
 	// RollingDuration is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatstimeinmilliseconds
 	RollingDuration time.Duration
 	// NumBuckets is https://github.com/Netflix/Hystrix/wiki/Configuration#metricsrollingstatsnumbuckets
@@ -73,6 +75,15 @@ var defaultConfigureOpener = ConfigureOpener{
 	NumBuckets:      10,
 	RollingDuration: 10 * time.Second,
 }
+
+// MarshalJSON returns opener information in a JSON format
+func (e *Opener) MarshalJSON() ([]byte, error) {
+	return json.Marshal(map[string]interface{}{
+		"config": e.Config(),
+	})
+}
+
+var _ json.Marshaler = &Opener{}
 
 // Closed resets the error and attempt count
 func (e *Opener) Closed(now time.Time) {

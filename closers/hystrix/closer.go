@@ -4,6 +4,8 @@ import (
 	"sync"
 	"time"
 
+	"encoding/json"
+
 	"github.com/cep21/circuit"
 	"github.com/cep21/circuit/faststats"
 )
@@ -60,6 +62,16 @@ var defaultConfigureCloser = ConfigureCloser{
 	HalfOpenAttempts:             1,
 	RequiredConcurrentSuccessful: 1,
 }
+
+// MarshalJSON returns closer information in a JSON format
+func (s *Closer) MarshalJSON() ([]byte, error) {
+	return json.Marshal(map[string]interface{}{
+		"config":                       s.Config(),
+		"concurrentSuccessfulAttempts": s.concurrentSuccessfulAttempts.Get(),
+	})
+}
+
+var _ json.Marshaler = &Closer{}
 
 // Opened circuit. It should now check to see if it should ever allow various requests in an attempt to become closed
 func (s *Closer) Opened(now time.Time) {
