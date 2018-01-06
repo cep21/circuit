@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"encoding/json"
 )
 
 func TestRollingCounter_Empty(t *testing.T) {
@@ -148,6 +149,12 @@ func TestRollingCounter_Race(t *testing.T) {
 		})
 		doTillTime(doNotPassTime, &wg, func() {
 			x.GetBuckets(time.Now())
+		})
+		doTillTime(doNotPassTime, &wg, func() {
+			_, err := json.Marshal(&x)
+			if err != nil {
+				t.Error("Expected non nil error", err)
+			}
 		})
 	}
 	wg.Wait()

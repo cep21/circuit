@@ -1,11 +1,15 @@
 package faststats
 
 import (
+	"encoding/json"
 	"expvar"
+	"fmt"
 	"math"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/cep21/circuit/internal/evar"
 )
 
 // RollingPercentile is a bucketed array of time.Duration that cycles over time
@@ -16,6 +20,8 @@ type RollingPercentile struct {
 
 // SortedDurations is a sorted list of time.Duration that allows fast Percentile operations
 type SortedDurations []time.Duration
+
+var _ fmt.Stringer = SortedDurations(nil)
 
 func (s SortedDurations) String() string {
 	ret := make([]string, 0, len(s))
@@ -38,15 +44,34 @@ func (s SortedDurations) Mean() time.Duration {
 	return time.Duration(sum / int64(len(s)))
 }
 
+// Min returns the first (smallest) item, or -1 if the list is empty
+func (s SortedDurations) Min() time.Duration {
+	if len(s) == 0 {
+		return -1
+	}
+	return s[0]
+}
+
+// Max returns the last (largest) item, or -1 if the list is empty
+func (s SortedDurations) Max() time.Duration {
+	if len(s) == 0 {
+		return -1
+	}
+	return s[len(s)-1]
+}
+
 // Var allows exposing the durations on expvar
 func (s SortedDurations) Var() expvar.Var {
 	return expvar.Func(func() interface{} {
-		return map[string]time.Duration{
-			"p25":  s.Percentile(.25),
-			"p50":  s.Percentile(.5),
-			"p90":  s.Percentile(.9),
-			"p99":  s.Percentile(.99),
-			"mean": s.Mean(),
+		return map[string]string{
+			// Convert to string because it's easier to read
+			"min":  s.Min().String(),
+			"p25":  s.Percentile(.25).String(),
+			"p50":  s.Percentile(.5).String(),
+			"p90":  s.Percentile(.9).String(),
+			"p99":  s.Percentile(.99).String(),
+			"max":  s.Max().String(),
+			"mean": s.Mean().String(),
 		}
 	})
 }
@@ -85,8 +110,12 @@ func (s SortedDurations) Percentile(p float64) time.Duration {
 func NewRollingPercentile(bucketWidth time.Duration, numBuckets int, bucketSize int, now time.Time) RollingPercentile {
 	ret := RollingPercentile{
 		buckets: makeBuckets(numBuckets, bucketSize),
+		rollingBucket: RollingBuckets{
+			NumBuckets:  numBuckets,
+			BucketWidth: bucketWidth,
+			StartTime:   now,
+		},
 	}
-	ret.rollingBucket.Init(numBuckets, bucketWidth, now)
 	return ret
 }
 
@@ -96,6 +125,15 @@ func makeBuckets(numBuckets int, bucketSize int) []durationsBucket {
 		ret[i] = newDurationsBucket(bucketSize)
 	}
 	return ret
+}
+
+// Var allows exposing a rolling percentile snapshot on expvar
+func (r *RollingPercentile) Var() expvar.Var {
+	return expvar.Func(func() interface{} {
+		return map[string]interface{}{
+			"snap": evar.ForExpvar(r.Snapshot()),
+		}
+	})
 }
 
 // SortedDurations creates a raw []time.Duration in sorted order that is stored in these buckets
@@ -152,10 +190,37 @@ type durationsBucket struct {
 	currentIndex         AtomicInt64
 }
 
+var _ json.Marshaler = &durationsBucket{}
+var _ json.Unmarshaler = &durationsBucket{}
+var _ fmt.Stringer = &durationsBucket{}
+
 func newDurationsBucket(bucketSize int) durationsBucket {
 	return durationsBucket{
 		durationsSomeInvalid: make([]AtomicInt64, bucketSize),
 	}
+}
+
+// String displays the current index
+func (b *durationsBucket) String() string {
+	return fmt.Sprintf("durationsBucket(idx=%d)", b.currentIndex.Get())
+}
+
+// MarshalJSON returns the durations as JSON.  It is thread safe.
+func (b *durationsBucket) MarshalJSON() ([]byte, error) {
+	return json.Marshal(b.Durations())
+}
+
+// UnmarshalJSON stores JSON encoded durations into the bucket.  It is thread safe.
+func (b *durationsBucket) UnmarshalJSON(data []byte) error {
+	var durations []time.Duration
+	err := json.Unmarshal(data, &durations)
+	if err != nil {
+		return err
+	}
+	for _, d := range durations {
+		b.addDuration(d)
+	}
+	return nil
 }
 
 func (b *durationsBucket) Durations() []time.Duration {

@@ -15,7 +15,7 @@ import (
 	"flag"
 
 	"github.com/cep21/circuit"
-	hystrix2 "github.com/cep21/circuit/closers/hystrix"
+	"github.com/cep21/circuit/closers/hystrix"
 	"github.com/cep21/circuit/metriceventstream"
 	"github.com/cep21/circuit/metrics/rolling"
 )
@@ -177,11 +177,11 @@ func setupFloppyCircuit(h *circuit.Manager, tickInterval time.Duration) {
 	// Flop every 3 seconds, try to recover very quickly
 	floppyCircuit := h.MustCreateCircuit("floppy-circuit", circuit.Config{
 		General: circuit.GeneralConfig{
-			OpenToClosedFactory: hystrix2.CloserFactory(hystrix2.ConfigureCloser{
+			OpenToClosedFactory: hystrix.CloserFactory(hystrix.ConfigureCloser{
 				//		// This should allow a new request every 10 milliseconds
 				SleepWindow: time.Millisecond * 10,
 			}),
-			ClosedToOpenFactory: hystrix2.OpenerFactory(hystrix2.ConfigureOpener{
+			ClosedToOpenFactory: hystrix.OpenerFactory(hystrix.ConfigureOpener{
 				RequestVolumeThreshold: 2,
 			}),
 		},

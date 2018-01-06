@@ -1,6 +1,7 @@
 package faststats
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -24,9 +25,47 @@ type RollingCounter struct {
 func NewRollingCounter(bucketWidth time.Duration, numBuckets int, now time.Time) RollingCounter {
 	ret := RollingCounter{
 		buckets: make([]AtomicInt64, numBuckets),
+		rollingBucket: RollingBuckets{
+			NumBuckets:  numBuckets,
+			BucketWidth: bucketWidth,
+			StartTime:   now,
+		},
 	}
-	ret.rollingBucket.Init(numBuckets, bucketWidth, now)
 	return ret
+}
+
+var _ json.Marshaler = &RollingCounter{}
+var _ json.Unmarshaler = &RollingCounter{}
+var _ fmt.Stringer = &RollingCounter{}
+
+type jsonCounter struct {
+	Buckets       []AtomicInt64
+	RollingSum    *AtomicInt64
+	TotalSum      *AtomicInt64
+	RollingBucket *RollingBuckets
+}
+
+// MarshalJSON JSON encodes a counter.  It is thread safe.
+func (r *RollingCounter) MarshalJSON() ([]byte, error) {
+	return json.Marshal(jsonCounter{
+		Buckets:       r.buckets,
+		RollingSum:    &r.rollingSum,
+		TotalSum:      &r.totalSum,
+		RollingBucket: &r.rollingBucket,
+	})
+}
+
+// UnmarshalJSON stores the previous JSON encoding.  Note, this is *NOT* thread safe.
+func (r *RollingCounter) UnmarshalJSON(b []byte) error {
+	var into jsonCounter
+	if err := json.Unmarshal(b, &into); err != nil {
+		return err
+	}
+	r.buckets = into.Buckets
+	r.rollingSum = *into.RollingSum
+	r.totalSum = *into.TotalSum
+	r.rollingBucket = *into.RollingBucket
+	return nil
 }
 
 // String for debugging
@@ -78,7 +117,7 @@ func (r *RollingCounter) TotalSum() int64 {
 // GetBuckets returns a copy of the buckets in order backwards in time
 func (r *RollingCounter) GetBuckets(now time.Time) []int64 {
 	r.rollingBucket.Advance(now, r.clearBucket)
-	startIdx := int(r.rollingBucket.lastAbsIndex.Get() % int64(r.rollingBucket.NumBuckets))
+	startIdx := int(r.rollingBucket.LastAbsIndex.Get() % int64(r.rollingBucket.NumBuckets))
 	ret := make([]int64, r.rollingBucket.NumBuckets)
 	for i := 0; i < r.rollingBucket.NumBuckets; i++ {
 		idx := startIdx - i

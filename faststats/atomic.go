@@ -1,6 +1,7 @@
 package faststats
 
 import (
+	"encoding/json"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -23,8 +24,27 @@ func (a *AtomicBoolean) Set(value bool) {
 	}
 }
 
+// String returns "true" or "false"
 func (a *AtomicBoolean) String() string {
 	return strconv.FormatBool(a.Get())
+}
+
+var _ json.Marshaler = &AtomicBoolean{}
+var _ json.Unmarshaler = &AtomicBoolean{}
+
+// MarshalJSON encodes this value in a thread safe way as a json bool
+func (a *AtomicBoolean) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.Get())
+}
+
+// UnmarshalJSON decodes this value in a thread safe way as a json bool
+func (a *AtomicBoolean) UnmarshalJSON(b []byte) error {
+	var into bool
+	if err := json.Unmarshal(b, &into); err != nil {
+		return err
+	}
+	a.Set(into)
+	return nil
 }
 
 // AtomicInt64 is a helper struct to simulate atomic operations on an int64
@@ -32,11 +52,30 @@ func (a *AtomicBoolean) String() string {
 // to do + and - operations so easily without using atomic functions.
 type AtomicInt64 struct{ val int64 }
 
+var _ json.Marshaler = &AtomicInt64{}
+var _ json.Unmarshaler = &AtomicInt64{}
+
+// MarshalJSON encodes this value as an int in a thread safe way
+func (a *AtomicInt64) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.Get())
+}
+
+// UnmarshalJSON decodes this value as an int in a thread safe way
+func (a *AtomicInt64) UnmarshalJSON(b []byte) error {
+	var into int64
+	if err := json.Unmarshal(b, &into); err != nil {
+		return err
+	}
+	a.Set(into)
+	return nil
+}
+
 // Get the current int64
 func (a *AtomicInt64) Get() int64 {
 	return atomic.LoadInt64(&a.val)
 }
 
+// String returns the integer as a string in a thread safe way
 func (a *AtomicInt64) String() string {
 	return strconv.FormatInt(a.Get(), 10)
 }

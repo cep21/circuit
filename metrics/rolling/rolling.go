@@ -8,6 +8,7 @@ import (
 
 	"github.com/cep21/circuit"
 	"github.com/cep21/circuit/faststats"
+	"github.com/cep21/circuit/internal/evar"
 )
 
 // StatFactory helps the process of making stat collectors for circuit breakers
@@ -102,32 +103,18 @@ type RunStats struct {
 	config RunStatsConfig
 }
 
-func expvarToVal(in expvar.Var) interface{} {
-	type iv interface {
-		Value() interface{}
-	}
-	if rawVal, ok := in.(iv); ok {
-		return rawVal.Value()
-	}
-	return nil
-}
-
 // Var allows exposing RunStats on expvar
 func (r *RunStats) Var() expvar.Var {
 	return expvar.Func(func() interface{} {
-		snap := r.Latencies.Snapshot()
-		lats := expvarToVal(snap.Var())
 		ret := map[string]interface{}{
-			"Successes":                  r.Successes.TotalSum(),
-			"ErrConcurrencyLimitRejects": r.ErrConcurrencyLimitRejects.TotalSum(),
-			"ErrFailures":                r.ErrFailures.TotalSum(),
-			"ErrShortCircuits":           r.ErrShortCircuits.TotalSum(),
-			"ErrTimeouts":                r.ErrTimeouts.TotalSum(),
-			"ErrBadRequests":             r.ErrBadRequests.TotalSum(),
-			"ErrInterrupts":              r.ErrInterrupts.TotalSum(),
-		}
-		if lats != nil {
-			ret["Latencies"] = lats
+			"Successes":                  evar.ForExpvar(&r.Successes),
+			"ErrConcurrencyLimitRejects": evar.ForExpvar(&r.ErrConcurrencyLimitRejects),
+			"ErrFailures":                evar.ForExpvar(&r.ErrFailures),
+			"ErrShortCircuits":           evar.ForExpvar(&r.ErrShortCircuits),
+			"ErrTimeouts":                evar.ForExpvar(&r.ErrTimeouts),
+			"ErrBadRequests":             evar.ForExpvar(&r.ErrBadRequests),
+			"ErrInterrupts":              evar.ForExpvar(&r.ErrInterrupts),
+			"Latencies":                  evar.ForExpvar(&r.Latencies),
 		}
 		return ret
 	})
