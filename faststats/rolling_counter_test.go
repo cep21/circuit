@@ -1,6 +1,7 @@
 package faststats
 
 import (
+	"encoding/json"
 	"runtime"
 	"strconv"
 	"strings"
@@ -56,6 +57,7 @@ func TestRollingCounter_NormalConsistency(t *testing.T) {
 					newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(j+k*eachIteration)))
 					x.Inc(newNow)
 				}
+				time.Sleep(time.Nanosecond)
 			}()
 		}
 		wg.Wait()
@@ -148,6 +150,12 @@ func TestRollingCounter_Race(t *testing.T) {
 		})
 		doTillTime(doNotPassTime, &wg, func() {
 			x.GetBuckets(time.Now())
+		})
+		doTillTime(doNotPassTime, &wg, func() {
+			_, err := json.Marshal(&x)
+			if err != nil {
+				t.Error("Expected non nil error", err)
+			}
 		})
 	}
 	wg.Wait()

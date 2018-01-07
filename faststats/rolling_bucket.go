@@ -1,23 +1,23 @@
 package faststats
 
 import (
+	"fmt"
 	"time"
 )
 
-// RollingBuckets simulates a time rolling list of buckets of items
+// RollingBuckets simulates a time rolling list of buckets of items.  It is safe to use JSON to encode this object
+// in a thread safe way.
 type RollingBuckets struct {
-	NumBuckets  int
-	StartTime   time.Time
-	BucketWidth time.Duration
-
-	lastAbsIndex AtomicInt64
+	NumBuckets   int
+	StartTime    time.Time
+	BucketWidth  time.Duration
+	LastAbsIndex AtomicInt64
 }
 
-// Init the current values of the rolling bucket
-func (r *RollingBuckets) Init(numBuckets int, bucketWidth time.Duration, now time.Time) {
-	r.NumBuckets = numBuckets
-	r.BucketWidth = bucketWidth
-	r.StartTime = now
+var _ fmt.Stringer = &RollingBuckets{}
+
+func (r *RollingBuckets) String() string {
+	return fmt.Sprintf("RollingBucket(num=%d, width=%s)", r.NumBuckets, r.BucketWidth)
 }
 
 // Advance to now, clearing buckets as needed
@@ -31,7 +31,7 @@ func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 		return -1
 	}
 	absIndex := int(diff.Nanoseconds() / r.BucketWidth.Nanoseconds())
-	lastAbsVal := int(r.lastAbsIndex.Get())
+	lastAbsVal := int(r.LastAbsIndex.Get())
 	indexDiff := absIndex - lastAbsVal
 	if indexDiff == 0 {
 		// We are at the right time
@@ -48,7 +48,7 @@ func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 		return absIndex % r.NumBuckets
 	}
 	for i := 0; i < r.NumBuckets && lastAbsVal < absIndex; i++ {
-		if !r.lastAbsIndex.CompareAndSwap(int64(lastAbsVal), int64(lastAbsVal)+1) {
+		if !r.LastAbsIndex.CompareAndSwap(int64(lastAbsVal), int64(lastAbsVal)+1) {
 			// someone else is swapping
 			return r.Advance(now, clearBucket)
 		}
@@ -57,6 +57,6 @@ func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 	}
 	// indexDiff > 0 at this point.  We have to roll our window forward
 	// Cleared all the buckets.  Try to advance back to wherever we need
-	r.lastAbsIndex.CompareAndSwap(int64(lastAbsVal), int64(absIndex))
+	r.LastAbsIndex.CompareAndSwap(int64(lastAbsVal), int64(absIndex))
 	return r.Advance(now, clearBucket)
 }

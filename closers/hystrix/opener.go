@@ -78,8 +78,12 @@ var defaultConfigureOpener = ConfigureOpener{
 
 // MarshalJSON returns opener information in a JSON format
 func (e *Opener) MarshalJSON() ([]byte, error) {
+	cfg := e.Config()
 	return json.Marshal(map[string]interface{}{
-		"config": e.Config(),
+		"config":   cfg,
+		"attempts": &e.legitimateAttemptsCount,
+		"errors":   &e.errorsCount,
+		"err_%":    e.errPercentage(cfg.Now()),
 	})
 }
 
@@ -139,10 +143,18 @@ func (e *Opener) ShouldOpen(now time.Time) bool {
 		// not enough requests. Will not open circuit
 		return false
 	}
+	return int64(e.errPercentage(now)*100) >= e.errorPercentage.Get()
+}
+
+func (e *Opener) errPercentage(now time.Time) float64 {
+	attemptCount := e.legitimateAttemptsCount.RollingSumAt(now)
+	if attemptCount == 0 {
+		// not enough requests. Will not open circuit
+		return -1
+	}
 
 	errCount := e.errorsCount.RollingSumAt(now)
-	errPercentage := int64(float64(errCount) / float64(attemptCount) * 100)
-	return errPercentage >= e.errorPercentage.Get()
+	return float64(errCount) / float64(attemptCount)
 }
 
 // SetConfigThreadSafe modifies error % and request volume threshold

@@ -1,6 +1,8 @@
 package faststats
 
 import (
+	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +15,18 @@ func TestRollingPercentile_Fresh(t *testing.T) {
 	expectSnap(t, "at empty", snap, 0, -1, map[float64]time.Duration{
 		50: -1,
 	})
+}
+
+func TestSortedDurations_asJSON(t *testing.T) {
+	x := SortedDurations{
+		time.Second, time.Millisecond,
+	}
+	t.Log(x.String())
+	b, err := json.Marshal(x)
+	if err != nil {
+		t.Error("Could not marshal durations", err)
+	}
+	t.Log(string(b))
 }
 
 func TestRollingPercentile_Empty(t *testing.T) {
@@ -36,6 +50,18 @@ func TestRollingPercentile_Race(t *testing.T) {
 		})
 		doTillTime(doNotPassTime, &wg, func() {
 			x.SnapshotAt(time.Now())
+		})
+		doTillTime(doNotPassTime, &wg, func() {
+			_, err := json.Marshal(&x)
+			if err != nil {
+				t.Error("unable to marshal", err)
+			}
+		})
+		doTillTime(doNotPassTime, &wg, func() {
+			s := x.Var().String()
+			if !strings.Contains(s, "snap") {
+				t.Error("expected to contain snap")
+			}
 		})
 	}
 	wg.Wait()

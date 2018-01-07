@@ -1,6 +1,8 @@
 package faststats
 
 import (
+	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -22,6 +24,51 @@ type TimedCheck struct {
 	currentlyAllowedEventCount int64
 	lastSetTimer               *time.Timer
 	mu                         sync.RWMutex
+}
+
+var _ json.Marshaler = &TimedCheck{}
+var _ json.Unmarshaler = &TimedCheck{}
+var _ fmt.Stringer = &TimedCheck{}
+
+// marshalStruct is used by JSON marshalling
+type marshalStruct struct {
+	SleepDuration              int64
+	EventCountToAllow          int64
+	NextOpenTime               time.Time
+	CurrentlyAllowedEventCount int64
+}
+
+func (c *TimedCheck) String() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return fmt.Sprintf("TimedCheck(open=%s)", c.nextOpenTime)
+}
+
+// MarshalJSON writes the object as JSON.  It is thread safe.
+func (c *TimedCheck) MarshalJSON() ([]byte, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return json.Marshal(marshalStruct{
+		SleepDuration:              c.sleepDuration.Get(),
+		EventCountToAllow:          c.eventCountToAllow.Get(),
+		NextOpenTime:               c.nextOpenTime,
+		CurrentlyAllowedEventCount: c.currentlyAllowedEventCount,
+	})
+}
+
+// UnmarshalJSON changes the object from JSON.  It is *NOT* thread safe.
+func (c *TimedCheck) UnmarshalJSON(b []byte) error {
+	var into marshalStruct
+	if err := json.Unmarshal(b, &into); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sleepDuration.Set(into.SleepDuration)
+	c.eventCountToAllow.Set(into.EventCountToAllow)
+	c.nextOpenTime = into.NextOpenTime
+	c.currentlyAllowedEventCount = into.CurrentlyAllowedEventCount
+	return nil
 }
 
 // SetSleepDuration modifies how long time timed check will sleep.  It will not change
