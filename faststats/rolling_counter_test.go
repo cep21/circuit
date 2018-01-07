@@ -1,13 +1,13 @@
 package faststats
 
 import (
+	"encoding/json"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
-	"encoding/json"
 )
 
 func TestRollingCounter_Empty(t *testing.T) {
@@ -57,6 +57,7 @@ func TestRollingCounter_NormalConsistency(t *testing.T) {
 					newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(j+k*eachIteration)))
 					x.Inc(newNow)
 				}
+				time.Sleep(time.Nanosecond)
 			}()
 		}
 		wg.Wait()

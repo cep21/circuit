@@ -2,6 +2,7 @@ package faststats
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -54,6 +55,12 @@ func TestRollingPercentile_Race(t *testing.T) {
 			_, err := json.Marshal(&x)
 			if err != nil {
 				t.Error("unable to marshal", err)
+			}
+		})
+		doTillTime(doNotPassTime, &wg, func() {
+			s := x.Var().String()
+			if !strings.Contains(s, "snap") {
+				t.Error("expected to contain snap")
 			}
 		})
 	}
