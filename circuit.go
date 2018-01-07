@@ -5,7 +5,6 @@ import (
 	"expvar"
 	"sync"
 	"time"
-
 	"github.com/cep21/circuit/faststats"
 )
 
