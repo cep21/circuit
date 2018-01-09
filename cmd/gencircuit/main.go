@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
-
 	"golang.org/x/tools/imports"
 )
 
@@ -66,7 +65,18 @@ func findInterface(iface string, srcDir string) (path string, id string, err err
 		panic(err)
 	}
 	if len(f.Imports) == 0 {
-		return "", "", fmt.Errorf("unrecognized interface: %s", iface)
+		pkgImport, err := build.ImportDir(srcDir, 0)
+		if err != nil {
+			return "", "", fmt.Errorf("unrecognized interface: %s", iface)
+		}
+		if !strings.Contains(iface, pkgImport.Name) {
+			return "", "", fmt.Errorf("unrecognized interface: %s", iface)
+		}
+		fset = token.NewFileSet()
+		parseRes, err := parser.ParseDir(fset, srcDir, nil, 0)
+		fmt.Println(parseRes["example_anothername"].Scope.String())
+		fmt.Println(pkgImport.Name, parseRes, err)
+
 	}
 	raw := f.Imports[0].Path.Value   // "io"
 	path, err = strconv.Unquote(raw) // io
@@ -389,10 +399,9 @@ func funcs(iface string, srcDir string) ([]Func, error) {
 
 			fn := p.funcsig(fndecl)
 			fn.File = fileTypeFoundIn
-			idx := 0
 			for i, p := range fn.Params {
 				if p.Name == "" {
-					fn.Params[i].Name = fmt.Sprintf("r_%d", idx)
+					fn.Params[i].Name = fmt.Sprintf("r_%d", i)
 				}
 			}
 			fn.FilePath = fileTypeFoundIn.Name.Name
@@ -473,10 +482,10 @@ var instance = Generator2{
 const funcBodyText = `{{ range .CodeResults }}
   var {{ .Name }} {{ .Type }}
   {{- end }}
-  err = z.Circuit_{{ .Name }}.Run({{ .Ctx }}, func(ctx context.Context) error {
-    {{ .AllResults }} = z.Embed.{{.Name}}({{ .ParamNames }})
+  err = circuitWrap.Circuit_{{ .Name }}.Execute({{ .Ctx }}, func(ctx context.Context) error {
+    {{ .AllResults }} = circuitWrap.Embed.{{.Name}}({{ .ParamNames }})
     return err
-  }, c.Circuit_{{.Name}}Fallback)
+  }, circuitWrap.Circuit_{{.Name}}Fallback)
   return {{ .AllResults }}
 `
 
@@ -487,7 +496,7 @@ const templateText = `
 package {{ .Package }}
 
 {{ define "Method" -}}
-func (z *Circuit{{ .CleanName }}) {{ .Name }}({{ .Params }}) {{ .Returns }} {
+func (circuitWrap *Circuit{{ .CleanName }}) {{ .Name }}({{ .Params }}) {{ .Returns }} {
  {{ .Body }}
 }
 {{- end -}}
@@ -522,7 +531,7 @@ func (z * Circuit{{ .CleanName }}Factory) New(embed {{ .EmbedType }}) (*Circuit{
   }
   {{- $x := . -}}
   {{ range .CircuitTypeFuncs }}
-  ret.Circuit_{{ .Name }}, err = z.Manager.CreateCircuit(z.Prefix + "{{ $x.EmbedType }}-{{.Name}}")
+  ret.Circuit_{{ .Name }}, err = z.Manager.CreateCircuit(z.Prefix + "{{ $x.CleanName }}-{{.Name}}")
   if err != nil {
     return nil, err
   }
@@ -541,6 +550,36 @@ type fileData struct {
 	Package   string
 	EmbedType string
 	Func      []funcData
+}
+
+func (f *fileData) TrimFuncs() {
+	for i, fun := range f.Func {
+		toTrim := f.Package + "."
+		for j, par := range fun.Func.Res {
+			if strings.HasPrefix(par.Type, toTrim) {
+				f.Func[i].Func.Res[j].Type = par.Type[len(toTrim):]
+			}
+		}
+
+		for j, par := range fun.Func.Params {
+			if strings.HasPrefix(par.Type, toTrim) {
+				f.Func[i].Func.Params[j].Type = par.Type[len(toTrim):]
+			}
+		}
+
+		toTrim = "*" + f.Package + "."
+		for j, par := range fun.Func.Res {
+			if strings.HasPrefix(par.Type, toTrim) {
+				f.Func[i].Func.Res[j].Type = "*" + par.Type[len(toTrim):]
+			}
+		}
+
+		for j, par := range fun.Func.Params {
+			if strings.HasPrefix(par.Type, toTrim) {
+				f.Func[i].Func.Params[j].Type = "*" + par.Type[len(toTrim):]
+			}
+		}
+	}
 }
 
 func (f *fileData) CircuitTypeFuncs() []StructTypesData {
@@ -674,10 +713,10 @@ func (f *funcData) hasReturn() bool {
 
 func (f *funcData) Body() string {
 	if !f.hasReturn() {
-		return "  z.Embed." + f.Name + "(" + f.ParamsNames() + ")"
+		return "  circuitWrap.Embed." + f.Name + "(" + f.ParamsNames() + ")"
 	}
 	if !f.canTakeCircuit() {
-		return "  return z.Embed." + f.Name + "(" + f.ParamsNames() + ")"
+		return "  return circuitWrap.Embed." + f.Name + "(" + f.ParamsNames() + ")"
 	}
 	buf := bytes.Buffer{}
 	if err := funcBodyTemplate.Execute(&buf, f); err != nil {
@@ -689,7 +728,7 @@ func (f *funcData) Body() string {
 func (f *funcData) Returns() string {
 	ret := make([]string, 0, len(f.Func.Res))
 	for _, p := range f.Func.Res {
-		ret = append(ret, strings.TrimSpace(p.Name+" "+p.Type))
+		ret = append(ret, strings.TrimSpace(p.Type))
 	}
 	toRet := strings.Join(ret, ", ")
 	if len(f.Func.Res) <= 1 {
@@ -724,32 +763,69 @@ func (g *Generator2) parseFlags() error {
 
 func (g *Generator2) main() {
 	if err := g.parseFlags(); err != nil {
-		fmt.Fprintf(g.errOut, "Unable to load package: %s", err)
+		fmt.Fprintf(g.errOut, "Unable to load package: %s\n", err)
 		os.Exit(1)
 		return
 	}
 	totalPath := g.CurrentDirectory
 	toGen := g.ToGenerate
 
+	pk2 := pkg{}
+	if err := pk2.Populate(totalPath); err != nil {
+		panic(err)
+	}
+	meths := pk2.Methods("MyInterface")
+	fmt.Println("For type MyInterface")
+	for _, m := range meths {
+		fmt.Println(m.Name(), "***", m.FullName())
+	}
+	meths = pk2.Methods("FullExample")
+	fmt.Println("For type FullExample")
+	for _, m := range meths {
+		fmt.Println("* For function ", m.Name())
+		fmt.Println(" ** params")
+		for _, p := range m.Params() {
+			fmt.Println("*** Name = ", p.Name())
+			fmt.Println("*** Import = ", p.Import())
+		}
+		fmt.Println(" ** resuts")
+		for _, p := range m.Results() {
+			fmt.Println("*** Name = ", p.Name())
+			if p.Name() == "err" {
+				fmt.Println("check")
+			}
+			fmt.Println("*** Import = ", p.Import())
+		}
+	}
+
 	funcs, err := funcs(toGen, totalPath)
 	if err != nil {
-		fmt.Fprintf(g.errOut, "Unable to load functions: %s", err)
+		fmt.Fprintf(g.errOut, "Unable to load functions: %s\n", err)
 		os.Exit(1)
 		return
 	}
 	p, err := GetPkg(toGen, totalPath)
 	if err != nil {
-		fmt.Fprintf(g.errOut, "Unable to load package: %s", err)
+		fmt.Fprintf(g.errOut, "Unable to load package: %s\n", err)
 		os.Exit(1)
 		return
 	}
 
+	toTrim := p.Package.Name + "."
+	if strings.HasPrefix(toGen, toTrim) {
+		toGen = toGen[len(toTrim):]
+	}
+	toTrim = "*" + toTrim
+	if strings.HasPrefix(toGen, toTrim) {
+		toGen = toGen[len(toTrim):]
+	}
 	buf := bytes.Buffer{}
 	fd := &fileData{
 		Package:   p.Name,
 		EmbedType: toGen,
 		Func:      makeFuncs(funcs, toGen),
 	}
+	fd.TrimFuncs()
 	err = fileTemplate.Execute(&buf, fd)
 	if err != nil {
 		panic(err)
@@ -772,7 +848,14 @@ func (g *Generator2) main() {
 		fmt.Fprintf(g.errOut, number(str))
 		panic(err2)
 	}
-	fmt.Fprintf(g.out, buf2.String())
+	str = buf2.String()
+	str = strings.Replace(str, `"` + p.ImportPath + `"`, "", -1)
+	imp, err = imports.Process(totalPath+"/__mything__.go", []byte(str), nil)
+	if err != nil {
+		fmt.Fprintf(g.errOut, number(str))
+		panic(err)
+	}
+	fmt.Fprintf(g.out, str)
 }
 
 func number(s string) string {

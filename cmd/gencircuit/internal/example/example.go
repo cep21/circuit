@@ -1,13 +1,21 @@
-package example
+package example_anothername
 
 import (
 	"context"
 	io2 "io"
 	"net/http"
+	"github.com/cep21/circuit/cmd/gencircuit/internal/example/renamed"
+	"net/url"
 )
 
 type MyInterface interface {
+	EmbedI
 	Hello(name string)
+	io2.Closer
+}
+
+type EmbedI interface {
+	Embed()
 }
 
 type MyThing struct {
@@ -25,6 +33,13 @@ type FullExample struct {
 	aThing int
 	//public
 	AThing float64
+	X struct {
+		http.Header
+	}
+}
+
+func (w *FullExample) RequiresImport(url url.URL) {
+
 }
 
 func (w *FullExample) Get(url string) (resp *http.Response, err error) {
