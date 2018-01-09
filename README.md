@@ -179,7 +179,7 @@ calls Go.  This example will panic, and the panic can be caught up the stack.
 
  ```go
 h := circuit.Manager{}
-c := h.MustCreateCircuit("panic_up", circuit.Config{})
+c := h.MustCreateCircuit("panic_up")
 
 defer func() {
   r := recover()
@@ -287,7 +287,7 @@ myFactory := func(circuitName string) circuit.Config {
 h := circuit.Manager{
   DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{myFactory},
 }
-h.MustCreateCircuit("v1", circuit.Config{})
+h.MustCreateCircuit("v1")
 fmt.Println("The timeout of v1 is", h.GetCircuit("v1").Config().Execution.Timeout)
 // Output: The timeout of v1 is 1s
 ```
