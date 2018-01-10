@@ -774,7 +774,8 @@ func (g *Generator2) main() {
 	if err := pk2.Populate(totalPath); err != nil {
 		panic(err)
 	}
-	meths := pk2.Methods("MyInterface")
+	//meths := pk2.Methods("MyInterface")
+	meths := pk2.Methods("FullExample")
 	fmt.Println("For type MyInterface")
 	for _, m := range meths {
 		fmt.Println(m.Name(), "***", m.FullName())

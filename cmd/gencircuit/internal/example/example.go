@@ -29,6 +29,7 @@ type FullExample struct {
 	MyInterface
 	// Embed handler
 	http.Handler
+	renamedpkg.RenamedIface
 	// private
 	aThing int
 	//public

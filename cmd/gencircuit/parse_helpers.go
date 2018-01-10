@@ -12,6 +12,7 @@ import (
 )
 
 type pkg struct {
+	srcDir string
 	fset  *token.FileSet
 	files map[string]*file
 
@@ -96,6 +97,17 @@ func (p *pkg) namedMethods(namedType *types.Named) (retFunc []fnk) {
 		}
 		retFunc = actualRet
 	}()
+	fmt.Println("NamedType", namedType)
+	fmt.Println("Pos is", namedType.Obj())
+	fmt.Println("Named type obj name is ", namedType.Obj().Name())
+	fmt.Println("Obj package", namedType.Obj().Pkg().Complete())
+	fmt.Println("Filename is ", p.fset.Position(namedType.Obj().Pos()).Filename)
+	objBuildPkg, err := build.Import(namedType.Obj().Pkg().Path(), p.srcDir, 0)
+	if err != nil {
+		fmt.Println(err)
+		//panic(err)
+	}
+	fmt.Println(objBuildPkg.Name)
 	under := namedType.Underlying()
 	ret := make([]fnk, 0)
 	for i :=0;i< namedType.NumMethods();i++ {
@@ -132,10 +144,17 @@ func (p *pkg) namedMethods(namedType *types.Named) (retFunc []fnk) {
 func (p *pkg) Methods(elem string) (retFunc []fnk) {
 	obj := p.typesPkg.Scope().Lookup(elem)
 	ab := obj.Type().(*types.Named)
+	for fileName, f := range p.files {
+		if obj := f.f.Scope.Lookup(elem); obj != nil {
+			fmt.Println("A", obj.Decl, "B", obj.Kind, "C", obj.Name, "D", obj.Data, "E", obj.Type)
+			fmt.Println("Found the object in ", fileName)
+		}
+	}
 	return p.namedMethods(ab)
 }
 
 func (p *pkg) Populate(srcDir string) error {
+	p.srcDir = srcDir
 	if p.fset == nil {
 		p.fset = token.NewFileSet()
 	}
