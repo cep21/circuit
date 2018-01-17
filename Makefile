@@ -36,15 +36,20 @@ profile_blocking:
 
 # Lint the code
 lint:
-	gometalinter --deadline=5m --enable-all -D lll --dupl-threshold=100 ./...
-
-setup:
-	go get -u github.com/alecthomas/gometalinter
-	go get -t -d ./...
-	gometalinter --install
+	gometalinter --vendor --deadline=5m --enable-all -D lll --dupl-threshold=100 ./...
 
 # Run the example
 run:
 	go run -race example/main.go
 
-ci: test lint
+# ci installs dep by direct version.  Users install with 'go get'
+setup_ci:
+	curl -L -s https://github.com/golang/dep/releases/download/v$(DEP_VERSION)/dep-linux-amd64 -o $(GOPATH)/bin/dep
+	chmod +x $(GOPATH)/bin/dep
+	go get -u github.com/alecthomas/gometalinter
+	gometalinter --install
+
+# Set back up /vendor folder for benchmarks using dep
+redep:
+	dep ensure
+	dep prune
