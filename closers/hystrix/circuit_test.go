@@ -68,9 +68,18 @@ func TestCircuitAttemptsToReopen(t *testing.T) {
 		t.Fatal("Circuit should be open")
 	}
 
-	time.Sleep(time.Millisecond * 3)
-	err = c.Execute(context.Background(), testhelp.AlwaysPasses, nil)
-	if err != nil {
+	// Takes some time for slow servers to trigger the timer
+	var i int
+	// Try for 20 sec
+	for i = 0; i < 200; i++ {
+		err = c.Execute(context.Background(), testhelp.AlwaysPasses, nil)
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
+
+	if i == 200 {
 		t.Fatal("Circuit should try to reopen")
 	}
 }
