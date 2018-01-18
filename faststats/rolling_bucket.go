@@ -7,6 +7,10 @@ import (
 
 // RollingBuckets simulates a time rolling list of buckets of items.  It is safe to use JSON to encode this object
 // in a thread safe way.
+//
+// This implementation cheats in order to not take a lock.  It is correct, but only if the total size of the buckets (NumBuckets * BucketWidth)
+// is less than any duration of how long Advance will take to execute.  In anything but super small bucket sizes this should
+// be fine.  The common case, where (NumBuckets * BucketWidth >= 1sec) should always work.
 type RollingBuckets struct {
 	NumBuckets   int
 	StartTime    time.Time
