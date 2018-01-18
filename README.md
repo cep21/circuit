@@ -1,15 +1,28 @@
-<!-- Image designed by Jack Lindamood, Licensed under the Creative Commons 3.0 Attributions license, originate from https://github.com/golang-samples/gopher-vector design by Takuya Ueda -->
+<!-- Image designed by Jack Lindamood, Licensed under the Creative Commons 3.0 Attributions license, originate from
+https://github.com/golang-samples/gopher-vector design by Takuya Ueda -->
 ![Mascot](https://cep21.github.io/circuit/imgs/hystrix-gopher_100px.png)
 # Circuit
 [![Build Status](https://travis-ci.org/cep21/circuit.svg?branch=master)](https://travis-ci.org/cep21/circuit)
 [![GoDoc](https://godoc.org/github.com/cep21/circuit?status.svg)](https://godoc.org/github.com/cep21/circuit)
 
-Circuit is an efficient and feature complete [Hystrix](https://github.com/Netflix/Hystrix) like Go implementation of the [circuit
-breaker pattern](https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker).
+Circuit is an efficient and feature complete [Hystrix](https://github.com/Netflix/Hystrix) like Go implementation of
+the [circuit breaker pattern](https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker).
+Learn more about the problems Hystrix and other circuit breakers solve on the
+[Hystrix Wiki](https://github.com/Netflix/Hystrix/wiki).  A short summary of advantages are:
 
-Learn more about the problems Hystrix and other circuit breakers solve on the [Hystrix Wiki](https://github.com/Netflix/Hystrix/wiki).
+* A downstream service failed and all requests hang forever.  Without a circuit, your service would also hang forever.
+  Because you have a circuit, you detect this failure quickly and can return errors quickly while waiting for the
+  downstream service to recover.
+* Circuits make great monitoring and metrics boundaries, creating common metric names for the common downstream failure
+  types.  This package goes further to formalize this in a SLO tracking pattern.
+* Circuits create a common place for downstream failure fallback logic.
+* Downstream services sometimes fail entirely when overloaded.  While in a degraded state, circuits allow you to push
+  downstream services to the edge between absolute failure and mostly working.
+* Open/Close state of a circuit is a clear early warning sign of downstream failures.
+* Circuits allow you to protect your dependencies from abnormal rushes of traffic.
 
-There are a large number of examples on the [godoc](https://godoc.org/github.com/cep21/circuit#pkg-examples) that are worth looking at.  They tend to be more up to date than the README doc.
+There are a large number of examples on the [godoc](https://godoc.org/github.com/cep21/circuit#pkg-examples) that are
+worth looking at.  They tend to be more up to date than the README doc.
 
 # Feature set
 
@@ -19,7 +32,8 @@ There are a large number of examples on the [godoc](https://godoc.org/github.com
 * Comprehensive metric tracking
 * Efficient implementation with Benchmarks
 * Low/zero memory allocation costs
-* Support for [Netflix Hystrix dashboards](https://github.com/Netflix/Hystrix/wiki/Dashboard), even with custom circuit transition logic
+* Support for [Netflix Hystrix dashboards](https://github.com/Netflix/Hystrix/wiki/Dashboard), even with custom
+  circuit transition logic
 * Multiple error handling features
 * Expose circuit health and configuration on expvar
 * SLO tracking
@@ -92,7 +106,8 @@ fmt.Printf("err=%v", errResult)
 ## [Hystrix Configuration](https://godoc.org/github.com/cep21/circuit/closers/hystrix#example-ConfigFactory-Configure)
 
 All configuration parameters are documented in config.go.  Your circuit open/close logic configuration is documented
-with the logic.  For hystrix, this configuration is in closers/hystrix and well documented on [the Hystrix wiki](https://github.com/Netflix/Hystrix/wiki/Configuration).
+with the logic.  For hystrix, this configuration is in closers/hystrix and well documented on
+[the Hystrix wiki](https://github.com/Netflix/Hystrix/wiki/Configuration).
 
 This example configures the circuit to use Hystrix open/close logic with the default Hystrix parameters
 
@@ -121,7 +136,8 @@ fmt.Println("This is a hystrix configured circuit", c.Name())
 
 ## [Enable dashboard metrics](https://godoc.org/github.com/cep21/circuit/metriceventstream#example-MetricEventStream)
 
-Dashboard metrics can be enabled with the MetricEventStream object. This example creates an event stream handler, starts it, then later closes the handler
+Dashboard metrics can be enabled with the MetricEventStream object. This example creates an event stream handler,
+starts it, then later closes the handler
 
 ```go
 // metriceventstream uses rolling stats to report circuit information
@@ -195,9 +211,10 @@ c.Execute(context.Background(), func(ctx context.Context) error {
 
 ## [Runtime configuration changes](https://godoc.org/github.com/cep21/circuit/closers/hystrix#example-Closer-SetConfigThreadSafe)
 
-Most configuration properties on [the Hystrix Configuration page](https://github.com/Netflix/Hystrix/wiki/Configuration) that say
-they are modifyable at runtime can be changed on the Circuit in a thread safe way.  Most of the ones that cannot are
-related to stat collection.
+Most configuration properties on
+[the Hystrix Configuration page](https://github.com/Netflix/Hystrix/wiki/Configuration) that say they are modifyable at
+runtime can be changed on the Circuit in a thread safe way.  Most of the ones that cannot are related to stat
+collection.
 
 This example shows how to update hystrix configuration at runtime.
 
