@@ -1,3 +1,6 @@
+/*
+Run this simple Go program to see what circuits look like.  You can explore their hystrix stream and expvar values.
+*/
 package main
 
 import (
