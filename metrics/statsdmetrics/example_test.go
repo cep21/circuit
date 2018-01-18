@@ -6,11 +6,14 @@ import (
 	"github.com/cep21/circuit/metrics/statsdmetrics"
 )
 
+// Our interface should be satisfied by go-statsd-client
+var _ statsdmetrics.StatSender = statsd.StatSender(nil)
+
 // This example shows how to inject a statsd metric collector into a circuit
 func ExampleCommandFactory_CommandProperties() {
 	// This factory allows us to report statsd metrics from the circuit
 	f := statsdmetrics.CommandFactory{
-		SubStatter: &statsd.NoopClient{},
+		StatSender: &statsd.NoopClient{},
 	}
 
 	// Wire the statsd factory into the circuit manager

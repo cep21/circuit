@@ -4,14 +4,27 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cactus/go-statsd-client/statsd"
 	"github.com/cep21/circuit"
 	"github.com/cep21/circuit/metrics/responsetimeslo"
 )
 
+// Our interface should be satisfied by go-statsd-client
+// We still assert this in our tests, but don't require the dependency for the library to allow greater flexibility.
+//var _ statsdmetrics.StatSender = statsd.StatSender(nil)
+
+// The StatSender interface wraps all the statsd metric methods we care about
+type StatSender interface {
+	// Inc increments a statsd metric
+	Inc(stat string, val int64, sampleRate float32) error
+	// Gauge sets a statsd metric
+	Gauge(stat string, val int64, sampleRate float32) error
+	// TimingDuration adds a statsd timing
+	TimingDuration(stat string, val time.Duration, sampleRate float32) error
+}
+
 // CommandFactory allows ingesting statsd metrics
 type CommandFactory struct {
-	SubStatter statsd.SubStatter
+	StatSender StatSender
 	SampleRate float32
 }
 
@@ -49,7 +62,10 @@ func appendStatsdParts(parts ...string) string {
 // SLOCollector tracks SLO stats for statsd
 func (c *CommandFactory) SLOCollector(circuitName string) responsetimeslo.Collector {
 	return &SLOCollector{
-		SendTo:     c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "slo")),
+		prefixedStatSender: prefixedStatSender{
+			prefix: appendStatsdParts(circuitName, "slo"),
+			sendTo: c.StatSender,
+		},
 		SampleRate: c.sampleRate(),
 	}
 }
@@ -60,19 +76,28 @@ func (c *CommandFactory) CommandProperties(circuitName string) circuit.Config {
 		Metrics: circuit.MetricsCollectors{
 			Run: []circuit.RunMetrics{
 				&RunMetricsCollector{
-					SendTo:     c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "run")),
+					prefixedStatSender: prefixedStatSender{
+						prefix: appendStatsdParts(circuitName, "run"),
+						sendTo: c.StatSender,
+					},
 					SampleRate: c.sampleRate(),
 				},
 			},
 			Fallback: []circuit.FallbackMetrics{
 				&FallbackMetricsCollector{
-					SendTo:     c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "fallback")),
+					prefixedStatSender: prefixedStatSender{
+						prefix: appendStatsdParts(circuitName, "fallback"),
+						sendTo: c.StatSender,
+					},
 					SampleRate: c.sampleRate(),
 				},
 			},
 			Circuit: []circuit.Metrics{
 				&CircuitMetricsCollector{
-					SendTo:     c.SubStatter.NewSubStatter(appendStatsdParts(circuitName, "circuit")),
+					prefixedStatSender: prefixedStatSender{
+						prefix: appendStatsdParts(circuitName, "circuit"),
+						sendTo: c.StatSender,
+					},
 					SampleRate: c.sampleRate(),
 				},
 			},
@@ -90,21 +115,41 @@ func (e *errorChecker) check(err error) {
 	}
 }
 
+// By writing this simple part ourselves, we can remove the need to import go-statsd-client entirely
+type prefixedStatSender struct {
+	sendTo StatSender
+	prefix string
+}
+
+var _ StatSender = &prefixedStatSender{}
+
+func (p *prefixedStatSender) Inc(stat string, val int64, sampleRate float32) error {
+	return p.sendTo.Inc(p.prefix+stat, val, sampleRate)
+}
+
+func (p *prefixedStatSender) Gauge(stat string, val int64, sampleRate float32) error {
+	return p.sendTo.Gauge(p.prefix+stat, val, sampleRate)
+}
+
+func (p *prefixedStatSender) TimingDuration(stat string, val time.Duration, sampleRate float32) error {
+	return p.sendTo.TimingDuration(p.prefix+stat, val, sampleRate)
+}
+
 // CircuitMetricsCollector collects opened/closed metrics
 type CircuitMetricsCollector struct {
 	errorChecker
-	SendTo     statsd.StatSender
+	prefixedStatSender
 	SampleRate float32
 }
 
 // Closed sets a gauge as closed for the collector
 func (c *CircuitMetricsCollector) Closed(now time.Time) {
-	c.check(c.SendTo.Gauge("closed", 1, c.SampleRate))
+	c.check(c.Gauge("closed", 1, c.SampleRate))
 }
 
 // Opened sets a gauge as opened for the collector
 func (c *CircuitMetricsCollector) Opened(now time.Time) {
-	c.check(c.SendTo.Gauge("opened", 1, c.SampleRate))
+	c.check(c.Gauge("opened", 1, c.SampleRate))
 }
 
 var _ circuit.Metrics = &CircuitMetricsCollector{}
@@ -112,18 +157,18 @@ var _ circuit.Metrics = &CircuitMetricsCollector{}
 // SLOCollector collects SLO level metrics
 type SLOCollector struct {
 	errorChecker
-	SendTo     statsd.StatSender
+	prefixedStatSender
 	SampleRate float32
 }
 
 // Failed increments a failed metric
 func (s *SLOCollector) Failed() {
-	s.check(s.SendTo.Inc("failed", 1, s.SampleRate))
+	s.check(s.Inc("failed", 1, s.SampleRate))
 }
 
 // Passed increments a passed metric
 func (s *SLOCollector) Passed() {
-	s.check(s.SendTo.Inc("passed", 1, s.SampleRate))
+	s.check(s.Inc("passed", 1, s.SampleRate))
 }
 
 var _ responsetimeslo.Collector = &SLOCollector{}
@@ -131,48 +176,48 @@ var _ responsetimeslo.Collector = &SLOCollector{}
 // RunMetricsCollector collects command metrics
 type RunMetricsCollector struct {
 	errorChecker
-	SendTo     statsd.StatSender
+	prefixedStatSender
 	SampleRate float32
 }
 
 // Success sends a success to statsd
 func (c *RunMetricsCollector) Success(now time.Time, duration time.Duration) {
-	c.check(c.SendTo.Inc("success", 1, c.SampleRate))
-	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
+	c.check(c.Inc("success", 1, c.SampleRate))
+	c.check(c.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrFailure sends a failure to statsd
 func (c *RunMetricsCollector) ErrFailure(now time.Time, duration time.Duration) {
-	c.check(c.SendTo.Inc("err_failure", 1, c.SampleRate))
-	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
+	c.check(c.Inc("err_failure", 1, c.SampleRate))
+	c.check(c.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrTimeout sends a timeout to statsd
 func (c *RunMetricsCollector) ErrTimeout(now time.Time, duration time.Duration) {
-	c.check(c.SendTo.Inc("err_timeout", 1, c.SampleRate))
-	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
+	c.check(c.Inc("err_timeout", 1, c.SampleRate))
+	c.check(c.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrBadRequest sends a bad request error to statsd
 func (c *RunMetricsCollector) ErrBadRequest(now time.Time, duration time.Duration) {
-	c.check(c.SendTo.Inc("err_bad_request", 1, c.SampleRate))
-	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
+	c.check(c.Inc("err_bad_request", 1, c.SampleRate))
+	c.check(c.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrInterrupt sends an interrupt error to statsd
 func (c *RunMetricsCollector) ErrInterrupt(now time.Time, duration time.Duration) {
-	c.check(c.SendTo.Inc("err_interrupt", 1, c.SampleRate))
-	c.check(c.SendTo.TimingDuration("calls", duration, c.SampleRate))
+	c.check(c.Inc("err_interrupt", 1, c.SampleRate))
+	c.check(c.TimingDuration("calls", duration, c.SampleRate))
 }
 
 // ErrShortCircuit sends a short circuit to statsd
 func (c *RunMetricsCollector) ErrShortCircuit(now time.Time) {
-	c.check(c.SendTo.Inc("err_short_circuit", 1, c.SampleRate))
+	c.check(c.Inc("err_short_circuit", 1, c.SampleRate))
 }
 
 // ErrConcurrencyLimitReject sends a concurrency limit error to statsd
 func (c *RunMetricsCollector) ErrConcurrencyLimitReject(now time.Time) {
-	c.check(c.SendTo.Inc("err_concurrency_limit_reject", 1, c.SampleRate))
+	c.check(c.Inc("err_concurrency_limit_reject", 1, c.SampleRate))
 }
 
 var _ circuit.RunMetrics = &RunMetricsCollector{}
@@ -180,23 +225,23 @@ var _ circuit.RunMetrics = &RunMetricsCollector{}
 // FallbackMetricsCollector collects fallback metrics
 type FallbackMetricsCollector struct {
 	errorChecker
-	SendTo     statsd.StatSender
+	prefixedStatSender
 	SampleRate float32
 }
 
 // Success sends a success to statsd
 func (c *FallbackMetricsCollector) Success(now time.Time, duration time.Duration) {
-	c.check(c.SendTo.Inc("success", 1, c.SampleRate))
+	c.check(c.Inc("success", 1, c.SampleRate))
 }
 
 // ErrConcurrencyLimitReject sends a concurrency-limit to statsd
 func (c *FallbackMetricsCollector) ErrConcurrencyLimitReject(now time.Time) {
-	c.check(c.SendTo.Inc("err_concurrency_limit_reject", 1, c.SampleRate))
+	c.check(c.Inc("err_concurrency_limit_reject", 1, c.SampleRate))
 }
 
 // ErrFailure sends a failure to statsd
 func (c *FallbackMetricsCollector) ErrFailure(now time.Time, duration time.Duration) {
-	c.check(c.SendTo.Inc("err_failure", 1, c.SampleRate))
+	c.check(c.Inc("err_failure", 1, c.SampleRate))
 }
 
 var _ circuit.FallbackMetrics = &FallbackMetricsCollector{}

@@ -1,5 +1,5 @@
 /*
-Package circuit is a Go implementation of Netflix's Hystrix library.  Most documentation is available on
+Package circuit is a Go implementation of the circuit breaker pattern.  Most documentation is available on
 the github README page https://github.com/cep21/circuit/blob/master/README.md
 
 Use case
