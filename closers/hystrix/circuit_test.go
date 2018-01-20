@@ -173,7 +173,7 @@ func TestSleepDurationWorks(t *testing.T) {
 		},
 		General: circuit.GeneralConfig{
 			OpenToClosedFactory: CloserFactory(ConfigureCloser{
-				SleepWindow: sleepWindow + time.Millisecond*5,
+				SleepWindow: sleepWindow * 2,
 			}),
 			ClosedToOpenFactory: OpenerFactory(ConfigureOpener{
 				RequestVolumeThreshold:   1,
@@ -190,7 +190,7 @@ func TestSleepDurationWorks(t *testing.T) {
 		t.Errorf("I expect this to not fail since it has a fallback")
 	}
 
-	if c.OpenToClose.(*Closer).Config().SleepWindow != time.Millisecond*30 {
+	if c.OpenToClose.(*Closer).Config().SleepWindow != time.Millisecond*50 {
 		t.Errorf("I expect a 30 ms sleep window")
 	}
 

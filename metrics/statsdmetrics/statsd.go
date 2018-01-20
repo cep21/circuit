@@ -144,12 +144,12 @@ type CircuitMetricsCollector struct {
 
 // Closed sets a gauge as closed for the collector
 func (c *CircuitMetricsCollector) Closed(now time.Time) {
-	c.check(c.Gauge("closed", 1, c.SampleRate))
+	c.check(c.Gauge("is_open", 0, c.SampleRate))
 }
 
 // Opened sets a gauge as opened for the collector
 func (c *CircuitMetricsCollector) Opened(now time.Time) {
-	c.check(c.Gauge("opened", 1, c.SampleRate))
+	c.check(c.Gauge("is_open", 1, c.SampleRate))
 }
 
 var _ circuit.Metrics = &CircuitMetricsCollector{}
