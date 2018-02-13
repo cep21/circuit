@@ -124,15 +124,15 @@ type prefixedStatSender struct {
 var _ StatSender = &prefixedStatSender{}
 
 func (p *prefixedStatSender) Inc(stat string, val int64, sampleRate float32) error {
-	return p.sendTo.Inc(p.prefix+stat, val, sampleRate)
+	return p.sendTo.Inc(p.prefix+"."+stat, val, sampleRate)
 }
 
 func (p *prefixedStatSender) Gauge(stat string, val int64, sampleRate float32) error {
-	return p.sendTo.Gauge(p.prefix+stat, val, sampleRate)
+	return p.sendTo.Gauge(p.prefix+"."+stat, val, sampleRate)
 }
 
 func (p *prefixedStatSender) TimingDuration(stat string, val time.Duration, sampleRate float32) error {
-	return p.sendTo.TimingDuration(p.prefix+stat, val, sampleRate)
+	return p.sendTo.TimingDuration(p.prefix+"."+stat, val, sampleRate)
 }
 
 // CircuitMetricsCollector collects opened/closed metrics
