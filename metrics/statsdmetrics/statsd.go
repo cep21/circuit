@@ -26,6 +26,9 @@ type StatSender interface {
 type CommandFactory struct {
 	StatSender StatSender
 	SampleRate float32
+	// This function will sanitize the circuit name.  If you leave it empty, we will use a default implementation.
+	// You are free to make this however you want to sanitize your circuit names for statsd.
+	SanitizeStatsdFunction func(name string) string
 }
 
 func (c *CommandFactory) sampleRate() float32 {
@@ -35,21 +38,38 @@ func (c *CommandFactory) sampleRate() float32 {
 	return c.SampleRate
 }
 
-// We can do better than this.  Some kind of whitelist thing
-func sanitizeStatsd(name string) string {
-	if len(name) > 32 {
-		name = name[0:32]
+func (c *CommandFactory) sanitizeStatsdFunction() func(name string) string {
+	if c.SanitizeStatsdFunction == nil {
+		return sanitizeStatsd
 	}
-	name = strings.Replace(name, "/", "-", -1)
-	name = strings.Replace(name, ":", "-", -1)
-	name = strings.Replace(name, ".", "-", -1)
-	return strings.Replace(name, ".", "_", -1)
+	return c.SanitizeStatsdFunction
 }
 
-func appendStatsdParts(parts ...string) string {
+// sanitizeStatsd borrowed from github.com/twitchtv/twirp
+func sanitizeStatsd(s string) string {
+	if len(s) > 64 {
+		s = s[:64]
+	}
+	return strings.Map(sanitizeRune, s)
+}
+
+func sanitizeRune(r rune) rune {
+	switch {
+	case 'a' <= r && r <= 'z':
+		return r
+	case '0' <= r && r <= '9':
+		return r
+	case 'A' <= r && r <= 'Z':
+		return r
+	default:
+		return '_'
+	}
+}
+
+func appendStatsdParts(sanitizeStatsdFunction func(name string) string, parts ...string) string {
 	nonEmpty := make([]string, 0, len(parts))
 	for _, part := range parts {
-		part = sanitizeStatsd(part)
+		part = sanitizeStatsdFunction(part)
 		part = strings.Trim(part, ".")
 		if len(part) <= 0 {
 			continue
@@ -63,7 +83,7 @@ func appendStatsdParts(parts ...string) string {
 func (c *CommandFactory) SLOCollector(circuitName string) responsetimeslo.Collector {
 	return &SLOCollector{
 		prefixedStatSender: prefixedStatSender{
-			prefix: appendStatsdParts(circuitName, "slo"),
+			prefix: appendStatsdParts(c.sanitizeStatsdFunction(), circuitName, "slo"),
 			sendTo: c.StatSender,
 		},
 		SampleRate: c.sampleRate(),
@@ -77,7 +97,7 @@ func (c *CommandFactory) CommandProperties(circuitName string) circuit.Config {
 			Run: []circuit.RunMetrics{
 				&RunMetricsCollector{
 					prefixedStatSender: prefixedStatSender{
-						prefix: appendStatsdParts(circuitName, "run"),
+						prefix: appendStatsdParts(c.sanitizeStatsdFunction(), circuitName, "run"),
 						sendTo: c.StatSender,
 					},
 					SampleRate: c.sampleRate(),
@@ -86,7 +106,7 @@ func (c *CommandFactory) CommandProperties(circuitName string) circuit.Config {
 			Fallback: []circuit.FallbackMetrics{
 				&FallbackMetricsCollector{
 					prefixedStatSender: prefixedStatSender{
-						prefix: appendStatsdParts(circuitName, "fallback"),
+						prefix: appendStatsdParts(c.sanitizeStatsdFunction(), circuitName, "fallback"),
 						sendTo: c.StatSender,
 					},
 					SampleRate: c.sampleRate(),
@@ -95,7 +115,7 @@ func (c *CommandFactory) CommandProperties(circuitName string) circuit.Config {
 			Circuit: []circuit.Metrics{
 				&CircuitMetricsCollector{
 					prefixedStatSender: prefixedStatSender{
-						prefix: appendStatsdParts(circuitName, "circuit"),
+						prefix: appendStatsdParts(c.sanitizeStatsdFunction(), circuitName, "circuit"),
 						sendTo: c.StatSender,
 					},
 					SampleRate: c.sampleRate(),
