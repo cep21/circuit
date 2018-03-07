@@ -283,7 +283,7 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 	}
 
 	// Even if there is no error (or if there is an error), if the request took too long it is always an error for the
-	// socket.  Note that ret *MAY* actually be nil.  In that case, we still want to return nil.
+	// circuit.  Note that ret *MAY* actually be nil.  In that case, we still want to return nil.
 	if c.checkErrTimeout(expectedDoneBy, runFuncDoneTime, totalCmdTime) {
 		// Note: ret could possibly be nil.  We will still return nil, but the circuit will consider it a failure.
 		return ret
