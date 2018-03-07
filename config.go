@@ -47,6 +47,8 @@ type ExecutionConfig struct {
 	MaxConcurrentRequests int64
 	// Normally if the parent context is canceled before a timeout is reached, we don't consider the circuit
 	// unhealth.  Set this to true to consider those circuits unhealthy.
+	// Note: This is a typo: Should be renamed as IgnoreInterrupts.  Tracking this in
+	//       https://github.com/cep21/circuit/issues/39
 	IgnoreInterrputs bool `json:",omitempty"`
 }
 
