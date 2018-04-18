@@ -4,7 +4,10 @@ import (
 	"strings"
 	"time"
 
+	"sync"
+
 	"github.com/cep21/circuit"
+	"github.com/cep21/circuit/faststats"
 	"github.com/cep21/circuit/metrics/responsetimeslo"
 )
 
@@ -77,6 +80,83 @@ func appendStatsdParts(sanitizeStatsdFunction func(name string) string, parts ..
 		nonEmpty = append(nonEmpty, part)
 	}
 	return strings.Join(nonEmpty, ".")
+}
+
+// ConcurrencyCollector runs as a background routine to collect concurrency stats
+type ConcurrencyCollector struct {
+	errorChecker
+	StatSender             StatSender
+	SanitizeStatsdFunction func(name string) string
+	Delay                  faststats.AtomicInt64
+	onClose                chan struct{}
+	Manager                *circuit.Manager
+	SampleRate             float32
+	once                   sync.Once
+}
+
+func (c *ConcurrencyCollector) delay() time.Duration {
+	ret := c.Delay.Duration()
+	if ret == 0 {
+		return time.Second * 10
+	}
+	return ret
+}
+
+func (c *ConcurrencyCollector) init() {
+	c.once.Do(func() {
+		c.onClose = make(chan struct{})
+	})
+}
+
+// Collect reports concurrency information for each circuit
+func (c *ConcurrencyCollector) Collect() {
+	for _, circ := range c.Manager.AllCircuits() {
+		name := circ.Name()
+		concurrent := circ.ConcurrentCommands()
+		maxConcurrent := circ.Config().Execution.MaxConcurrentRequests
+		p := prefixedStatSender{
+			prefix: appendStatsdParts(c.SanitizeStatsdFunction, name, "circuit"),
+			sendTo: c.StatSender,
+		}
+		isOpen := int64(0)
+		if circ.IsOpen() {
+			isOpen = 1
+		}
+		c.check(p.Gauge("is_open", isOpen, c.SampleRate))
+		c.check(p.Gauge("concurrent", concurrent, c.SampleRate))
+		c.check(p.Gauge("max_concurrent", maxConcurrent, c.SampleRate))
+	}
+}
+
+// Start blocks forever and runs circuit collection on a delay of variable `Delay`
+func (c *ConcurrencyCollector) Start() {
+	c.init()
+	for {
+		select {
+		case <-c.onClose:
+			return
+		case <-time.After(c.delay()):
+			c.Collect()
+		}
+	}
+}
+
+// Close stops the `Start` routine
+func (c *ConcurrencyCollector) Close() error {
+	c.init()
+	close(c.onClose)
+	return nil
+}
+
+// ConcurrencyCollector returns a ConcurrencyCollector, which can be used to collect stats on each circuit tracked
+// by the manager.  You should call `Start` on the returned object and `Close` when you are done collecting metrics.
+func (c *CommandFactory) ConcurrencyCollector(manager *circuit.Manager) *ConcurrencyCollector {
+	return &ConcurrencyCollector{
+		Manager:                manager,
+		SampleRate:             c.sampleRate(),
+		StatSender:             c.StatSender,
+		SanitizeStatsdFunction: c.sanitizeStatsdFunction(),
+	}
 }
 
 // SLOCollector tracks SLO stats for statsd
