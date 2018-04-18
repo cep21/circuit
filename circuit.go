@@ -136,6 +136,9 @@ func (c *Circuit) now() time.Time {
 // Var exports that help diagnose the circuit
 func (c *Circuit) Var() expvar.Var {
 	return expvar.Func(func() interface{} {
+		if c == nil {
+			return nil
+		}
 		ret := map[string]interface{}{
 			"config":               c.Config(),
 			"is_open":              c.IsOpen(),
@@ -153,11 +156,17 @@ func (c *Circuit) Var() expvar.Var {
 
 // Name of this circuit
 func (c *Circuit) Name() string {
+	if c == nil {
+		return ""
+	}
 	return c.name
 }
 
 // IsOpen returns true if the circuit should be considered 'open' (ie not allowing runFunc calls)
 func (c *Circuit) IsOpen() bool {
+	if c == nil {
+		return false
+	}
 	if c.threadSafeConfig.CircuitBreaker.ForceOpen.Get() {
 		return true
 	}
@@ -197,6 +206,10 @@ func (c *Circuit) openCircuit(now time.Time) {
 // the runFunc to end correctly if context fails.  This is a design mirroed in the go-hystrix library, but be warned it
 // is very dangerous and could leave orphaned goroutines hanging around forever doing who knows what.
 func (c *Circuit) Go(ctx context.Context, runFunc func(context.Context) error, fallbackFunc func(context.Context, error) error) error {
+	if c == nil {
+		var wrapper goroutineWrapper
+		return c.Execute(ctx, wrapper.run(runFunc), wrapper.fallback(fallbackFunc))
+	}
 	return c.Execute(ctx, c.goroutineWrapper.run(runFunc), c.goroutineWrapper.fallback(fallbackFunc))
 }
 
@@ -207,7 +220,7 @@ func (c *Circuit) Run(ctx context.Context, runFunc func(context.Context) error) 
 
 // Execute the circuit.  Prefer this over Go.  Similar to http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#execute--
 func (c *Circuit) Execute(ctx context.Context, runFunc func(context.Context) error, fallbackFunc func(context.Context, error) error) error {
-	if c.threadSafeConfig.CircuitBreaker.Disabled.Get() {
+	if c.isEmptyOrNil() || c.threadSafeConfig.CircuitBreaker.Disabled.Get() {
 		return runFunc(ctx)
 	}
 
@@ -232,6 +245,13 @@ func (c *Circuit) throttleConcurrentCommands(currentCommandCount int64) error {
 		return errThrottledConcucrrentCommands
 	}
 	return nil
+}
+
+// isEmptyOrNil returns true if the circuit is nil or if the circuit was created from an empty circuit.  The empty
+// circuit setup is mostly a guess (checking OpenToClose).  This allows us to give circuits reasonable behavior
+// in the nil/empty case.
+func (c *Circuit) isEmptyOrNil() bool {
+	return c == nil || c.OpenToClose == nil
 }
 
 // run is the equivalent of Java Manager's http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#run()
