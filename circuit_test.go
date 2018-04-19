@@ -28,6 +28,44 @@ func TestHappyCircuit(t *testing.T) {
 	}
 }
 
+func testCircuit(t *testing.T, c *Circuit) {
+	val := 1
+	err := c.Run(context.Background(), func(ctx context.Context) error {
+		val = 0
+		return nil
+	})
+	if err != nil {
+		t.Error("Expected a nil error:", err)
+	}
+	if val != 0 {
+		t.Error("Val never got reset")
+	}
+
+	err = c.Run(context.Background(), func(ctx context.Context) error {
+		return errors.New("an error")
+	})
+	if err == nil {
+		t.Error("Expected a error:", err)
+	}
+	if c.IsOpen() {
+		t.Error("Expected it to not be open")
+	}
+	err = c.Run(context.Background(), func(ctx context.Context) error {
+		return nil
+	})
+	if err != nil {
+		t.Error("Expected a nil error:", err)
+	}
+}
+
+func TestNilCircuit(t *testing.T) {
+	testCircuit(t, nil)
+}
+
+func TestEmptyCircuit(t *testing.T) {
+	testCircuit(t, &Circuit{})
+}
+
 func TestBadRequest(t *testing.T) {
 	c := NewCircuitFromConfig("TestBadRequest", Config{})
 	// Should work 100 times in a row
