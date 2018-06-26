@@ -5,10 +5,8 @@ sudo: false
 env:
   - DEP_VERSION="0.3.2"
 
-
-# Version 1.8 messes up the lint checks for travis
 go:
-  - 1.9
+  - "1.10"
 
 cache:
   directories:
