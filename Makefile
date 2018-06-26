@@ -53,4 +53,3 @@ setup_ci:
 # Set back up /vendor folder for benchmarks using dep
 redep:
 	dep ensure
-	dep prune
