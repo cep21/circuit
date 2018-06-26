@@ -19,7 +19,7 @@ func ExampleFactory() {
 		},
 		// Hystrix close logic is to sleep then check
 		ConfigureCloser: hystrix.ConfigureCloser{
-		// The default values match what hystrix does by default
+			// The default values match what hystrix does by default
 		},
 	}
 	h := circuit.Manager{

@@ -23,6 +23,7 @@ import (
 	"github.com/cep21/circuit/metrics/rolling"
 )
 
+// nolint:lll
 const exampleURL = "http://localhost:7979/hystrix-dashboard/monitor/monitor.html?streams=%5B%7B%22name%22%3A%22%22%2C%22stream%22%3A%22http%3A%2F%2Flocalhost%3A8123%2Fhystrix.stream%22%2C%22auth%22%3A%22%22%2C%22delay%22%3A%22%22%7D%5D"
 
 func main() {

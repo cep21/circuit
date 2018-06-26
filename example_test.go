@@ -286,7 +286,7 @@ func ExampleConfig_custommetrics() {
 	config := circuit.Config{
 		Metrics: circuit.MetricsCollectors{
 			Run: []circuit.RunMetrics{
-			// Here is where I would insert my custom metric collector
+				// Here is where I would insert my custom metric collector
 			},
 		},
 	}
