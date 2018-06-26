@@ -1,11 +1,12 @@
 PROFILE_RUN ?= BenchmarkCiruits/Hystrix/Minimal/failing/75
 BENCH_RUN ?= .
+
+build:
+	go build ./...
+
 # Run unit tests
 test:
 	env "GORACE=halt_on_error=1" go test -v -race ./...
-
-build:
-	go build -t ./...
 
 # Format the code
 fix:
@@ -36,7 +37,7 @@ profile_blocking:
 
 # Lint the code
 lint:
-	gometalinter --vendor --deadline=5m --enable-all -D lll --dupl-threshold=100 ./...
+	gometalinter ./...
 
 # Run the example
 run:

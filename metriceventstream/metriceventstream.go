@@ -192,6 +192,7 @@ func collectCommandMetrics(cb *circuit.Circuit) *streamCmdMetric {
 		RollingCountTimeout:           builtInRollingCmdMetricCollector.ErrTimeouts.RollingSumAt(now),
 		// Note: There is no errInterrupt field inside the dashboard, but i still want to expose these metrics there,
 		//       so I just roll them into BadRequests
+		// nolint: lll
 		RollingCountBadRequests: builtInRollingCmdMetricCollector.ErrBadRequests.RollingSumAt(now) + builtInRollingCmdMetricCollector.ErrInterrupts.RollingSumAt(now),
 
 		TotalCountFallbackSuccess:   builtInRollingFallbackMetricCollector.Successes.TotalSum(),
