@@ -345,6 +345,22 @@ func TestFailingFallbackCircuit(t *testing.T) {
 	}
 }
 
+func TestSetConfigThreadSafe(t *testing.T) {
+	var breaker Circuit
+
+	if breaker.threadSafeConfig.CircuitBreaker.Disabled.Get() {
+		t.Error("Circuit should start off not disabled")
+	}
+	breaker.SetConfigThreadSafe(Config{
+		General: GeneralConfig{
+			Disabled: true,
+		},
+	})
+	if !breaker.threadSafeConfig.CircuitBreaker.Disabled.Get() {
+		t.Error("Circuit should be disabled after setting config to disabled")
+	}
+}
+
 //func TestSLO(t *testing.T) {
 //	c := NewCircuitFromConfig("TestFailingCircuit", Config{
 //		GoSpecific: GoSpecificConfig{

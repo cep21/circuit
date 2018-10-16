@@ -71,9 +71,8 @@ func (c *Circuit) ConcurrentFallbacks() int64 {
 func (c *Circuit) SetConfigThreadSafe(config Config) {
 	c.notThreadSafeConfigMu.Lock()
 	defer c.notThreadSafeConfigMu.Unlock()
-	//c.circuitStats.SetConfigThreadSafe(config)
-	c.threadSafeConfig.reset(c.notThreadSafeConfig)
 	c.notThreadSafeConfig = config
+	c.threadSafeConfig.reset(c.notThreadSafeConfig)
 	if cfg, ok := c.OpenToClose.(Configurable); ok {
 		cfg.SetConfigThreadSafe(config)
 	}
