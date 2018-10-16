@@ -348,6 +348,9 @@ func TestFailingFallbackCircuit(t *testing.T) {
 func TestSetConfigThreadSafe(t *testing.T) {
 	var breaker Circuit
 
+	if breaker.threadSafeConfig.CircuitBreaker.Disabled.Get() {
+		t.Error("Circuit should start off not disabled")
+	}
 	breaker.SetConfigThreadSafe(Config{
 		General: GeneralConfig{
 			Disabled: true,
