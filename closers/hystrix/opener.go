@@ -71,9 +71,9 @@ func (c *ConfigureOpener) Merge(other ConfigureOpener) {
 var defaultConfigureOpener = ConfigureOpener{
 	RequestVolumeThreshold:   20,
 	ErrorThresholdPercentage: 50,
-	Now:             time.Now,
-	NumBuckets:      10,
-	RollingDuration: 10 * time.Second,
+	Now:                      time.Now,
+	NumBuckets:               10,
+	RollingDuration:          10 * time.Second,
 }
 
 // MarshalJSON returns opener information in a JSON format

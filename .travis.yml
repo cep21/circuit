@@ -3,12 +3,11 @@ language: go
 sudo: false
 
 env:
-  - DEP_VERSION="0.4.1"
+  - DEP_VERSION="0.5.0"
 
 
-# Version 1.8 messes up the lint checks for travis
 go:
-  - "1.10"
+  - "1.11"
 
 cache:
   directories:
