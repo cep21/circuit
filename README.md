@@ -24,6 +24,8 @@ Learn more about the problems Hystrix and other circuit breakers solve on the
 There are a large number of examples on the [godoc](https://godoc.org/github.com/cep21/circuit#pkg-examples) that are
 worth looking at.  They tend to be more up to date than the README doc.
 
+Test travis	
+
 # Feature set
 
 * No forced goroutines
