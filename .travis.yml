@@ -3,20 +3,20 @@ language: go
 sudo: false
 
 env:
-  - DEP_VERSION="0.5.0"
-
+  global:
+    - GO111MODULE=on
 
 go:
   - "1.11"
 
 cache:
   directories:
-    - $GOPATH/pkg/dep
+    - $GOPATH/pkg/mod
 
 install:
-  - make setup_ci redep
+  - make setup_ci
 
 script:
   - make build
   - make test
-  - make lint
+  - go mod vendor && GO111MODULE=off PATH=$TRAVIS_BUILD_DIR/bin:$PATH make lint
