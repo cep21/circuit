@@ -37,7 +37,7 @@ profile_blocking:
 
 # Lint the code
 lint:
-	gometalinter ./...
+	./bin/gometalinter ./...
 
 # Run the example
 run:
@@ -45,11 +45,4 @@ run:
 
 # ci installs dep by direct version.  Users install with 'go get'
 setup_ci:
-	curl -L -s https://github.com/golang/dep/releases/download/v$(DEP_VERSION)/dep-linux-amd64 -o $(GOPATH)/bin/dep
-	chmod +x $(GOPATH)/bin/dep
-	go get -u github.com/alecthomas/gometalinter
-	gometalinter --install
-
-# Set back up /vendor folder for benchmarks using dep
-redep:
-	dep ensure
+	./.gometalinter_install.sh	
