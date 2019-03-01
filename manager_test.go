@@ -27,11 +27,11 @@ func TestSimpleCreate(t *testing.T) {
 	h := Manager{}
 	c := h.MustCreateCircuit("hello-world", Config{})
 	if c.Name() != "hello-world" {
-		t.Error("unexpeted name")
+		t.Error("unexpected name")
 	}
 	c = h.GetCircuit("hello-world")
 	if c.Name() != "hello-world" {
-		t.Error("unexpeted name")
+		t.Error("unexpected name")
 	}
 }
 
