@@ -56,7 +56,7 @@ func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 			// someone else is swapping
 			return r.Advance(now, clearBucket)
 		}
-		lastAbsVal = lastAbsVal + 1
+		lastAbsVal++
 		clearBucket(lastAbsVal % r.NumBuckets)
 	}
 	// indexDiff > 0 at this point.  We have to roll our window forward

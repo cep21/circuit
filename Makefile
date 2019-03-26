@@ -37,7 +37,7 @@ profile_blocking:
 
 # Lint the code
 lint:
-	./bin/gometalinter ./...
+	golangci-lint run
 
 # Run the example
 run:
@@ -45,4 +45,4 @@ run:
 
 # ci installs dep by direct version.  Users install with 'go get'
 setup_ci:
-	./.gometalinter_install.sh	
+	GO111MODULE=on go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.15.0

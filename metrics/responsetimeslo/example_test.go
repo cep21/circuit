@@ -21,6 +21,6 @@ func ExampleFactory() {
 	h := circuit.Manager{
 		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{sloTrackerFactory.CommandProperties},
 	}
-	h.CreateCircuit("circuit-with-slo")
+	h.MustCreateCircuit("circuit-with-slo")
 	// Output:
 }

@@ -141,8 +141,10 @@ func BenchmarkCiruits(b *testing.B) {
 		},
 	}
 	for _, impl := range impls {
+		impl := impl
 		b.Run(impl.name, func(b *testing.B) {
 			for _, config := range impl.configs {
+				config := config
 				b.Run(config.name, func(b *testing.B) {
 					for _, pass := range passesParam {
 						pass := pass
@@ -157,6 +159,7 @@ func BenchmarkCiruits(b *testing.B) {
 						}
 						b.Run(name, func(b *testing.B) {
 							for _, concurrent := range concurrents {
+								concurrent := concurrent
 								b.Run(strconv.Itoa(concurrent), func(b *testing.B) {
 									impl.runner(b, config.config, concurrent, f, pass)
 								})

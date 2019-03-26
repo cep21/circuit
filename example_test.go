@@ -186,7 +186,7 @@ func ExampleCircuit_Execute_panics() {
 			fmt.Println("I recovered from a panic", r)
 		}
 	}()
-	c.Execute(context.Background(), func(ctx context.Context) error {
+	_ = c.Execute(context.Background(), func(ctx context.Context) error {
 		panic("oh no")
 	}, nil)
 	// Output: I recovered from a panic oh no
