@@ -74,7 +74,7 @@ func appendStatsdParts(sanitizeStatsdFunction func(name string) string, parts ..
 	for _, part := range parts {
 		part = sanitizeStatsdFunction(part)
 		part = strings.Trim(part, ".")
-		if len(part) <= 0 {
+		if len(part) == 0 {
 			continue
 		}
 		nonEmpty = append(nonEmpty, part)

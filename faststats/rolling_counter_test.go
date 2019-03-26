@@ -97,8 +97,10 @@ func BenchmarkRollingCounter(b *testing.B) {
 		},
 	}
 	for _, run := range runs {
+		run := run
 		b.Run(run.name, func(b *testing.B) {
 			for _, concurrent := range concurrents {
+				concurrent := concurrent
 				b.Run(strconv.Itoa(concurrent), func(b *testing.B) {
 					now := time.Now()
 					x := NewRollingCounter(run.bucketSize, run.numBuckets, now)
@@ -195,8 +197,8 @@ func expectBuckets(t *testing.T, now time.Time, in *RollingCounter, b []int64) {
 	if len(a) != len(b) {
 		t.Fatalf("Len not right: %d vs %d", len(a), len(b))
 	}
-	var p1 []string
-	var p2 []string
+	p1 := make([]string, 0, len(b))
+	p2 := make([]string, 0, len(b))
 	for i := range b {
 		p1 = append(p1, strconv.FormatInt(a[i], 10))
 		p2 = append(p2, strconv.FormatInt(b[i], 10))
