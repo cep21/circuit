@@ -13,7 +13,7 @@ test_coverage:
 	go test -v -covermode=count -coverprofile=coverage.out ./...
 
 upload_coverage: test_coverage
-	goveralls -service=travis-ci -coverprof coverage.out
+	goveralls -service=travis-ci -coverprofile coverage.out
 
 # Format the code
 fix:
