@@ -4,6 +4,7 @@ https://github.com/golang-samples/gopher-vector design by Takuya Ueda -->
 # Circuit
 [![Build Status](https://travis-ci.org/cep21/circuit.svg?branch=master)](https://travis-ci.org/cep21/circuit)
 [![GoDoc](https://godoc.org/github.com/cep21/circuit?status.svg)](https://godoc.org/github.com/cep21/circuit)
+[![Coverage Status](https://coveralls.io/repos/github/cep21/circuit/badge.svg)](https://coveralls.io/github/cep21/circuit)
 
 Circuit is an efficient and feature complete [Hystrix](https://github.com/Netflix/Hystrix) like Go implementation of
 the [circuit breaker pattern](https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker).
