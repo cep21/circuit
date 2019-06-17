@@ -126,7 +126,7 @@ func (s *Closer) ErrTimeout(now time.Time, duration time.Duration) {
 
 // ShouldClose is true if we hav enough successful attempts in a row.
 func (s *Closer) ShouldClose(now time.Time) bool {
-	return s.concurrentSuccessfulAttempts.Get() > s.closeOnCurrentCount.Get()
+	return s.concurrentSuccessfulAttempts.Get() >= s.closeOnCurrentCount.Get()
 }
 
 // Config returns the current configuration.  Use SetConfigThreadSafe to modify the current configuration.

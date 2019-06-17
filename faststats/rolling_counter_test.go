@@ -154,8 +154,12 @@ func TestRollingCounter_Race(t *testing.T) {
 			x.GetBuckets(time.Now())
 		})
 		doTillTime(doNotPassTime, &wg, func() {
-			_, err := json.Marshal(&x)
+			b, err := json.Marshal(&x)
 			if err != nil {
+				t.Error("Expected non nil error", err)
+			}
+			var x RollingCounter
+			if err := json.Unmarshal(b, &x); err != nil {
 				t.Error("Expected non nil error", err)
 			}
 		})
@@ -187,8 +191,20 @@ func TestRollingCounter_Inc(t *testing.T) {
 		t.Errorf("Should see a single item after adding by 1")
 	}
 	x.Inc(now)
-	if x.RollingSumAt(now) != 2 {
-		t.Errorf("Should see two items now")
+	if ans := x.RollingSumAt(now); ans != 2 {
+		t.Errorf("Should see two items now, not %d", ans)
+	}
+	x.Inc(now.Add(-time.Second))
+	if ans := x.RollingSumAt(now); ans != 2 {
+		t.Errorf("Should see two items now, not %d", ans)
+	}
+	if x.RollingSum() != 2 {
+		t.Errorf("Should see two items still")
+	}
+
+	x.Reset(now)
+	if ans := x.RollingSumAt(now); ans != 0 {
+		t.Errorf("Should reset to zero")
 	}
 }
 
