@@ -20,4 +20,5 @@ script:
   - make build
   - make test
   - make upload_coverage
+  - go mod verify
   - go mod vendor && GO111MODULE=off PATH=$TRAVIS_BUILD_DIR/bin:$PATH make lint

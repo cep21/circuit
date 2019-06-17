@@ -49,6 +49,13 @@ type ConfigureOpener struct {
 	NumBuckets int
 }
 
+func (c *ConfigureOpener) now() time.Time {
+	if c.Now == nil {
+		return time.Now()
+	}
+	return c.Now()
+}
+
 // Merge this configuration with another
 func (c *ConfigureOpener) Merge(other ConfigureOpener) {
 	if c.ErrorThresholdPercentage == 0 {
@@ -83,7 +90,7 @@ func (e *Opener) MarshalJSON() ([]byte, error) {
 		"config":   cfg,
 		"attempts": &e.legitimateAttemptsCount,
 		"errors":   &e.errorsCount,
-		"err_%":    e.errPercentage(cfg.Now()),
+		"err_%":    e.errPercentage(cfg.now()),
 	})
 }
 
@@ -149,7 +156,7 @@ func (e *Opener) ShouldOpen(now time.Time) bool {
 func (e *Opener) errPercentage(now time.Time) float64 {
 	attemptCount := e.legitimateAttemptsCount.RollingSumAt(now)
 	if attemptCount == 0 {
-		// not enough requests. Will not open circuit
+		// not enough requests (can't make a percent of zero)
 		return -1
 	}
 
