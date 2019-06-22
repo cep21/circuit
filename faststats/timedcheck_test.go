@@ -1,6 +1,8 @@
 package faststats
 
 import (
+	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -14,6 +16,29 @@ func TestTimedCheck_Empty(t *testing.T) {
 	now := time.Now()
 	if !x.Check(now) {
 		t.Error("First check should pass on empty object")
+	}
+}
+
+func TestTimedCheck_MarshalJSON(t *testing.T) {
+	x := TimedCheck{}
+	if x.String() != fmt.Sprintf("TimedCheck(open=%s)", time.Time{}) {
+		t.Fatal("unexpected toString", x.String())
+	}
+	x.SetSleepDuration(time.Second)
+	x.SetEventCountToAllow(12)
+	b, err := json.Marshal(&x)
+	if err != nil {
+		t.Fatal("unexpected err", err)
+	}
+	var y TimedCheck
+	if err := json.Unmarshal(b, &y); err != nil {
+		t.Fatal("unexpected err", err)
+	}
+	if y.eventCountToAllow.Get() != 12 {
+		t.Fatal("expect 10 event counts to allow")
+	}
+	if y.sleepDuration.Get() != time.Second.Nanoseconds() {
+		t.Fatal("expect 1 sec sleep duration")
 	}
 }
 
