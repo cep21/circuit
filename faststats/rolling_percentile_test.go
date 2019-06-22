@@ -2,6 +2,7 @@ package faststats
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +16,62 @@ func TestRollingPercentile_Fresh(t *testing.T) {
 	expectSnap(t, "at empty", snap, 0, -1, map[float64]time.Duration{
 		50: -1,
 	})
+}
+
+func TestRollingPercentile_Reset(t *testing.T) {
+	now := time.Now()
+	x := NewRollingPercentile(time.Second, 10, 100, now)
+	x.AddDuration(time.Second, now)
+	expectSnap(t, "at first", x.SnapshotAt(now), 1, time.Second, map[float64]time.Duration{
+		0.0: time.Second,
+		1.0: time.Second,
+	})
+	x.Reset(now)
+	expectSnap(t, "at first", x.SnapshotAt(now), 0, -1, map[float64]time.Duration{
+		0.0: -1,
+	})
+}
+
+func TestDurationsBucket_String(t *testing.T) {
+	x := newDurationsBucket(10)
+	x.addDuration(time.Second)
+	dur := x.Durations()
+	if !reflect.DeepEqual(dur, []time.Duration{time.Second}) {
+		t.Fatalf("unexpected durations")
+	}
+	if x.String() != "durationsBucket(idx=1)" {
+		t.Fatalf("unexpected string value: %s", x.String())
+	}
+
+	b, err := json.Marshal(&x)
+	if err != nil {
+		t.Fatalf("Expect no error: %s", err)
+	}
+	var y durationsBucket
+	if err := json.Unmarshal(b, &y); err != nil {
+		t.Fatal("unexpected error marshalling", err)
+	}
+	if !reflect.DeepEqual(y.Durations(), x.Durations()) {
+		t.Fatal("expected same durations")
+	}
+}
+
+func TestDurationsBucket_IterateDurations(t *testing.T) {
+	x := newDurationsBucket(10)
+	x.IterateDurations(0, func(_ time.Duration) {
+		t.Fatal("nothing in there")
+	})
+	c := 0
+	x.addDuration(time.Second)
+	x.IterateDurations(0, func(d time.Duration) {
+		c++
+		if d != time.Second {
+			t.Fatal("Expected a second")
+		}
+	})
+	if c != 1 {
+		t.Fatal("Expected 1 counter")
+	}
 }
 
 func TestSortedDurations_asJSON(t *testing.T) {

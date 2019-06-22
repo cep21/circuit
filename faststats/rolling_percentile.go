@@ -205,21 +205,36 @@ func (b *durationsBucket) String() string {
 	return fmt.Sprintf("durationsBucket(idx=%d)", b.currentIndex.Get())
 }
 
-// MarshalJSON returns the durations as JSON.  It is thread safe.
-func (b *durationsBucket) MarshalJSON() ([]byte, error) {
-	return json.Marshal(b.Durations())
+type forMarshal struct {
+	DurationsSomeInvalid []int64
+	CurrentIndex         int64
 }
 
-// UnmarshalJSON stores JSON encoded durations into the bucket.  It is thread safe.
+// MarshalJSON returns the durations as JSON.  It is thread safe.
+func (b *durationsBucket) MarshalJSON() ([]byte, error) {
+	m := forMarshal{
+		DurationsSomeInvalid: make([]int64, len(b.durationsSomeInvalid)),
+	}
+	m.CurrentIndex = b.currentIndex.Get()
+	for idx := range b.durationsSomeInvalid {
+		m.DurationsSomeInvalid[idx] = b.durationsSomeInvalid[idx].Get()
+	}
+	return json.Marshal(m)
+}
+
+// UnmarshalJSON stores JSON encoded durations into the bucket.  It is thread safe *only* if durations length matches.
 func (b *durationsBucket) UnmarshalJSON(data []byte) error {
-	var durations []time.Duration
-	err := json.Unmarshal(data, &durations)
-	if err != nil {
+	var m forMarshal
+	if err := json.Unmarshal(data, &m); err != nil {
 		return err
 	}
-	for _, d := range durations {
-		b.addDuration(d)
+	if len(b.durationsSomeInvalid) != len(m.DurationsSomeInvalid) {
+		b.durationsSomeInvalid = make([]AtomicInt64, len(m.DurationsSomeInvalid))
 	}
+	for idx := range m.DurationsSomeInvalid {
+		b.durationsSomeInvalid[idx].Set(m.DurationsSomeInvalid[idx])
+	}
+	b.currentIndex.Set(m.CurrentIndex)
 	return nil
 }
 
