@@ -3,6 +3,7 @@ package rolling
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -111,5 +112,107 @@ func TestCircuitIgnoreContextFailures(t *testing.T) {
 	}
 	if cmdMetrics.ErrInterrupts.RollingSumAt(time.Now()) != 1 {
 		t.Error("rolling sum should count the interrupt")
+	}
+}
+
+func TestStatFactory_RunStats(t *testing.T) {
+	s := StatFactory{}
+	if s.RunStats("hello") != nil {
+		t.Error("expected nil stats")
+	}
+	s.CreateConfig("hello")
+	if s.RunStats("hello") == nil {
+		t.Error("expected non nil stats")
+	}
+}
+
+func TestStatFactory_FallbackStats(t *testing.T) {
+	s := StatFactory{}
+	if s.FallbackStats("hello") != nil {
+		t.Error("expected nil stats")
+	}
+	s.CreateConfig("hello")
+	if s.FallbackStats("hello") == nil {
+		t.Error("expected non nil stats")
+	}
+}
+
+func TestFindCommandMetrics(t *testing.T) {
+	var c circuit.Circuit
+	if stats := FindCommandMetrics(&c); stats != nil {
+		t.Error("expect no stats on empty circuit")
+	}
+}
+
+func TestFindFallbackMetrics(t *testing.T) {
+	var c circuit.Circuit
+	if stats := FindFallbackMetrics(&c); stats != nil {
+		t.Error("expect no stats on empty circuit")
+	}
+}
+
+func TestRunStats_Var(t *testing.T) {
+	r := RunStats{}
+	varOut := r.Var().String()
+	if !strings.Contains(varOut, "ErrFailures") {
+		t.Fatal("expect to see failures in var stats")
+	}
+}
+
+func TestRunStats_Config(t *testing.T) {
+	var r RunStats
+	c := RunStatsConfig{
+		RollingStatsNumBuckets: 10,
+	}
+	c.Merge(defaultRunStatsConfig)
+	r.SetConfigNotThreadSafe(c)
+	if r.Config().RollingStatsNumBuckets != 10 {
+		t.Fatal("expect 10 rolling stats buckets")
+	}
+}
+
+func TestRunStats_ErrConcurrencyLimitReject(t *testing.T) {
+	var r RunStats
+	r.SetConfigNotThreadSafe(defaultRunStatsConfig)
+	now := time.Now()
+	r.ErrConcurrencyLimitReject(now)
+	if r.ErrConcurrencyLimitRejects.TotalSum() != 1 {
+		t.Errorf("expect a limit reject")
+	}
+}
+
+func TestRunStats_ErrShortCircuit(t *testing.T) {
+	var r RunStats
+	r.SetConfigNotThreadSafe(defaultRunStatsConfig)
+	now := time.Now()
+	r.ErrShortCircuit(now)
+	if r.ErrShortCircuits.TotalSum() != 1 {
+		t.Errorf("expect a short circuit")
+	}
+}
+
+func TestRunStats_ErrTimeout(t *testing.T) {
+	var r RunStats
+	r.SetConfigNotThreadSafe(defaultRunStatsConfig)
+	now := time.Now()
+	r.ErrTimeout(now, time.Second)
+	if r.ErrTimeouts.TotalSum() != 1 {
+		t.Errorf("expect a error timeout")
+	}
+	if r.Latencies.Snapshot().Max() != time.Second {
+		t.Errorf("expect 1 sec latency")
+	}
+}
+
+func TestRunStats_ErrorPercentage(t *testing.T) {
+	var r RunStats
+	if r.ErrorPercentage() != 0.0 {
+		t.Errorf("Expect no errors")
+	}
+	r.SetConfigNotThreadSafe(defaultRunStatsConfig)
+	now := time.Now()
+	r.ErrTimeout(now, time.Second)
+	if r.ErrorPercentage() != 1.0 {
+		t.Errorf("Expect all errors")
 	}
 }
