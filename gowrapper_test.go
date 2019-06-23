@@ -4,11 +4,8 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"sync"
 	"testing"
 	"time"
-
-	"github.com/cep21/circuit/faststats"
 )
 
 type errWaiter struct {
@@ -17,30 +14,14 @@ type errWaiter struct {
 
 	errChan   chan error
 	panicChan chan interface{}
-	once      sync.Once
 }
 
 func (e *errWaiter) init() {
-	e.once.Do(func() {
-		e.errChan = make(chan error, 1)
-		e.panicChan = make(chan interface{}, 1)
-	})
-}
-
-func (e *errWaiter) waitForErr() error {
-	e.init()
-	<-e.errChan
-	return e.err
-}
-
-func (e *errWaiter) waitForPanic() interface{} {
-	e.init()
-	<-e.panicChan
-	return e.panics
+	e.errChan = make(chan error, 1)
+	e.panicChan = make(chan interface{}, 1)
 }
 
 func (e *errWaiter) lostErrors(err error, panics interface{}) {
-	e.init()
 	if err == nil && panics == nil {
 		panic("expect one")
 	}
@@ -94,30 +75,23 @@ func Test_goroutineWrapper_waitForErrors(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			g := &goroutineWrapper{
 				lostErrors: tt.lostCapture.lostErrors,
 			}
+			tt.lostCapture.init()
 			go tt.gorun(&tt)
 			g.waitForErrors(tt.args.runFuncErr, tt.args.panicResults)
 			// Reset these so deep equal works ...
 			tt.lostCapture.panicChan = nil
 			tt.lostCapture.errChan = nil
-			tt.lostCapture.once = sync.Once{}
 			// --- end reset
 			if !reflect.DeepEqual(tt.expected, tt.lostCapture) {
 				t.Errorf("goroutineWrapper.waitForErrors failure %v vs %v", tt.expected, tt.lostCapture)
 			}
 		})
 	}
-}
-
-func atomicBool(b bool) faststats.AtomicBoolean {
-	var ret faststats.AtomicBoolean
-	if b {
-		ret.Set(true)
-	}
-	return ret
 }
 
 //noinspection GoNilness
@@ -189,13 +163,13 @@ func Test_goroutineWrapper_run(t *testing.T) {
 			args: args{
 				runFunc: func(ctx context.Context) error {
 					panic("bob")
-					return nil
 				},
 			},
 			expectPanic: "bob",
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			g := &goroutineWrapper{
 				lostErrors: tt.lostCapture.lostErrors,
