@@ -20,11 +20,6 @@ func (m *circuitError) ConcurrencyLimitReached() bool {
 	return m.concurrencyLimitReached
 }
 
-// Deprecated: A typo.  Will be removed in future releases.  Use CircuitOpen instead
-func (m *circuitError) CiruitOpen() bool {
-	return m.CircuitOpen()
-}
-
 func (m *circuitError) CircuitOpen() bool {
 	return m.circuitOpen
 }

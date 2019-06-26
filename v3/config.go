@@ -49,7 +49,7 @@ type ExecutionConfig struct {
 	// unhealth.  Set this to true to consider those circuits unhealthy.
 	// Note: This is a typo: Should be renamed as IgnoreInterrupts.  Tracking this in
 	//       https://github.com/cep21/circuit/issues/39
-	IgnoreInterrputs bool `json:",omitempty"`
+	IgnoreInterrupts bool `json:",omitempty"`
 }
 
 // FallbackConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#fallback
@@ -97,8 +97,8 @@ func (t *TimeKeeper) merge(other TimeKeeper) {
 }
 
 func (c *ExecutionConfig) merge(other ExecutionConfig) {
-	if !c.IgnoreInterrputs {
-		c.IgnoreInterrputs = other.IgnoreInterrputs
+	if !c.IgnoreInterrupts {
+		c.IgnoreInterrupts = other.IgnoreInterrupts
 	}
 	if c.MaxConcurrentRequests == 0 {
 		c.MaxConcurrentRequests = other.MaxConcurrentRequests
@@ -178,7 +178,7 @@ type atomicCircuitConfig struct {
 		Disabled     faststats.AtomicBoolean
 	}
 	GoSpecific struct {
-		IgnoreInterrputs faststats.AtomicBoolean
+		IgnoreInterrupts faststats.AtomicBoolean
 	}
 }
 
@@ -190,7 +190,7 @@ func (a *atomicCircuitConfig) reset(config Config) {
 	a.Execution.ExecutionTimeout.Set(config.Execution.Timeout.Nanoseconds())
 	a.Execution.MaxConcurrentRequests.Set(config.Execution.MaxConcurrentRequests)
 
-	a.GoSpecific.IgnoreInterrputs.Set(config.Execution.IgnoreInterrputs)
+	a.GoSpecific.IgnoreInterrupts.Set(config.Execution.IgnoreInterrupts)
 
 	a.Fallback.Disabled.Set(config.Fallback.Disabled)
 	a.Fallback.MaxConcurrentRequests.Set(config.Fallback.MaxConcurrentRequests)

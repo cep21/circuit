@@ -76,7 +76,7 @@ func ExampleManager_MustCreateCircuit_helloworld() {
 
 // If the context passed into a circuit function ends, before the circuit can
 //finish, it does not count the circuit as unhealthy.  You can disable this
-//behavior with the `IgnoreInterrputs` flag.
+//behavior with the `IgnoreInterrupts` flag.
 //
 // This example proves that terminating a circuit call early because the passed in context died does not, by default,
 // count as an error on the circuit.  It also demonstrates setting up internal stat collection by default for all
