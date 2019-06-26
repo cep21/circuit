@@ -4,21 +4,34 @@ sudo: false
 
 env:
   global:
-    - GO111MODULE=on
+    - GO111MODULE=on DEP_VERSION="0.5.3"
 
 go:
   - "1.12"
+  - "1.11"
+  - "1.10"
 
 cache:
   directories:
     - $GOPATH/pkg/mod
 
 install:
-  - make setup_ci
+  - if [ $TRAVIS_GO_VERSION == "1.12" ]; then
+      cd v3 && make setup_ci && cd -;
+    else
+      curl -L -s https://github.com/golang/dep/releases/download/v${DEP_VERSION}/dep-linux-amd64 -o $GOPATH/bin/dep;
+      chmod +x $GOPATH/bin/dep;
+    fi
 
 script:
+  - if [ $TRAVIS_GO_VERSION == "1.12" ]; then
+      go mod verify;
+      go mod vendor && GO111MODULE=off PATH=$TRAVIS_BUILD_DIR/bin:$PATH make lint;
+      rm -rf vendor;
+    else
+      dep ensure;
+    fi
+  - cd v3
   - make build
   - make test
-  - make upload_coverage
-  - go mod verify
-  - go mod vendor && GO111MODULE=off PATH=$TRAVIS_BUILD_DIR/bin:$PATH make lint
+  - "[ $TRAVIS_GO_VERSION != '1.12' ] || make upload_coverage"
