@@ -42,6 +42,7 @@ worth looking at.  They tend to be more up to date than the README doc.
 * Live configuration changes
 * Many tests and examples
 * Good inline documentation
+* Generatable interface wrapping support with https://github.com/twitchtv/circuitgen
 
 # Usage
 
