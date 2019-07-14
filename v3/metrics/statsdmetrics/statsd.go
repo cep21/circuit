@@ -91,6 +91,7 @@ type ConcurrencyCollector struct {
 	onClose                chan struct{}
 	Manager                *circuit.Manager
 	SampleRate             float32
+	timeAfter              func(time.Duration) <-chan time.Time
 	once                   sync.Once
 }
 
@@ -100,6 +101,13 @@ func (c *ConcurrencyCollector) delay() time.Duration {
 		return time.Second * 10
 	}
 	return ret
+}
+
+func (c *ConcurrencyCollector) after(dur time.Duration) <-chan time.Time {
+	if c.timeAfter == nil {
+		return time.After(dur)
+	}
+	return c.timeAfter(dur)
 }
 
 func (c *ConcurrencyCollector) init() {
@@ -135,7 +143,7 @@ func (c *ConcurrencyCollector) Start() {
 		select {
 		case <-c.onClose:
 			return
-		case <-time.After(c.delay()):
+		case <-c.after(c.delay()):
 			c.Collect()
 		}
 	}

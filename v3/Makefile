@@ -12,6 +12,10 @@ test:
 test_coverage:
 	go test -v -covermode=count -coverprofile=coverage.out ./...
 
+# Run unit tests
+view_coverage: test_coverage
+	go tool cover -html=coverage.out
+
 upload_coverage: test_coverage
 	goveralls -coverprofile coverage.out
 

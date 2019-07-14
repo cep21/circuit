@@ -33,11 +33,11 @@ func (m *MockClock) Add(d time.Duration) time.Time {
 }
 
 func (m *MockClock) triggerCallbacks() {
+	var newArray []timedCallbacks
+	var toCall []timedCallbacks
 	m.mu.Lock()
-	newArray := []timedCallbacks{}
-	toCall := []timedCallbacks{}
 	for _, c := range m.callbacks {
-		if m.currentTime.After(c.when) {
+		if m.currentTime.Before(c.when) {
 			newArray = append(newArray, c)
 		} else {
 			toCall = append(toCall, c)
@@ -68,4 +68,21 @@ func (m *MockClock) AfterFunc(d time.Duration, f func()) *time.Timer {
 	m.callbacks = append(m.callbacks, timedCallbacks{when: m.currentTime.Add(d), f: f})
 	// Do not use what is returned ...
 	return nil
+}
+
+// AfterFunc simulates time.After
+func (m *MockClock) After(d time.Duration) <-chan time.Time {
+	c := make(chan time.Time, 1)
+	m.AfterFunc(d, func() {
+		c <- m.Now()
+	})
+	return c
+}
+
+// TickUntil will tick the mock clock until shouldStop returns false.  Real sleep should be very small
+func TickUntil(m *MockClock, shouldStop func() bool, realSleep time.Duration, mockIncr time.Duration) {
+	for !shouldStop() {
+		time.Sleep(realSleep)
+		m.Add(mockIncr)
+	}
 }
