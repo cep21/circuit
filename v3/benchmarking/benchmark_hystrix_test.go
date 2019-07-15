@@ -1,3 +1,6 @@
+// +build go1.12
+
+// Note: Some of the packages we benchmark against require go 1.12 so we can only benchmark on go 1.12
 package benchmarking
 
 import (
