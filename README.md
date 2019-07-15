@@ -43,6 +43,7 @@ worth looking at.  They tend to be more up to date than the README doc.
 * Many tests and examples
 * Good inline documentation
 * Generatable interface wrapping support with https://github.com/twitchtv/circuitgen
+* Support for [Additive increase/multiplicative decrease](https://github.com/cep21/aimdcloser)
 
 # Usage
 
