@@ -2,11 +2,11 @@ PROFILE_RUN ?= BenchmarkCiruits/Hystrix/Minimal/failing/75
 BENCH_RUN ?= .
 
 build:
-	go build -mod=readonly ./...
+	go build ./...
 
 # Run unit tests
 test:
-	env "GORACE=halt_on_error=1" go test -mod=readonly -v -race ./...
+	env "GORACE=halt_on_error=1" go test -v -race ./...
 
 # Run unit tests
 test_coverage:

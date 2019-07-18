@@ -25,6 +25,7 @@ install:
 
 script:
   - if [ $TRAVIS_GO_VERSION == "1.12" ]; then
+      go build -mod=readonly ./... && cd v3 && go build -mod=readonly ./... && cd -;
       go mod verify;
       go mod vendor && GO111MODULE=off PATH=$TRAVIS_BUILD_DIR/bin:$PATH make lint;
       rm -rf vendor;
