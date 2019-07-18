@@ -154,7 +154,8 @@ func TestDoForwardsPanics(t *testing.T) {
 func TestCircuit_Go_ForwardsPanic(t *testing.T) {
 	c := NewCircuitFromConfig("TestGoFunction", Config{
 		Execution: ExecutionConfig{
-			Timeout: time.Millisecond * 2,
+			// Make this test not timeout
+			Timeout: time.Minute,
 		},
 	})
 	ctx := context.Background()
