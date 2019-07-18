@@ -32,6 +32,6 @@ script:
       dep ensure;
     fi
   - cd v3
-  - make build
+  - git stash; make build
   - make test
   - "[ $TRAVIS_GO_VERSION != '1.12' ] || make upload_coverage"
