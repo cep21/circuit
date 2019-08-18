@@ -21,7 +21,7 @@ upload_coverage: test_coverage
 
 # Format the code
 fix:
-	find . -iname '*.go' -not -path '*/vendor/*' -print0 | xargs -0 gofmt -s -w
+	find . -iname '*.go' -not -path '*/vendor/*' -print0 | xargs -0 go fmt -s -w
 	find . -iname '*.go' -not -path '*/vendor/*' -print0 | xargs -0 goimports -w
 
 # Run benchmark examples
