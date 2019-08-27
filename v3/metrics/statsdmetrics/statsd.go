@@ -90,9 +90,9 @@ type ConcurrencyCollector struct {
 	Delay                  faststats.AtomicInt64
 	onClose                chan struct{}
 	Manager                *circuit.Manager
-	SampleRate             float32
 	timeAfter              func(time.Duration) <-chan time.Time
 	once                   sync.Once
+	SampleRate             float32
 }
 
 func (c *ConcurrencyCollector) delay() time.Duration {

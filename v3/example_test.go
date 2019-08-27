@@ -293,3 +293,11 @@ func ExampleConfig_custommetrics() {
 	circuit.NewCircuitFromConfig("custom-metrics", config)
 	// Output:
 }
+
+// Shows how to check if an error is part of the circuit library.
+func ExampleError_checking() {
+	x := errors.New("an error")
+	if _, ok := x.(circuit.Error); ok {
+		// this error is a circuit library error, not the result of runFunc or fallbackFunc
+	}
+}
