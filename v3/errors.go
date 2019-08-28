@@ -11,6 +11,16 @@ type circuitError struct {
 	circuitOpen             bool
 	msg                     string
 }
+var _ Error = &circuitError{}
+
+// Error is the type of error returned by internal errors using the circuit library.
+type Error interface {
+	error
+	// ConcurrencyLimitReached returns true if this error is because the concurrency limit has been reached.
+	ConcurrencyLimitReached() bool
+	// CircuitOpen returns true if this error is because the circuit is open.
+	CircuitOpen() bool
+}
 
 func (m *circuitError) Error() string {
 	return fmt.Sprintf("%s: concurrencyReached=%t circuitOpen=%t", m.msg, m.ConcurrencyLimitReached(), m.CircuitOpen())

@@ -218,6 +218,8 @@ func (c *Circuit) Run(ctx context.Context, runFunc func(context.Context) error) 
 }
 
 // Execute the circuit.  Prefer this over Go.  Similar to http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#execute--
+// The returned error will either be the result of runFunc, the result of fallbackFunc, or an internal library error.
+// Internal library errors will match the interface Error and you can use type casting to check this.
 func (c *Circuit) Execute(ctx context.Context, runFunc func(context.Context) error, fallbackFunc func(context.Context, error) error) error {
 	if c.isEmptyOrNil() || c.threadSafeConfig.CircuitBreaker.Disabled.Get() {
 		return runFunc(ctx)

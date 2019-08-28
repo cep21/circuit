@@ -147,6 +147,7 @@ func Test_sanitizeStatsd(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if got := sanitizeStatsd(tt.args.s); got != tt.want {
 				t.Errorf("sanitizeStatsd() = %v, want %v", got, tt.want)
@@ -162,7 +163,7 @@ func TestConcurrencyCollector_delay(t *testing.T) {
 	require.Equal(t, x.delay(), time.Second*3)
 }
 
-func waitForGauge(name string, ss *rememberStats, clk *clock.MockClock) {
+func waitForGauge(name string, ss *rememberStats, _ *clock.MockClock) {
 	hasGauge := false
 	for !hasGauge {
 		time.Sleep(time.Millisecond)
@@ -174,7 +175,7 @@ func waitForGauge(name string, ss *rememberStats, clk *clock.MockClock) {
 	}
 }
 
-func waitForCounter(name string, ss *rememberStats, clk *clock.MockClock) {
+func waitForCounter(name string, ss *rememberStats, _ *clock.MockClock) {
 	hasCounter := false
 	for !hasCounter {
 		time.Sleep(time.Millisecond)
