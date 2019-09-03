@@ -396,7 +396,7 @@ fmt.Println("Result of 10/0 is", err)
 // Output: Result of 10/0 is someone tried to divide by zero
 ```
 
-# [Benchmarking](https://github.com/cep21/circuit/blob/master/benchmarking/benchmark_hystrix_test.go)
+# [Benchmarking](https://github.com/cep21/circuit/blob/master/v3/benchmarking/benchmark_hystrix_test.go)
 
 This implementation is more efficient than go-hystrix in every configuration.  It has comparable efficiency
 to other implementations, in most faster when running with high concurrency. Run benchmarks with `make bench`.
