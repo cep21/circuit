@@ -7,6 +7,7 @@ env:
     - GO111MODULE=on DEP_VERSION="0.5.3"
 
 go:
+  - "1.13"
   - "1.12"
   - "1.11"
   - "1.10"
@@ -16,7 +17,7 @@ cache:
     - $GOPATH/pkg/mod
 
 install:
-  - if [ $TRAVIS_GO_VERSION == "1.12" ]; then
+  - if [ $TRAVIS_GO_VERSION == "1.13" ]; then
       cd v3 && make setup_ci && cd -;
     else
       curl -L -s https://github.com/golang/dep/releases/download/v${DEP_VERSION}/dep-linux-amd64 -o $GOPATH/bin/dep;
@@ -24,7 +25,7 @@ install:
     fi
 
 script:
-  - if [ $TRAVIS_GO_VERSION == "1.12" ]; then
+  - if [ $TRAVIS_GO_VERSION == "1.13" ]; then
       go build -mod=readonly ./... && cd v3 && go build -mod=readonly ./... && cd -;
       go mod verify;
       go mod vendor && GO111MODULE=off PATH=$TRAVIS_BUILD_DIR/bin:$PATH make lint;
@@ -35,4 +36,4 @@ script:
   - cd v3
   - git stash; make build
   - make test
-  - "[ $TRAVIS_GO_VERSION != '1.12' ] || make upload_coverage"
+  - "[ $TRAVIS_GO_VERSION != '1.13' ] || make upload_coverage"
