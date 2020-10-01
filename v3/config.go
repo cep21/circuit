@@ -139,6 +139,14 @@ func (g *GeneralConfig) merge(other GeneralConfig) {
 	}
 	g.mergeCustomConfig(other)
 
+	if !g.ForceOpen {
+		g.ForceOpen = other.ForceOpen
+	}
+
+	if !g.ForcedClosed {
+		g.ForcedClosed = other.ForcedClosed
+	}
+
 	if g.GoLostErrors == nil {
 		g.GoLostErrors = other.GoLostErrors
 	}
