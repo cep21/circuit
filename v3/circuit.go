@@ -2,6 +2,7 @@ package circuit
 
 import (
 	"context"
+	"errors"
 	"expvar"
 	"sync"
 	"time"
@@ -335,7 +336,7 @@ func (c *Circuit) checkSuccess(runFuncDoneTime time.Time, totalCmdTime time.Dura
 }
 
 func (c *Circuit) checkErrInterrupt(originalContext context.Context, ret error, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
-	if !c.threadSafeConfig.GoSpecific.IgnoreInterrupts.Get() && ret != nil && originalContext.Err() != nil {
+	if !c.threadSafeConfig.GoSpecific.IgnoreInterrupts.Get() && ret != nil && errors.Is(originalContext.Err(), context.Canceled) {
 		c.CmdMetricCollector.ErrInterrupt(runFuncDoneTime, totalCmdTime)
 		return true
 	}
