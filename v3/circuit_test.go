@@ -283,22 +283,130 @@ func TestFallbackCircuit(t *testing.T) {
 }
 
 func TestCircuitIgnoreContextFailures(t *testing.T) {
-	c := NewCircuitFromConfig("TestFailingCircuit", Config{
-		Execution: ExecutionConfig{
-			Timeout: time.Hour,
-		},
-	})
-	for i := 0; i < 100; i++ {
-		rootCtx, cancel := context.WithTimeout(context.Background(), time.Millisecond*3)
-		err := c.Execute(rootCtx, testhelp.SleepsForX(time.Second), nil)
-		if err == nil {
-			t.Error("saw no error from circuit that should end in an error")
+
+	t.Run("ignore context.DeadlineExceeded by default", func(t *testing.T) {
+		c := circuitFactory(t)
+
+		for i := 0; i < 100; i++ {
+			rootCtx, cancel := context.WithTimeout(context.Background(), time.Millisecond*3)
+			err := c.Execute(rootCtx, testhelp.SleepsForX(time.Second), nil)
+			if err != context.DeadlineExceeded {
+				t.Errorf("saw no error from circuit that should end in an error(%d):%v", i, err)
+				cancel()
+				break
+			}
+			cancel()
 		}
-		cancel()
-	}
-	if c.IsOpen() {
-		t.Error("Parent context cacelations should not close the circuit by default")
-	}
+		if c.IsOpen() {
+			t.Error("Parent context cancellations should not close the circuit by default")
+		}
+	})
+
+	t.Run("ignore context.Canceled by default", func(t *testing.T) {
+		c := circuitFactory(t)
+
+		for i := 0; i < 100; i++ {
+			rootCtx, cancel := context.WithCancel(context.Background())
+			time.AfterFunc(time.Millisecond*3, func() { cancel() })
+			err := c.Execute(rootCtx, testhelp.SleepsForX(time.Second), nil)
+			if err != context.Canceled {
+				t.Errorf("saw no error from circuit that should end in an error(%d):%v", i, err)
+				cancel()
+				break
+			}
+			cancel()
+		}
+		if c.IsOpen() {
+			t.Error("Parent context cancellations should not close the circuit by default")
+		}
+	})
+
+	t.Run("open circle on context.DeadlineExceeded with IgnoreInterrupts", func(t *testing.T) {
+		c := circuitFactory(t, withIgnoreInterrupts(true))
+
+		for i := 0; i < 100; i++ {
+			rootCtx, cancel := context.WithTimeout(context.Background(), time.Millisecond*3)
+			err := c.Execute(rootCtx, testhelp.SleepsForX(time.Second), nil)
+
+			if err != context.DeadlineExceeded && err != errCircuitOpen {
+				t.Errorf("saw no error from circuit that should end in an error(%d):%v", i, err)
+				cancel()
+				break
+			}
+			cancel()
+		}
+		if !c.IsOpen() {
+			t.Error("Parent context cancellations should open the circuit when IgnoreInterrupts sets to true")
+		}
+	})
+
+	t.Run("open circle on context.Canceled with IgnoreInterrupts", func(t *testing.T) {
+		c := circuitFactory(t, withIgnoreInterrupts(true))
+
+		for i := 0; i < 100; i++ {
+			rootCtx, cancel := context.WithCancel(context.Background())
+			time.AfterFunc(time.Millisecond*3, func() { cancel() })
+			err := c.Execute(rootCtx, testhelp.SleepsForX(time.Second), nil)
+
+			if err != context.Canceled && err != errCircuitOpen {
+				t.Errorf("saw no error from circuit that should end in an error(%d):%v", i, err)
+				cancel()
+				break
+			}
+			cancel()
+		}
+		if !c.IsOpen() {
+			t.Error("Parent context cancellations should open the circuit when IgnoreInterrupts sets to true")
+		}
+	})
+
+	t.Run("open circle on context.DeadlineExceeded with IgnoreInterrupts and IsErrInterrupt", func(t *testing.T) {
+		c := circuitFactory(
+			t,
+			withIgnoreInterrupts(true),
+			withIsErrInterrupt(func(err error) bool { return err == context.Canceled }),
+		)
+
+		for i := 0; i < 100; i++ {
+			rootCtx, cancel := context.WithTimeout(context.Background(), time.Millisecond*3)
+			err := c.Execute(rootCtx, testhelp.SleepsForX(time.Second), nil)
+
+			if err != context.DeadlineExceeded && err != errCircuitOpen {
+				t.Errorf("saw no error from circuit that should end in an error(%d):%v", i, err)
+				cancel()
+				break
+			}
+			cancel()
+		}
+		if !c.IsOpen() {
+			t.Error("Parent context cancellations should open the circuit when IgnoreInterrupts sets to true")
+		}
+	})
+
+	t.Run("ignore context.Canceled with IgnoreInterrupts and IsErrInterrupt", func(t *testing.T) {
+		c := circuitFactory(
+			t,
+			withIgnoreInterrupts(true),
+			withIsErrInterrupt(func(err error) bool { return err == context.Canceled }),
+		)
+
+		for i := 0; i < 100; i++ {
+			rootCtx, cancel := context.WithCancel(context.Background())
+			time.AfterFunc(time.Millisecond*3, func() { cancel() })
+			err := c.Execute(rootCtx, testhelp.SleepsForX(time.Second), nil)
+
+			if err != context.Canceled && err != errCircuitOpen {
+				t.Errorf("saw no error from circuit that should end in an error(%d):%v", i, err)
+				cancel()
+				break
+			}
+			cancel()
+		}
+		if c.IsOpen() {
+			t.Error("Parent context cancellations should not open the circuit when IgnoreInterrupts sets to true")
+		}
+	})
+
 }
 
 func TestFallbackCircuitConcurrency(t *testing.T) {
@@ -452,4 +560,62 @@ func TestVariousRaceConditions(t *testing.T) {
 		})
 	}
 	wg.Wait()
+}
+
+func openOnFirstErrorFactory() ClosedToOpen {
+	return &closeOnFirstErrorOpener{
+		ClosedToOpen: neverOpensFactory(),
+	}
+}
+
+type closeOnFirstErrorOpener struct {
+	ClosedToOpen
+	isOpenedMutex sync.RWMutex
+	isOpened      bool
+}
+
+func (o *closeOnFirstErrorOpener) ShouldOpen(_ time.Time) bool {
+	o.isOpenedMutex.Lock()
+	defer o.isOpenedMutex.Unlock()
+	o.isOpened = true
+	return true
+}
+func (o *closeOnFirstErrorOpener) Prevent(_ time.Time) bool {
+	o.isOpenedMutex.RLock()
+	defer o.isOpenedMutex.RUnlock()
+	return o.isOpened
+}
+
+type configOverride func(*Config) *Config
+
+func withIgnoreInterrupts(b bool) configOverride {
+	return func(c *Config) *Config {
+		c.Execution.IgnoreInterrupts = b
+		return c
+	}
+}
+
+func withIsErrInterrupt(fn func(error) bool) configOverride {
+	return func(c *Config) *Config {
+		c.Execution.IsErrInterrupt = fn
+		return c
+	}
+}
+
+func circuitFactory(t *testing.T, cfgOpts ...configOverride) *Circuit {
+	t.Helper()
+
+	cfg := Config{
+		General: GeneralConfig{
+			ClosedToOpenFactory: openOnFirstErrorFactory,
+		},
+		Execution: ExecutionConfig{
+			Timeout: time.Hour,
+		},
+	}
+	for _, co := range cfgOpts {
+		co(&cfg)
+	}
+
+	return NewCircuitFromConfig(t.Name(), cfg)
 }
