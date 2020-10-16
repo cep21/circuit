@@ -570,19 +570,14 @@ func openOnFirstErrorFactory() ClosedToOpen {
 
 type closeOnFirstErrorOpener struct {
 	ClosedToOpen
-	isOpenedMutex sync.RWMutex
-	isOpened      bool
+	isOpened bool
 }
 
 func (o *closeOnFirstErrorOpener) ShouldOpen(_ time.Time) bool {
-	o.isOpenedMutex.Lock()
-	defer o.isOpenedMutex.Unlock()
 	o.isOpened = true
 	return true
 }
 func (o *closeOnFirstErrorOpener) Prevent(_ time.Time) bool {
-	o.isOpenedMutex.RLock()
-	defer o.isOpenedMutex.RUnlock()
 	return o.isOpened
 }
 
