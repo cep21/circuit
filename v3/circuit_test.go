@@ -321,7 +321,7 @@ func TestCircuitIgnoreContextFailures(t *testing.T) {
 		}
 	})
 
-	t.Run("open circle on context.DeadlineExceeded with IgnoreInterrupts", func(t *testing.T) {
+	t.Run("open circuit on context.DeadlineExceeded with IgnoreInterrupts", func(t *testing.T) {
 		c := circuitFactory(t, withIgnoreInterrupts(true))
 
 		for i := 0; i < 100; i++ {
@@ -340,7 +340,7 @@ func TestCircuitIgnoreContextFailures(t *testing.T) {
 		}
 	})
 
-	t.Run("open circle on context.Canceled with IgnoreInterrupts", func(t *testing.T) {
+	t.Run("open circuit on context.Canceled with IgnoreInterrupts", func(t *testing.T) {
 		c := circuitFactory(t, withIgnoreInterrupts(true))
 
 		for i := 0; i < 100; i++ {
@@ -360,7 +360,7 @@ func TestCircuitIgnoreContextFailures(t *testing.T) {
 		}
 	})
 
-	t.Run("open circle on context.DeadlineExceeded with IgnoreInterrupts and IsErrInterrupt", func(t *testing.T) {
+	t.Run("open circuit on context.DeadlineExceeded with IgnoreInterrupts and IsErrInterrupt", func(t *testing.T) {
 		c := circuitFactory(
 			t,
 			withIgnoreInterrupts(true),
