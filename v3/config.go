@@ -48,13 +48,12 @@ type ExecutionConfig struct {
 	// Normally if the parent context is canceled before a timeout is reached, we don't consider the circuit
 	// unhealthy.  Set this to true to consider those circuits unhealthy.
 	IgnoreInterrupts bool `json:",omitempty"`
-	// IsErrInterrupt will check if error from ctx.Err() should "open" circle.
-	// This function called only when IgnoreInterrupts set to true.
-	// It should return true for errors which would not open circle and false otherwise.
-	// For example:
-	// 		IsErrInterrupt: function(e err) bool { return e == context.Canceled }
-	//By default any error marks circle as unhealthy when IsErrInterrupt set to true.
-	IsErrInterrupt func(error) bool `json:"-"`
+	// IsErrInterrupt should return true if the error from the original context should be considered an interrupt error.
+	// The error passed in will be a non-nil error returned by calling `Err()` on the context passed into Run.
+	// The default behavior is to consider all errors from the original context interrupt caused errors.
+	// Default behaviour:
+	// 		IsErrInterrupt: function(e err) bool { return true }
+	IsErrInterrupt func(originalContextError error) bool `json:"-"`
 }
 
 // FallbackConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#fallback

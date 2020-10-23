@@ -334,21 +334,26 @@ func (c *Circuit) checkSuccess(runFuncDoneTime time.Time, totalCmdTime time.Dura
 	}
 }
 
+// checkErrInterrupt returns true if this is considered an interrupt error: interrupt errors do not open the circuit.
 // Normally if the parent context is canceled before a timeout is reached, we don't consider the circuit
 // unhealthy. But when ExecutionConfig.IgnoreInterrupts set to true we try to classify originalContext.Err()
-// with help of ExecutionConfig.IsErrInterrupt function. When this function returns true we do not open circle
+// with help of ExecutionConfig.IsErrInterrupt function. When this function returns true we do not open the circuit
 func (c *Circuit) checkErrInterrupt(originalContext context.Context, ret error, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
+	// We need to see an error in both the original context and the return value to consider this an "interrupt" caused
+	// error.
 	if ret == nil || originalContext.Err() == nil {
 		return false
 	}
 
-	if !c.threadSafeConfig.GoSpecific.IgnoreInterrupts.Get() {
-		c.CmdMetricCollector.ErrInterrupt(runFuncDoneTime, totalCmdTime)
-		return true
+	isErrInterrupt := c.notThreadSafeConfig.Execution.IsErrInterrupt
+	if isErrInterrupt == nil {
+		isErrInterrupt = func(_ error) bool {
+			// By default, we consider any error from the original context an interrupt causing error
+			return true
+		}
 	}
 
-	check := c.notThreadSafeConfig.Execution.IsErrInterrupt
-	if check != nil && check(originalContext.Err()) {
+	if !c.threadSafeConfig.GoSpecific.IgnoreInterrupts.Get() && isErrInterrupt(originalContext.Err()) {
 		c.CmdMetricCollector.ErrInterrupt(runFuncDoneTime, totalCmdTime)
 		return true
 	}
