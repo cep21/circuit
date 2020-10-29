@@ -46,10 +46,14 @@ type ExecutionConfig struct {
 	// MaxConcurrentRequests is https://github.com/Netflix/Hystrix/wiki/Configuration#executionisolationsemaphoremaxconcurrentrequests
 	MaxConcurrentRequests int64
 	// Normally if the parent context is canceled before a timeout is reached, we don't consider the circuit
-	// unhealth.  Set this to true to consider those circuits unhealthy.
-	// Note: This is a typo: Should be renamed as IgnoreInterrupts.  Tracking this in
-	//       https://github.com/cep21/circuit/issues/39
+	// unhealthy.  Set this to true to consider those circuits unhealthy.
 	IgnoreInterrupts bool `json:",omitempty"`
+	// IsErrInterrupt should return true if the error from the original context should be considered an interrupt error.
+	// The error passed in will be a non-nil error returned by calling `Err()` on the context passed into Run.
+	// The default behavior is to consider all errors from the original context interrupt caused errors.
+	// Default behaviour:
+	// 		IsErrInterrupt: function(e err) bool { return true }
+	IsErrInterrupt func(originalContextError error) bool `json:"-"`
 }
 
 // FallbackConfig is https://github.com/Netflix/Hystrix/wiki/Configuration#fallback
@@ -99,6 +103,9 @@ func (t *TimeKeeper) merge(other TimeKeeper) {
 func (c *ExecutionConfig) merge(other ExecutionConfig) {
 	if !c.IgnoreInterrupts {
 		c.IgnoreInterrupts = other.IgnoreInterrupts
+	}
+	if c.IsErrInterrupt == nil {
+		c.IsErrInterrupt = other.IsErrInterrupt
 	}
 	if c.MaxConcurrentRequests == 0 {
 		c.MaxConcurrentRequests = other.MaxConcurrentRequests
