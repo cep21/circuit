@@ -109,6 +109,7 @@ func TestRollingPercentile_Race(t *testing.T) {
 			x.SnapshotAt(time.Now())
 		})
 		doTillTime(doNotPassTime, &wg, func() {
+			//nolint:staticcheck
 			_, err := json.Marshal(&x)
 			if err != nil {
 				t.Error("unable to marshal", err)

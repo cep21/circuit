@@ -11,7 +11,7 @@ import (
 
 // Circuit is a circuit breaker pattern implementation that can accept commands and open/close on failures
 type Circuit struct {
-	//circuitStats
+	// circuitStats
 	CmdMetricCollector      RunMetricsCollection
 	FallbackMetricCollector FallbackMetricsCollection
 	CircuitMetricsCollector MetricsCollection

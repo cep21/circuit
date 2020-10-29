@@ -94,7 +94,7 @@ func Test_goroutineWrapper_waitForErrors(t *testing.T) {
 	}
 }
 
-//noinspection GoNilness
+// noinspection GoNilness
 func Test_goroutineWrapper_nil(t *testing.T) {
 	var g goroutineWrapper
 	if g.run(nil) != nil {
@@ -105,7 +105,7 @@ func Test_goroutineWrapper_nil(t *testing.T) {
 	}
 }
 
-//noinspection GoNilness
+// noinspection GoNilness
 func Test_goroutineWrapper_foreground(t *testing.T) {
 	var g goroutineWrapper
 	err := g.fallback(func(ctx context.Context, err error) error {

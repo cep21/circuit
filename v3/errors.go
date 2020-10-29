@@ -11,6 +11,7 @@ type circuitError struct {
 	circuitOpen             bool
 	msg                     string
 }
+
 var _ Error = &circuitError{}
 
 // Error is the type of error returned by internal errors using the circuit library.

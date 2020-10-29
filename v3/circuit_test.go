@@ -386,27 +386,40 @@ func TestCircuitIgnoreContextFailures(t *testing.T) {
 	t.Run("ignore context.Canceled with IgnoreInterrupts and IsErrInterrupt", func(t *testing.T) {
 		c := circuitFactory(
 			t,
-			withIgnoreInterrupts(true),
+			withIgnoreInterrupts(false),
 			withIsErrInterrupt(func(err error) bool { return err == context.Canceled }),
 		)
 
 		for i := 0; i < 100; i++ {
 			rootCtx, cancel := context.WithCancel(context.Background())
-			time.AfterFunc(time.Millisecond*3, func() { cancel() })
-			err := c.Execute(rootCtx, testhelp.SleepsForX(time.Second), nil)
+			rootCtx = &alwaysCanceledContext{rootCtx}
+			err := c.Execute(rootCtx, func(ctx context.Context) error {
+				cancel()
+				return rootCtx.Err()
+			}, nil)
 
 			if err != context.Canceled && err != errCircuitOpen {
 				t.Errorf("saw no error from circuit that should end in an error(%d):%v", i, err)
 				cancel()
 				break
 			}
-			cancel()
-		}
-		if c.IsOpen() {
-			t.Error("Parent context cancellations should not open the circuit when IgnoreInterrupts sets to true")
+			if c.IsOpen() {
+				t.Errorf("Iteration %d: Parent context cancellations should not open the circuit when IgnoreInterrupts sets to true", i)
+				return
+			}
 		}
 	})
+}
 
+type alwaysCanceledContext struct {
+	context.Context
+}
+
+func (a *alwaysCanceledContext) Err() error {
+	if a.Context.Err() != nil {
+		return context.Canceled
+	}
+	return nil
 }
 
 func TestFallbackCircuitConcurrency(t *testing.T) {
@@ -470,7 +483,7 @@ func TestSetConfigThreadSafe(t *testing.T) {
 	}
 }
 
-//func TestSLO(t *testing.T) {
+// func TestSLO(t *testing.T) {
 //	c := NewCircuitFromConfig("TestFailingCircuit", Config{
 //		GoSpecific: GoSpecificConfig{
 //			ResponseTimeSLO: time.Millisecond,
@@ -489,7 +502,7 @@ func TestSetConfigThreadSafe(t *testing.T) {
 //	if c.responseTimeSLO.FailsSLOCount.Get() != 1 {
 //		t.Error("the request should be failed")
 //	}
-//}
+// }
 
 func TestFallbackAfterTimeout(t *testing.T) {
 	c := NewCircuitFromConfig("TestThrottled", Config{

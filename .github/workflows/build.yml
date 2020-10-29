@@ -1,0 +1,33 @@
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        go-version: [1.13.x, 1.14.x, 1.15.x]
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: Setup CI
+        run: cd v3 && make setup_ci && git stash
+      - name: Build
+        run: go build -mod=readonly ./... && cd v3 && go build -mod=readonly ./... && cd -
+      - name: Verify
+        run: go mod verify
+      - name: Test
+        run: cd v3 && make test
+      - name: Output coverage
+        run: cd v3 && make test_coverage
+      - name: upload coverage
+        if: matrix.go-version == '1.15.x'
+        uses: shogo82148/actions-goveralls@4cd937b8d4bc76c0624cfe4a10469431b6718a59
+        with:
+          path-to-profile: v3/coverage.out

@@ -2,7 +2,7 @@
 https://github.com/golang-samples/gopher-vector design by Takuya Ueda -->
 ![Mascot](https://cep21.github.io/circuit/imgs/hystrix-gopher_100px.png)
 # Circuit
-[![Build Status](https://travis-ci.org/cep21/circuit.svg?branch=master)](https://travis-ci.org/cep21/circuit)
+[![Build Status](https://github.com/cep21/circuit/workflows/Test/badge.svg?branch=master&event=push)](https://github.com/cep21/circuit/actions)
 [![GoDoc](https://godoc.org/github.com/cep21/circuit?status.svg)](https://godoc.org/github.com/cep21/circuit)
 [![Coverage Status](https://coveralls.io/repos/github/cep21/circuit/badge.svg)](https://coveralls.io/github/cep21/circuit)
 
