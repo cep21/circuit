@@ -13,7 +13,7 @@ import (
 
 // Our interface should be satisfied by go-statsd-client
 // We still assert this in our tests, but don't require the dependency for the library to allow greater flexibility.
-//var _ statsdmetrics.StatSender = statsd.StatSender(nil)
+// var _ statsdmetrics.StatSender = statsd.StatSender(nil)
 
 // The StatSender interface wraps all the statsd metric methods we care about
 type StatSender interface {

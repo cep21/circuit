@@ -34,3 +34,8 @@ linters:
     - unparam
     - unused
     - varcheck
+issues:
+  exclude-rules:
+    - linters:
+        - gosec
+      text: "G404"
