@@ -10,7 +10,7 @@ test:
 
 # Run unit tests
 test_coverage:
-	go test -v -covermode=count -coverprofile=coverage.out ./...
+	go test -v -coverpkg=./... -covermode=count -coverprofile=coverage.out ./...
 
 # Run unit tests
 view_coverage: test_coverage
