@@ -146,6 +146,10 @@ func (g *GeneralConfig) merge(other GeneralConfig) {
 	}
 	g.mergeCustomConfig(other)
 
+	if !g.Disabled {
+		g.Disabled = other.Disabled
+	}
+
 	if !g.ForceOpen {
 		g.ForceOpen = other.ForceOpen
 	}
