@@ -300,6 +300,7 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 	// The HystrixBadRequestException is intended for use cases such as reporting illegal arguments or non-system
 	// failures that should not count against the failure metrics and should not trigger fallback logic.
 	if c.checkErrBadRequest(ret, runFuncDoneTime, totalCmdTime) {
+		c.close(runFuncDoneTime, false) // Attempt to close the circuit
 		return ret
 	}
 
@@ -329,9 +330,7 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 
 func (c *Circuit) checkSuccess(runFuncDoneTime time.Time, totalCmdTime time.Duration) {
 	c.CmdMetricCollector.Success(runFuncDoneTime, totalCmdTime)
-	if c.IsOpen() {
-		c.close(runFuncDoneTime, false)
-	}
+	c.close(runFuncDoneTime, false)
 }
 
 // checkErrInterrupt returns true if this is considered an interrupt error: interrupt errors do not open the circuit.

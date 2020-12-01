@@ -98,8 +98,9 @@ func (s *Closer) Success(now time.Time, duration time.Duration) {
 	s.concurrentSuccessfulAttempts.Add(1)
 }
 
-// ErrBadRequest is ignored
+// ErrBadRequest is considered as healthy, so we count it as success here
 func (s *Closer) ErrBadRequest(now time.Time, duration time.Duration) {
+	s.concurrentSuccessfulAttempts.Add(1)
 }
 
 // ErrInterrupt is ignored
