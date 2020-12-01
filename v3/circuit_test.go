@@ -240,6 +240,36 @@ func TestCircuitCloses(t *testing.T) {
 	}
 }
 
+func TestCircuitAttemptCloses(t *testing.T) {
+	c := NewCircuitFromConfig("TestCircuitAttemptCloses", Config{
+		General: GeneralConfig{
+			OpenToClosedFactory: alwaysClosesFactory,
+		},
+	})
+	c.OpenCircuit()
+	c.Run(context.Background(), testhelp.AlwaysPasses)
+	if c.IsOpen() {
+		t.Errorf("I should be closed now")
+	}
+}
+
+func TestCircuitAttemptClosesWithBadRequest(t *testing.T) {
+	c := NewCircuitFromConfig("TestCircuitAttemptClosesWithBadRequest", Config{
+		General: GeneralConfig{
+			OpenToClosedFactory: alwaysClosesFactory,
+		},
+	})
+	c.OpenCircuit()
+	c.Run(context.Background(), func(_ context.Context) error {
+		return SimpleBadRequest{
+			errors.New("this request is bad"),
+		}
+	})
+	if c.IsOpen() {
+		t.Errorf("I should be closed now")
+	}
+}
+
 func TestTimeout(t *testing.T) {
 	c := NewCircuitFromConfig("TestThrottled", Config{
 		Execution: ExecutionConfig{
@@ -574,6 +604,30 @@ func TestVariousRaceConditions(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func alwaysClosesFactory() OpenToClosed {
+	return alwaysCloses{}
+}
+
+type alwaysCloses struct{}
+
+func (c alwaysCloses) Allow(now time.Time) bool {
+	return true
+}
+
+func (c alwaysCloses) ShouldClose(now time.Time) bool {
+	return true
+}
+
+func (c alwaysCloses) Success(now time.Time, duration time.Duration)       {}
+func (c alwaysCloses) ErrFailure(now time.Time, duration time.Duration)    {}
+func (c alwaysCloses) ErrTimeout(now time.Time, duration time.Duration)    {}
+func (c alwaysCloses) ErrBadRequest(now time.Time, duration time.Duration) {}
+func (c alwaysCloses) ErrInterrupt(now time.Time, duration time.Duration)  {}
+func (c alwaysCloses) ErrConcurrencyLimitReject(now time.Time)             {}
+func (c alwaysCloses) ErrShortCircuit(now time.Time)                       {}
+func (c alwaysCloses) Opened(now time.Time)                                {}
+func (c alwaysCloses) Closed(now time.Time)                                {}
 
 func openOnFirstErrorFactory() ClosedToOpen {
 	return &closeOnFirstErrorOpener{
