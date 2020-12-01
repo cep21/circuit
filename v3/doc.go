@@ -23,7 +23,7 @@ Hystrix library for Go.
 Circuit Flowchart
 
 A circuits start Closed.  The default logic is to open a circuit if more than 20 requests have come in during a 10
-second window, and over 50 of requests during that 10 second window are failing.
+second window, and over 50% of requests during that 10 second window are failing.
 
 Once failed, the circuit waits 10 seconds before allowing a single request.  If that request succeeds, then the circuit
 closes.  If it fails, then the circuit waits another 10 seconds before allowing another request (and so on).
