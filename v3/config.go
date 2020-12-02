@@ -154,6 +154,10 @@ func (g *GeneralConfig) merge(other GeneralConfig) {
 		g.ForcedClosed = other.ForcedClosed
 	}
 
+	if !g.Disabled {
+		g.Disabled = other.Disabled
+	}
+
 	if g.GoLostErrors == nil {
 		g.GoLostErrors = other.GoLostErrors
 	}

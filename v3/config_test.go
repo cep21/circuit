@@ -8,6 +8,22 @@ import (
 
 func TestGeneralConfig_Merge(t *testing.T) {
 
+	t.Run("respect Disabled field of args cfg", func(t *testing.T) {
+		cfg := GeneralConfig{}
+
+		cfg.merge(GeneralConfig{Disabled: true})
+
+		assert.True(t, cfg.Disabled, "expect to be true")
+	})
+
+	t.Run("respect Disabled field of receiver cfg", func(t *testing.T) {
+		cfg := GeneralConfig{Disabled: true}
+
+		cfg.merge(GeneralConfig{Disabled: false})
+
+		assert.True(t, cfg.Disabled, "expect to be true")
+	})
+
 	t.Run("respect ForceOpen field of args cfg", func(t *testing.T) {
 		cfg := GeneralConfig{}
 
