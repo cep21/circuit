@@ -107,7 +107,7 @@ fmt.Printf("err=%v", errResult)
 // Output: err=context deadline exceeded
 ```
 
-## [Hystrix Configuration](https://godoc.org/github.com/cep21/circuit/closers/hystrix#example-ConfigFactory-Configure)
+## Hystrix Configuration
 
 All configuration parameters are documented in config.go.  Your circuit open/close logic configuration is documented
 with the logic.  For hystrix, this configuration is in closers/hystrix and well documented on
@@ -116,7 +116,7 @@ with the logic.  For hystrix, this configuration is in closers/hystrix and well 
 This example configures the circuit to use Hystrix open/close logic with the default Hystrix parameters
 
 ```go
-configuration := hystrix.ConfigFactory{
+configuration := hystrix.Factory{
   // Hystrix open logic is to open the circuit after an % of errors
   ConfigureOpener: hystrix.ConfigureOpener{
     // We change the default to wait for 10 requests, not 20, before checking to close
