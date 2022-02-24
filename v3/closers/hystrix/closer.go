@@ -58,6 +58,9 @@ func (c *ConfigureCloser) Merge(other ConfigureCloser) {
 	if c.RequiredConcurrentSuccessful == 0 {
 		c.RequiredConcurrentSuccessful = other.RequiredConcurrentSuccessful
 	}
+	if c.AfterFunc == nil {
+		c.AfterFunc = other.AfterFunc
+	}
 }
 
 var defaultConfigureCloser = ConfigureCloser{

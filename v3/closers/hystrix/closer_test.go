@@ -71,25 +71,67 @@ func TestCloser_ConcurrentAttempts(t *testing.T) {
 	assertBool(t, !c.ShouldClose(now), "Expected the circuit to not yet close")
 }
 
-func TestCloser_UsesAfterFunc(t *testing.T) {
-	var invocations int
-	c := Closer{}
-	c.SetConfigNotThreadSafe(ConfigureCloser{
-		AfterFunc: func(d time.Duration, f func()) *time.Timer {
-			invocations++
-			return time.AfterFunc(d, f)
-		},
-		RequiredConcurrentSuccessful: 3,
+func TestCloser_AfterFunc(t *testing.T) {
+	t.Run("afterfunc is used", func(t *testing.T) {
+		var invocations int
+		c := Closer{}
+		c.SetConfigNotThreadSafe(ConfigureCloser{
+			AfterFunc: func(d time.Duration, f func()) *time.Timer {
+				invocations++
+				return time.AfterFunc(d, f)
+			},
+			RequiredConcurrentSuccessful: 3,
+		})
+
+		now := time.Now()
+		c.Opened(now)
+		c.Success(now, time.Second)
+		c.Success(now, time.Second)
+		c.Success(now, time.Second)
+		c.Success(now, time.Second)
+
+		if invocations == 0 {
+			t.Error("Expected mock AfterFunc to be used")
+		}
+		t.Log("invocations: ", invocations)
 	})
+	t.Run("afterfunc is set if previously nil", func(t *testing.T) {
+		var (
+			countD int
+			c      = ConfigureCloser{AfterFunc: nil}
+			d      = ConfigureCloser{AfterFunc: func(d time.Duration, f func()) *time.Timer {
+				countD++
+				return time.AfterFunc(d+1, f)
+			}}
+		)
+		c.Merge(d)
+		_ = c.AfterFunc(time.Second, func() {})
 
-	now := time.Now()
-	c.Opened(now)
-	c.Success(now, time.Second)
-	c.Success(now, time.Second)
-	c.Success(now, time.Second)
-	c.Success(now, time.Second)
+		if countD != 1 {
+			t.Errorf("expected merge to assign newer AfterFunc")
+		}
+	})
+	t.Run("afterfunc is not merged if already set", func(t *testing.T) {
+		var (
+			countC, countD int
 
-	if invocations == 0 {
-		t.Error("Expected mock AfterFunc to be used")
-	}
+			c = ConfigureCloser{AfterFunc: func(d time.Duration, f func()) *time.Timer {
+				countC++
+				return time.AfterFunc(d, f)
+			}}
+			d = ConfigureCloser{AfterFunc: func(d time.Duration, f func()) *time.Timer {
+				countD++
+				return time.AfterFunc(d+1, f)
+			}}
+		)
+		c.Merge(d)
+		_ = c.AfterFunc(time.Second, func() {})
+
+		if countD > 0 {
+			t.Errorf("expected merge to maintain an already set AfterFunc")
+		}
+		if countC != 1 {
+			t.Errorf("expected post-merge to invoke initially set AfterFunc")
+		}
+	})
 }
