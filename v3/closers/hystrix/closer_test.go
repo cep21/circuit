@@ -70,3 +70,26 @@ func TestCloser_ConcurrentAttempts(t *testing.T) {
 	// Should reset closer
 	assertBool(t, !c.ShouldClose(now), "Expected the circuit to not yet close")
 }
+
+func TestCloser_UsesAfterFunc(t *testing.T) {
+	var invocations int
+	c := Closer{}
+	c.SetConfigNotThreadSafe(ConfigureCloser{
+		AfterFunc: func(d time.Duration, f func()) *time.Timer {
+			invocations++
+			return time.AfterFunc(d, f)
+		},
+		RequiredConcurrentSuccessful: 3,
+	})
+
+	now := time.Now()
+	c.Opened(now)
+	c.Success(now, time.Second)
+	c.Success(now, time.Second)
+	c.Success(now, time.Second)
+	c.Success(now, time.Second)
+
+	if invocations == 0 {
+		t.Error("Expected mock AfterFunc to be used")
+	}
+}
