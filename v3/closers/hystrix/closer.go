@@ -37,7 +37,7 @@ var _ circuit.OpenToClosed = &Closer{}
 // ConfigureCloser configures values for Closer
 type ConfigureCloser struct {
 	// AfterFunc should simulate time.AfterFunc
-	AfterFunc func(time.Duration, func()) *time.Timer
+	AfterFunc func(time.Duration, func()) *time.Timer `json:"-"`
 
 	// SleepWindow is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakersleepwindowinmilliseconds
 	SleepWindow time.Duration
