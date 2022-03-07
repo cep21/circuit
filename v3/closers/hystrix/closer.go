@@ -36,6 +36,9 @@ var _ circuit.OpenToClosed = &Closer{}
 
 // ConfigureCloser configures values for Closer
 type ConfigureCloser struct {
+	// AfterFunc should simulate time.AfterFunc
+	AfterFunc func(time.Duration, func()) *time.Timer `json:"-"`
+
 	// SleepWindow is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakersleepwindowinmilliseconds
 	SleepWindow time.Duration
 	// HalfOpenAttempts is how many attempts to allow per SleepWindow
@@ -54,6 +57,9 @@ func (c *ConfigureCloser) Merge(other ConfigureCloser) {
 	}
 	if c.RequiredConcurrentSuccessful == 0 {
 		c.RequiredConcurrentSuccessful = other.RequiredConcurrentSuccessful
+	}
+	if c.AfterFunc == nil {
+		c.AfterFunc = other.AfterFunc
 	}
 }
 
@@ -141,6 +147,7 @@ func (s *Closer) SetConfigThreadSafe(config ConfigureCloser) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.config = config
+	s.reopenCircuitCheck.TimeAfterFunc = config.AfterFunc
 	s.reopenCircuitCheck.SetSleepDuration(config.SleepWindow)
 	s.reopenCircuitCheck.SetEventCountToAllow(config.HalfOpenAttempts)
 	s.closeOnCurrentCount.Set(config.RequiredConcurrentSuccessful)
