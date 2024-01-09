@@ -1,7 +1,7 @@
 package statsdmetrics_test
 
 import (
-	"github.com/cactus/go-statsd-client/statsd"
+	"github.com/cactus/go-statsd-client/v5/statsd"
 	"github.com/cep21/circuit/v3"
 	"github.com/cep21/circuit/v3/metrics/statsdmetrics"
 )
