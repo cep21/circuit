@@ -1,5 +1,13 @@
 name: Test
 
+permissions:
+  # Required: allow read access to the content for analysis.
+  contents: read
+  # Optional: allow read access to pull request. Use with `only-new-issues` option.
+  pull-requests: read
+  # Optional: Allow write access to checks to allow the action to annotate code in the PR.
+  checks: write
+
 on:
   push:
   pull_request:
@@ -25,6 +33,8 @@ jobs:
         run: go mod verify
       - name: Test
         run: env "GORACE=halt_on_error=1" go test -v -race ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
       - name: Output coverage
         run: go test -v -covermode=count -coverprofile=coverage.out ./...
       - name: upload coverage
