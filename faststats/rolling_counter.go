@@ -23,7 +23,7 @@ type RollingCounter struct {
 
 // NewRollingCounter initializes a rolling counter with a bucket width and # of buckets
 func NewRollingCounter(bucketWidth time.Duration, numBuckets int, now time.Time) RollingCounter {
-	ret := RollingCounter{
+	return RollingCounter{
 		buckets: make([]AtomicInt64, numBuckets),
 		rollingBucket: RollingBuckets{
 			NumBuckets:  numBuckets,
@@ -31,7 +31,6 @@ func NewRollingCounter(bucketWidth time.Duration, numBuckets int, now time.Time)
 			StartTime:   now,
 		},
 	}
-	return ret
 }
 
 var _ json.Marshaler = &RollingCounter{}
@@ -62,9 +61,9 @@ func (r *RollingCounter) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	r.buckets = into.Buckets
-	r.rollingSum = *into.RollingSum
-	r.totalSum = *into.TotalSum
-	r.rollingBucket = *into.RollingBucket
+	r.rollingSum.Store(into.RollingSum.Get())
+	r.totalSum.Store(into.TotalSum.Get())
+	r.rollingBucket.Store(into.RollingBucket)
 	return nil
 }
 
