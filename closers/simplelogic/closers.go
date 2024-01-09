@@ -41,51 +41,51 @@ var defaultConfigConsecutiveErrOpener = ConfigConsecutiveErrOpener{
 }
 
 // Closed resets the consecutive error count
-func (c *ConsecutiveErrOpener) Closed(ctx context.Context, _ time.Time) {
+func (c *ConsecutiveErrOpener) Closed(_ context.Context, _ time.Time) {
 	c.consecutiveCount.Set(0)
 }
 
 // Prevent always returns false
-func (c *ConsecutiveErrOpener) Prevent(ctx context.Context, now time.Time) bool {
+func (c *ConsecutiveErrOpener) Prevent(_ context.Context, _ time.Time) bool {
 	return false
 }
 
 // Success resets the consecutive error count
-func (c *ConsecutiveErrOpener) Success(ctx context.Context, now time.Time, duration time.Duration) {
+func (c *ConsecutiveErrOpener) Success(_ context.Context, _ time.Time, _ time.Duration) {
 	c.consecutiveCount.Set(0)
 }
 
 // ErrBadRequest is ignored
-func (c *ConsecutiveErrOpener) ErrBadRequest(ctx context.Context, now time.Time, duration time.Duration) {
+func (c *ConsecutiveErrOpener) ErrBadRequest(_ context.Context, _ time.Time, _ time.Duration) {
 }
 
 // ErrInterrupt is ignored
-func (c *ConsecutiveErrOpener) ErrInterrupt(ctx context.Context, now time.Time, duration time.Duration) {
+func (c *ConsecutiveErrOpener) ErrInterrupt(_ context.Context, _ time.Time, _ time.Duration) {
 }
 
 // ErrConcurrencyLimitReject is ignored
-func (c *ConsecutiveErrOpener) ErrConcurrencyLimitReject(ctx context.Context, now time.Time) {}
+func (c *ConsecutiveErrOpener) ErrConcurrencyLimitReject(_ context.Context, _ time.Time) {}
 
 // ErrShortCircuit is ignored
-func (c *ConsecutiveErrOpener) ErrShortCircuit(ctx context.Context, now time.Time) {}
+func (c *ConsecutiveErrOpener) ErrShortCircuit(_ context.Context, _ time.Time) {}
 
 // ErrFailure increments the consecutive error counter
-func (c *ConsecutiveErrOpener) ErrFailure(ctx context.Context, now time.Time, duration time.Duration) {
+func (c *ConsecutiveErrOpener) ErrFailure(_ context.Context, _ time.Time, _ time.Duration) {
 	c.consecutiveCount.Add(1)
 }
 
 // ErrTimeout increments the consecutive error counter
-func (c *ConsecutiveErrOpener) ErrTimeout(ctx context.Context, now time.Time, duration time.Duration) {
+func (c *ConsecutiveErrOpener) ErrTimeout(_ context.Context, _ time.Time, _ time.Duration) {
 	c.consecutiveCount.Add(1)
 }
 
 // Opened resets the error counter
-func (c *ConsecutiveErrOpener) Opened(ctx context.Context, now time.Time) {
+func (c *ConsecutiveErrOpener) Opened(_ context.Context, _ time.Time) {
 	c.consecutiveCount.Set(0)
 }
 
 // ShouldOpen returns true if enough consecutive errors have returned
-func (c *ConsecutiveErrOpener) ShouldOpen(ctx context.Context, now time.Time) bool {
+func (c *ConsecutiveErrOpener) ShouldOpen(_ context.Context, _ time.Time) bool {
 	return c.consecutiveCount.Get() >= c.closeThreshold.Get()
 }
 

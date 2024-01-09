@@ -588,11 +588,11 @@ type closeOnFirstErrorOpener struct {
 	isOpened bool
 }
 
-func (o *closeOnFirstErrorOpener) ShouldOpen(ctx context.Context, _ time.Time) bool {
+func (o *closeOnFirstErrorOpener) ShouldOpen(_ context.Context, _ time.Time) bool {
 	o.isOpened = true
 	return true
 }
-func (o *closeOnFirstErrorOpener) Prevent(ctx context.Context, _ time.Time) bool {
+func (o *closeOnFirstErrorOpener) Prevent(_ context.Context, _ time.Time) bool {
 	return o.isOpened
 }
 

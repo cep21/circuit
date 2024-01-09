@@ -299,6 +299,6 @@ func ExampleConfig_custommetrics() {
 func ExampleError_checking() {
 	x := errors.New("an error")
 	if _, ok := x.(circuit.Error); ok {
-		// this error is a circuit library error, not the result of runFunc or fallbackFunc
+		fmt.Println("this error is a circuit library error, not the result of runFunc or fallbackFunc")
 	}
 }

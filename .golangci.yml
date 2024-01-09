@@ -30,3 +30,6 @@ issues:
     - linters:
         - gosec
       text: "G404"
+    - linters:
+        - gosec
+      text: "G114"

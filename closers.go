@@ -37,21 +37,21 @@ type neverOpens struct{}
 
 var _ ClosedToOpen = neverOpens{}
 
-func (c neverOpens) Prevent(ctx context.Context, now time.Time) bool {
+func (c neverOpens) Prevent(_ context.Context, _ time.Time) bool {
 	return false
 }
 
-func (c neverOpens) Success(ctx context.Context, now time.Time, duration time.Duration)       {}
-func (c neverOpens) ErrFailure(ctx context.Context, now time.Time, duration time.Duration)    {}
-func (c neverOpens) ErrTimeout(ctx context.Context, now time.Time, duration time.Duration)    {}
-func (c neverOpens) ErrBadRequest(ctx context.Context, now time.Time, duration time.Duration) {}
-func (c neverOpens) ErrInterrupt(ctx context.Context, now time.Time, duration time.Duration)  {}
-func (c neverOpens) ErrConcurrencyLimitReject(ctx context.Context, now time.Time)             {}
-func (c neverOpens) ErrShortCircuit(ctx context.Context, now time.Time)                       {}
-func (c neverOpens) Opened(ctx context.Context, now time.Time)                                {}
-func (c neverOpens) Closed(ctx context.Context, now time.Time)                                {}
+func (c neverOpens) Success(_ context.Context, _ time.Time, _ time.Duration)       {}
+func (c neverOpens) ErrFailure(_ context.Context, _ time.Time, _ time.Duration)    {}
+func (c neverOpens) ErrTimeout(_ context.Context, _ time.Time, _ time.Duration)    {}
+func (c neverOpens) ErrBadRequest(_ context.Context, _ time.Time, _ time.Duration) {}
+func (c neverOpens) ErrInterrupt(_ context.Context, _ time.Time, _ time.Duration)  {}
+func (c neverOpens) ErrConcurrencyLimitReject(_ context.Context, _ time.Time)      {}
+func (c neverOpens) ErrShortCircuit(_ context.Context, _ time.Time)                {}
+func (c neverOpens) Opened(_ context.Context, _ time.Time)                         {}
+func (c neverOpens) Closed(_ context.Context, _ time.Time)                         {}
 
-func (c neverOpens) ShouldOpen(ctx context.Context, now time.Time) bool {
+func (c neverOpens) ShouldOpen(_ context.Context, _ time.Time) bool {
 	return false
 }
 
@@ -63,19 +63,19 @@ type neverCloses struct{}
 
 var _ OpenToClosed = neverCloses{}
 
-func (c neverCloses) Allow(ctx context.Context, now time.Time) bool {
+func (c neverCloses) Allow(_ context.Context, _ time.Time) bool {
 	return false
 }
 
-func (c neverCloses) Success(ctx context.Context, now time.Time, duration time.Duration)       {}
-func (c neverCloses) ErrFailure(ctx context.Context, now time.Time, duration time.Duration)    {}
-func (c neverCloses) ErrTimeout(ctx context.Context, now time.Time, duration time.Duration)    {}
-func (c neverCloses) ErrBadRequest(ctx context.Context, now time.Time, duration time.Duration) {}
-func (c neverCloses) ErrInterrupt(ctx context.Context, now time.Time, duration time.Duration)  {}
-func (c neverCloses) ErrConcurrencyLimitReject(ctx context.Context, now time.Time)             {}
-func (c neverCloses) ErrShortCircuit(ctx context.Context, now time.Time)                       {}
-func (c neverCloses) Opened(ctx context.Context, now time.Time)                                {}
-func (c neverCloses) Closed(ctx context.Context, now time.Time)                                {}
-func (c neverCloses) ShouldClose(ctx context.Context, now time.Time) bool {
+func (c neverCloses) Success(_ context.Context, _ time.Time, _ time.Duration)       {}
+func (c neverCloses) ErrFailure(_ context.Context, _ time.Time, _ time.Duration)    {}
+func (c neverCloses) ErrTimeout(_ context.Context, _ time.Time, _ time.Duration)    {}
+func (c neverCloses) ErrBadRequest(_ context.Context, _ time.Time, _ time.Duration) {}
+func (c neverCloses) ErrInterrupt(_ context.Context, _ time.Time, _ time.Duration)  {}
+func (c neverCloses) ErrConcurrencyLimitReject(_ context.Context, _ time.Time)      {}
+func (c neverCloses) ErrShortCircuit(_ context.Context, _ time.Time)                {}
+func (c neverCloses) Opened(_ context.Context, _ time.Time)                         {}
+func (c neverCloses) Closed(_ context.Context, _ time.Time)                         {}
+func (c neverCloses) ShouldClose(_ context.Context, _ time.Time) bool {
 	return false
 }

@@ -198,41 +198,41 @@ func (r *RunStats) SetConfigNotThreadSafe(config RunStatsConfig) {
 }
 
 // Success increments the Successes bucket
-func (r *RunStats) Success(ctx context.Context, now time.Time, duration time.Duration) {
+func (r *RunStats) Success(_ context.Context, now time.Time, duration time.Duration) {
 	r.Successes.Inc(now)
 	r.Latencies.AddDuration(duration, now)
 }
 
 // ErrInterrupt increments the ErrInterrupts bucket
-func (r *RunStats) ErrInterrupt(ctx context.Context, now time.Time, duration time.Duration) {
+func (r *RunStats) ErrInterrupt(_ context.Context, now time.Time, duration time.Duration) {
 	r.ErrInterrupts.Inc(now)
 	r.Latencies.AddDuration(duration, now)
 }
 
 // ErrConcurrencyLimitReject increments the ErrConcurrencyLimitReject bucket
-func (r *RunStats) ErrConcurrencyLimitReject(ctx context.Context, now time.Time) {
+func (r *RunStats) ErrConcurrencyLimitReject(_ context.Context, now time.Time) {
 	r.ErrConcurrencyLimitRejects.Inc(now)
 }
 
 // ErrFailure increments the ErrFailure bucket
-func (r *RunStats) ErrFailure(ctx context.Context, now time.Time, duration time.Duration) {
+func (r *RunStats) ErrFailure(_ context.Context, now time.Time, duration time.Duration) {
 	r.ErrFailures.Inc(now)
 	r.Latencies.AddDuration(duration, now)
 }
 
 // ErrShortCircuit increments the ErrShortCircuit bucket
-func (r *RunStats) ErrShortCircuit(ctx context.Context, now time.Time) {
+func (r *RunStats) ErrShortCircuit(_ context.Context, now time.Time) {
 	r.ErrShortCircuits.Inc(now)
 }
 
 // ErrTimeout increments the ErrTimeout bucket
-func (r *RunStats) ErrTimeout(ctx context.Context, now time.Time, duration time.Duration) {
+func (r *RunStats) ErrTimeout(_ context.Context, now time.Time, duration time.Duration) {
 	r.ErrTimeouts.Inc(now)
 	r.Latencies.AddDuration(duration, now)
 }
 
 // ErrBadRequest increments the ErrBadRequest bucket
-func (r *RunStats) ErrBadRequest(ctx context.Context, now time.Time, duration time.Duration) {
+func (r *RunStats) ErrBadRequest(_ context.Context, now time.Time, duration time.Duration) {
 	r.ErrBadRequests.Inc(now)
 	r.Latencies.AddDuration(duration, now)
 }
@@ -281,17 +281,17 @@ func (r *FallbackStats) Var() expvar.Var {
 }
 
 // Success increments the Success bucket
-func (r *FallbackStats) Success(ctx context.Context, now time.Time, duration time.Duration) {
+func (r *FallbackStats) Success(_ context.Context, now time.Time, _ time.Duration) {
 	r.Successes.Inc(now)
 }
 
 // ErrConcurrencyLimitReject increments the ErrConcurrencyLimitReject bucket
-func (r *FallbackStats) ErrConcurrencyLimitReject(ctx context.Context, now time.Time) {
+func (r *FallbackStats) ErrConcurrencyLimitReject(_ context.Context, now time.Time) {
 	r.ErrConcurrencyLimitRejects.Inc(now)
 }
 
 // ErrFailure increments the ErrFailure bucket
-func (r *FallbackStats) ErrFailure(ctx context.Context, now time.Time, duration time.Duration) {
+func (r *FallbackStats) ErrFailure(_ context.Context, now time.Time, _ time.Duration) {
 	r.ErrFailures.Inc(now)
 }
 
