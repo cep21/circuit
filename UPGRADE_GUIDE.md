@@ -2,7 +2,8 @@
 
 ## Gopkg.toml removed
 
-The `Gopkg.toml` file and support for [dep](https://github.com/golang/dep) has been removed. Please use `go.mod` instead.
+The `Gopkg.toml` file and support for [dep](https://github.com/golang/dep) has been
+removed. Please use `go.mod` instead.
 
 ## Remove the "/v3" root directory
 
@@ -29,3 +30,10 @@ The benchmarks have been moved to their own repo.  You can find them [here](http
 ## Use Go's builtin atomic package
 
 The atomics package previously implemented atomics manually. This is now using go 1.19's builtin atomics package.
+
+## External API changes to `Circuit`
+
+The following APIs have changed:
+
+* `func (c *Circuit) CloseCircuit()` is now `func (c *Circuit) CloseCircuit(ctx context.Context)`
+* `func (c *Circuit) OpenCircuit()` is now `func (c *Circuit) OpenCircuit(ctx context.Context)`
