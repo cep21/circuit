@@ -97,7 +97,7 @@ func (r *Tracker) Var() expvar.Var {
 }
 
 // Success adds a healthy check if duration <= maximum healthy time
-func (r *Tracker) Success(ctx context.Context, now time.Time, duration time.Duration) {
+func (r *Tracker) Success(_ context.Context, _ time.Time, duration time.Duration) {
 	if duration.Nanoseconds() <= r.MaximumHealthyTime.Get() {
 		r.healthy()
 		return
@@ -120,17 +120,17 @@ func (r *Tracker) healthy() {
 }
 
 // ErrFailure is always a failure
-func (r *Tracker) ErrFailure(ctx context.Context, now time.Time, duration time.Duration) {
+func (r *Tracker) ErrFailure(_ context.Context, _ time.Time, _ time.Duration) {
 	r.failure()
 }
 
 // ErrTimeout is always a failure
-func (r *Tracker) ErrTimeout(ctx context.Context, now time.Time, duration time.Duration) {
+func (r *Tracker) ErrTimeout(_ context.Context, _ time.Time, _ time.Duration) {
 	r.failure()
 }
 
 // ErrConcurrencyLimitReject is always a failure
-func (r *Tracker) ErrConcurrencyLimitReject(ctx context.Context, now time.Time) {
+func (r *Tracker) ErrConcurrencyLimitReject(_ context.Context, _ time.Time) {
 	// Your endpoint could be healthy, but because we can't process commands fast enough, you're considered unhealthy.
 	// This one could honestly go either way, but generally if a service cannot process commands fast enough, it's not
 	// doing what you want.
@@ -138,7 +138,7 @@ func (r *Tracker) ErrConcurrencyLimitReject(ctx context.Context, now time.Time) 
 }
 
 // ErrShortCircuit is always a failure
-func (r *Tracker) ErrShortCircuit(ctx context.Context, now time.Time) {
+func (r *Tracker) ErrShortCircuit(_ context.Context, _ time.Time) {
 	// We had to end the request early.  It's possible the endpoint we want is healthy, but because we had to trip
 	// our circuit, due to past misbehavior, it is still end endpoint's fault we cannot satisfy this request, so it
 	// fails the SLO.
@@ -146,7 +146,7 @@ func (r *Tracker) ErrShortCircuit(ctx context.Context, now time.Time) {
 }
 
 // ErrBadRequest is ignored
-func (r *Tracker) ErrBadRequest(ctx context.Context, now time.Time, duration time.Duration) {}
+func (r *Tracker) ErrBadRequest(_ context.Context, _ time.Time, _ time.Duration) {}
 
 // SetConfigThreadSafe updates the configuration stored in the tracker
 func (r *Tracker) SetConfigThreadSafe(config Config) {
@@ -164,7 +164,7 @@ func (r *Tracker) Config() Config {
 }
 
 // ErrInterrupt is only a failure if healthy time has passed
-func (r *Tracker) ErrInterrupt(ctx context.Context, now time.Time, duration time.Duration) {
+func (r *Tracker) ErrInterrupt(_ context.Context, _ time.Time, duration time.Duration) {
 	// If it is interrupted, but past the healthy time.  Then it is as good as unhealthy
 	if duration.Nanoseconds() > r.MaximumHealthyTime.Get() {
 		r.failure()

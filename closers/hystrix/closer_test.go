@@ -24,6 +24,11 @@ func TestCloser_MarshalJSON(t *testing.T) {
 }
 
 func TestCloser_NoPanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatal("Expected no panic")
+		}
+	}()
 	ctx := context.Background()
 	c := Closer{}
 	wg := sync.WaitGroup{}

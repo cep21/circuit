@@ -97,7 +97,7 @@ func TestTimedCheck(t *testing.T) {
 	}
 }
 
-func TestTimedCheckRaces(t *testing.T) {
+func TestTimedCheckRaces(_ *testing.T) {
 	x := TimedCheck{}
 	x.SetSleepDuration(time.Nanosecond * 100)
 	endTime := time.Now().Add(time.Millisecond * 50)

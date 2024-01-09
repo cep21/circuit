@@ -81,13 +81,13 @@ func (s *Closer) MarshalJSON() ([]byte, error) {
 var _ json.Marshaler = &Closer{}
 
 // Opened circuit. It should now check to see if it should ever allow various requests in an attempt to become closed
-func (s *Closer) Opened(ctx context.Context, now time.Time) {
+func (s *Closer) Opened(_ context.Context, now time.Time) {
 	s.concurrentSuccessfulAttempts.Set(0)
 	s.reopenCircuitCheck.SleepStart(now)
 }
 
 // Closed circuit.  It can turn off now.
-func (s *Closer) Closed(ctx context.Context, now time.Time) {
+func (s *Closer) Closed(_ context.Context, now time.Time) {
 	s.concurrentSuccessfulAttempts.Set(0)
 	s.reopenCircuitCheck.SleepStart(now)
 }
@@ -96,43 +96,43 @@ func (s *Closer) Closed(ctx context.Context, now time.Time) {
 // The circuit is currently closed.  Check and return true if this request should be allowed.  This will signal
 // the circuit in a "half-open" state, allowing that one request.
 // If any requests are allowed, the circuit moves into a half open state.
-func (s *Closer) Allow(ctx context.Context, now time.Time) (shouldAllow bool) {
+func (s *Closer) Allow(_ context.Context, now time.Time) (shouldAllow bool) {
 	return s.reopenCircuitCheck.Check(now)
 }
 
 // Success any time runFunc was called and appeared healthy
-func (s *Closer) Success(ctx context.Context, now time.Time, duration time.Duration) {
+func (s *Closer) Success(_ context.Context, _ time.Time, _ time.Duration) {
 	s.concurrentSuccessfulAttempts.Add(1)
 }
 
 // ErrBadRequest is ignored
-func (s *Closer) ErrBadRequest(ctx context.Context, now time.Time, duration time.Duration) {
+func (s *Closer) ErrBadRequest(_ context.Context, _ time.Time, _ time.Duration) {
 }
 
 // ErrInterrupt is ignored
-func (s *Closer) ErrInterrupt(ctx context.Context, now time.Time, duration time.Duration) {
+func (s *Closer) ErrInterrupt(_ context.Context, _ time.Time, _ time.Duration) {
 }
 
 // ErrConcurrencyLimitReject is ignored
-func (s *Closer) ErrConcurrencyLimitReject(ctx context.Context, now time.Time) {
+func (s *Closer) ErrConcurrencyLimitReject(_ context.Context, _ time.Time) {
 }
 
 // ErrShortCircuit is ignored
-func (s *Closer) ErrShortCircuit(ctx context.Context, now time.Time) {
+func (s *Closer) ErrShortCircuit(_ context.Context, _ time.Time) {
 }
 
 // ErrFailure resets the consecutive Successful count
-func (s *Closer) ErrFailure(ctx context.Context, now time.Time, duration time.Duration) {
+func (s *Closer) ErrFailure(_ context.Context, _ time.Time, _ time.Duration) {
 	s.concurrentSuccessfulAttempts.Set(0)
 }
 
 // ErrTimeout resets the consecutive Successful count
-func (s *Closer) ErrTimeout(ctx context.Context, now time.Time, duration time.Duration) {
+func (s *Closer) ErrTimeout(_ context.Context, _ time.Time, _ time.Duration) {
 	s.concurrentSuccessfulAttempts.Set(0)
 }
 
 // ShouldClose is true if we have enough successful attempts in a row.
-func (s *Closer) ShouldClose(ctx context.Context, now time.Time) bool {
+func (s *Closer) ShouldClose(_ context.Context, _ time.Time) bool {
 	return s.concurrentSuccessfulAttempts.Get() >= s.closeOnCurrentCount.Get()
 }
 
