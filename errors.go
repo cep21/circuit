@@ -1,6 +1,9 @@
 package circuit
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 var errThrottledConcurrentCommands = &circuitError{concurrencyLimitReached: true, msg: "throttling connections to command"}
 var errCircuitOpen = &circuitError{circuitOpen: true, msg: "circuit is open"}
@@ -47,8 +50,8 @@ func IsBadRequest(err error) bool {
 	if err == nil {
 		return false
 	}
-	br, ok := err.(BadRequest)
-	return ok && br.BadRequest()
+	var br BadRequest
+	return errors.As(err, &br) && br.BadRequest()
 }
 
 // SimpleBadRequest is a simple wrapper for an error to mark it as a bad request
