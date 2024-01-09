@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAtomicInt64(t *testing.T) {
@@ -23,6 +25,7 @@ func TestAtomicInt64(t *testing.T) {
 	if err != nil {
 		t.Error("unknown error marshalling", err)
 	}
+	require.Equal(t, []byte("1000000000"), asBytes)
 	var y AtomicInt64
 	if err := json.Unmarshal(asBytes, &y); err != nil {
 		t.Error("unknown error unmarshalling", err)
@@ -49,6 +52,7 @@ func TestAtomicBoolean(t *testing.T) {
 	if err != nil {
 		t.Error("Could not json marshal")
 	}
+	require.Equal(t, []byte("true"), asBytes)
 	var c AtomicBoolean
 	if err := json.Unmarshal(asBytes, &c); err != nil {
 		t.Error("Could not unmarshal")
