@@ -108,7 +108,7 @@ func (s SortedDurations) Percentile(p float64) time.Duration {
 
 // NewRollingPercentile creates a new rolling percentile bucketer
 func NewRollingPercentile(bucketWidth time.Duration, numBuckets int, bucketSize int, now time.Time) RollingPercentile {
-	ret := RollingPercentile{
+	return RollingPercentile{
 		buckets: makeBuckets(numBuckets, bucketSize),
 		rollingBucket: RollingBuckets{
 			NumBuckets:  numBuckets,
@@ -116,7 +116,6 @@ func NewRollingPercentile(bucketWidth time.Duration, numBuckets int, bucketSize 
 			StartTime:   now,
 		},
 	}
-	return ret
 }
 
 func makeBuckets(numBuckets int, bucketSize int) []durationsBucket {

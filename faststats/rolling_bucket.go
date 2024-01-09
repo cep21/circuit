@@ -64,3 +64,10 @@ func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 	r.LastAbsIndex.CompareAndSwap(int64(lastAbsVal), int64(absIndex))
 	return r.Advance(now, clearBucket)
 }
+
+func (r *RollingBuckets) Store(bucket *RollingBuckets) {
+	r.NumBuckets = bucket.NumBuckets
+	r.StartTime = bucket.StartTime
+	r.BucketWidth = bucket.BucketWidth
+	r.LastAbsIndex.Store(bucket.LastAbsIndex.Get())
+}
