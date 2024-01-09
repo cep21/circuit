@@ -11,8 +11,8 @@ import (
 	"net/http/httptest"
 	"time"
 
-	"github.com/cep21/circuit/v3"
-	"github.com/cep21/circuit/v3/metrics/rolling"
+	"github.com/cep21/circuit/v4"
+	"github.com/cep21/circuit/v4/metrics/rolling"
 )
 
 // This is a full example of using a circuit around HTTP requests.
@@ -281,7 +281,8 @@ func ExampleManager_Var() {
 }
 
 // Implement interfaces CmdMetricCollector or FallbackMetricCollector to know what happens with commands or fallbacks.
-//  Then pass those implementations to configure.
+//
+//	Then pass those implementations to configure.
 func ExampleConfig_custommetrics() {
 	config := circuit.Config{
 		Metrics: circuit.MetricsCollectors{

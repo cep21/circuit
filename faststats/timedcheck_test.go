@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cep21/circuit/v3/internal/clock"
-	"github.com/cep21/circuit/v3/internal/testhelp"
+	"github.com/cep21/circuit/v4/internal/clock"
+	"github.com/cep21/circuit/v4/internal/testhelp"
 )
 
 func TestTimedCheck_Empty(t *testing.T) {

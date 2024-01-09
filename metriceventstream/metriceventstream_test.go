@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cep21/circuit/v3"
+	"github.com/cep21/circuit/v4"
 )
 
 func TestMetricEventStream(t *testing.T) {

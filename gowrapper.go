@@ -3,7 +3,7 @@ package circuit
 import (
 	"context"
 
-	"github.com/cep21/circuit/v3/faststats"
+	"github.com/cep21/circuit/v4/faststats"
 )
 
 // goroutineWrapper contains logic to wrap normal run methods inside a goroutine so they can end early

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cep21/circuit/v3/faststats"
+	"github.com/cep21/circuit/v4/faststats"
 )
 
 // Circuit is a circuit breaker pattern implementation that can accept commands and open/close on failures

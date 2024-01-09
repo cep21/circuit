@@ -1,8 +1,0 @@
-# The library itself has no external dependencies, however the benchmarks
-# and extensions do.  You can use `dep` to make sure your tests and
-# benchmarks run the same as mine.
-
-[prune]
-  go-tests = true
-  unused-packages = true
-  non-go = true
