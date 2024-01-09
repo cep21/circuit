@@ -40,15 +40,14 @@ func TestRollingCounter_MovingBackwards(t *testing.T) {
 }
 
 func TestRollingCounter_NormalConsistency(t *testing.T) {
-	now := time.Now()
+	// Start now at 1970
+	now := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
 	bucketSize := 100
 	numBuckets := 20
 	x := NewRollingCounter(time.Millisecond*time.Duration(bucketSize), numBuckets, now)
 	concurrent := 20
 	eachIteration := bucketSize * (numBuckets / 2)
 	end := 50 * eachIteration
-	// Note: Revisit this test: it sometimes fails inconsistently and I think it's because my logic isn't right in the
-	// test, not the code it's testing.
 	for k := 0; k < 50; k++ {
 		wg := sync.WaitGroup{}
 		for i := 0; i < concurrent; i++ {
