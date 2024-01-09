@@ -3,7 +3,7 @@ https://github.com/golang-samples/gopher-vector design by Takuya Ueda -->
 ![Mascot](https://cep21.github.io/circuit/imgs/hystrix-gopher_100px.png)
 # Circuit
 [![Build Status](https://github.com/cep21/circuit/workflows/Test/badge.svg?branch=master&event=push)](https://github.com/cep21/circuit/actions)
-[![GoDoc](https://godoc.org/github.com/cep21/circuit?status.svg)](https://pkg.go.dev/github.com/cep21/circuit/v3)
+[![GoDoc](https://godoc.org/github.com/cep21/circuit?status.svg)](https://pkg.go.dev/github.com/cep21/circuit/v4)
 [![Coverage Status](https://coveralls.io/repos/github/cep21/circuit/badge.svg)](https://coveralls.io/github/cep21/circuit)
 
 Circuit is an efficient and feature complete [Hystrix](https://github.com/Netflix/Hystrix) like Go implementation of

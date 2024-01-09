@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cep21/circuit/v3/faststats"
-	"github.com/cep21/circuit/v3/internal/testhelp"
+	"github.com/cep21/circuit/v4/faststats"
+	"github.com/cep21/circuit/v4/internal/testhelp"
 )
 
 func TestHappyCircuit(t *testing.T) {

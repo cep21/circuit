@@ -1,6 +1,6 @@
 package hystrix
 
-import "github.com/cep21/circuit/v3"
+import "github.com/cep21/circuit/v4"
 
 // Factory aids making hystrix circuit logic
 type Factory struct {

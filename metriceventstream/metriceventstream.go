@@ -9,10 +9,10 @@ import (
 
 	"io"
 
-	"github.com/cep21/circuit/v3"
-	"github.com/cep21/circuit/v3/closers/hystrix"
-	"github.com/cep21/circuit/v3/faststats"
-	"github.com/cep21/circuit/v3/metrics/rolling"
+	"github.com/cep21/circuit/v4"
+	"github.com/cep21/circuit/v4/closers/hystrix"
+	"github.com/cep21/circuit/v4/faststats"
+	"github.com/cep21/circuit/v4/metrics/rolling"
 )
 
 // MetricEventStream is a HTTP handler that supports hystrix's metric stream API
