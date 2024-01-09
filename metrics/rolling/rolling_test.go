@@ -172,30 +172,33 @@ func TestRunStats_Config(t *testing.T) {
 }
 
 func TestRunStats_ErrConcurrencyLimitReject(t *testing.T) {
+	ctx := context.Background()
 	var r RunStats
 	r.SetConfigNotThreadSafe(defaultRunStatsConfig)
 	now := time.Now()
-	r.ErrConcurrencyLimitReject(now)
+	r.ErrConcurrencyLimitReject(ctx, now)
 	if r.ErrConcurrencyLimitRejects.TotalSum() != 1 {
 		t.Errorf("expect a limit reject")
 	}
 }
 
 func TestRunStats_ErrShortCircuit(t *testing.T) {
+	ctx := context.Background()
 	var r RunStats
 	r.SetConfigNotThreadSafe(defaultRunStatsConfig)
 	now := time.Now()
-	r.ErrShortCircuit(now)
+	r.ErrShortCircuit(ctx, now)
 	if r.ErrShortCircuits.TotalSum() != 1 {
 		t.Errorf("expect a short circuit")
 	}
 }
 
 func TestRunStats_ErrTimeout(t *testing.T) {
+	ctx := context.Background()
 	var r RunStats
 	r.SetConfigNotThreadSafe(defaultRunStatsConfig)
 	now := time.Now()
-	r.ErrTimeout(now, time.Second)
+	r.ErrTimeout(ctx, now, time.Second)
 	if r.ErrTimeouts.TotalSum() != 1 {
 		t.Errorf("expect a error timeout")
 	}
@@ -205,13 +208,14 @@ func TestRunStats_ErrTimeout(t *testing.T) {
 }
 
 func TestRunStats_ErrorPercentage(t *testing.T) {
+	ctx := context.Background()
 	var r RunStats
 	if r.ErrorPercentage() != 0.0 {
 		t.Errorf("Expect no errors")
 	}
 	r.SetConfigNotThreadSafe(defaultRunStatsConfig)
 	now := time.Now()
-	r.ErrTimeout(now, time.Second)
+	r.ErrTimeout(ctx, now, time.Second)
 	if r.ErrorPercentage() != 1.0 {
 		t.Errorf("Expect all errors")
 	}

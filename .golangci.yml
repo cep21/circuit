@@ -1,39 +1,30 @@
-run:
-  deadline: 3m
-
 linters:
   disable-all: true
   enable:
-    - deadcode
-    - depguard
     - dupl
     - errcheck
+    - exportloopref
     - gochecknoinits
     - goconst
     - gocritic
     - gocyclo
     - gofmt
     - goimports
-    - golint
     - gosec
     - gosimple
     - govet
     - ineffassign
-    - interfacer
-    - maligned
     - megacheck
     - misspell
     - nakedret
     - prealloc
-    - scopelint
+    - revive
     - staticcheck
-    - structcheck
     - stylecheck
     - typecheck
     - unconvert
     - unparam
     - unused
-    - varcheck
 issues:
   exclude-rules:
     - linters:

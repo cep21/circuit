@@ -1,6 +1,7 @@
 package hystrix
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"testing"
@@ -23,6 +24,7 @@ func TestCloser_MarshalJSON(t *testing.T) {
 }
 
 func TestCloser_NoPanics(t *testing.T) {
+	ctx := context.Background()
 	c := Closer{}
 	wg := sync.WaitGroup{}
 	// None of these should panic
@@ -30,9 +32,9 @@ func TestCloser_NoPanics(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			c.ErrBadRequest(time.Now(), time.Second)
-			c.ErrInterrupt(time.Now(), time.Second)
-			c.ErrConcurrencyLimitReject(time.Now())
+			c.ErrBadRequest(ctx, time.Now(), time.Second)
+			c.ErrInterrupt(ctx, time.Now(), time.Second)
+			c.ErrConcurrencyLimitReject(ctx, time.Now())
 		}()
 	}
 	wg.Wait()
@@ -45,33 +47,35 @@ func assertBool(t *testing.T, b bool, msg string) {
 }
 
 func TestCloser_ConcurrentAttempts(t *testing.T) {
+	ctx := context.Background()
 	now := time.Now()
 
 	c := Closer{}
 	c.SetConfigNotThreadSafe(ConfigureCloser{
 		RequiredConcurrentSuccessful: 3,
 	})
-	c.Opened(now)
-	assertBool(t, !c.ShouldClose(now), "Expected the circuit to not yet close")
-	c.Success(now, time.Second)
-	assertBool(t, !c.ShouldClose(now), "Expected the circuit to not yet close")
-	c.Success(now, time.Second)
-	assertBool(t, !c.ShouldClose(now), "Expected the circuit to not yet close")
-	c.Success(now, time.Second)
-	assertBool(t, c.ShouldClose(now), "Expected the circuit to now close")
+	c.Opened(ctx, now)
+	assertBool(t, !c.ShouldClose(ctx, now), "Expected the circuit to not yet close")
+	c.Success(ctx, now, time.Second)
+	assertBool(t, !c.ShouldClose(ctx, now), "Expected the circuit to not yet close")
+	c.Success(ctx, now, time.Second)
+	assertBool(t, !c.ShouldClose(ctx, now), "Expected the circuit to not yet close")
+	c.Success(ctx, now, time.Second)
+	assertBool(t, c.ShouldClose(ctx, now), "Expected the circuit to now close")
 
 	// None of these should matter
-	c.ErrBadRequest(now, time.Second)
-	c.ErrInterrupt(now, time.Second)
-	c.ErrConcurrencyLimitReject(now)
-	assertBool(t, c.ShouldClose(now), "Expected the circuit to now close")
+	c.ErrBadRequest(ctx, now, time.Second)
+	c.ErrInterrupt(ctx, now, time.Second)
+	c.ErrConcurrencyLimitReject(ctx, now)
+	assertBool(t, c.ShouldClose(ctx, now), "Expected the circuit to now close")
 
-	c.ErrTimeout(now, time.Second)
+	c.ErrTimeout(ctx, now, time.Second)
 	// Should reset closer
-	assertBool(t, !c.ShouldClose(now), "Expected the circuit to not yet close")
+	assertBool(t, !c.ShouldClose(ctx, now), "Expected the circuit to not yet close")
 }
 
 func TestCloser_AfterFunc(t *testing.T) {
+	ctx := context.Background()
 	t.Run("afterfunc is used", func(t *testing.T) {
 		var invocations int
 		c := Closer{}
@@ -84,11 +88,11 @@ func TestCloser_AfterFunc(t *testing.T) {
 		})
 
 		now := time.Now()
-		c.Opened(now)
-		c.Success(now, time.Second)
-		c.Success(now, time.Second)
-		c.Success(now, time.Second)
-		c.Success(now, time.Second)
+		c.Opened(ctx, now)
+		c.Success(ctx, now, time.Second)
+		c.Success(ctx, now, time.Second)
+		c.Success(ctx, now, time.Second)
+		c.Success(ctx, now, time.Second)
 
 		if invocations == 0 {
 			t.Error("Expected mock AfterFunc to be used")

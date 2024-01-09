@@ -1,6 +1,7 @@
 package circuit
 
 import (
+	"context"
 	"expvar"
 	"time"
 )
@@ -41,51 +42,51 @@ func (r RunMetricsCollection) Var() expvar.Var {
 }
 
 // Success sends Success to all collectors
-func (r RunMetricsCollection) Success(now time.Time, duration time.Duration) {
+func (r RunMetricsCollection) Success(ctx context.Context, now time.Time, duration time.Duration) {
 	for _, c := range r {
-		c.Success(now, duration)
+		c.Success(ctx, now, duration)
 	}
 }
 
 // ErrConcurrencyLimitReject sends ErrConcurrencyLimitReject to all collectors
-func (r RunMetricsCollection) ErrConcurrencyLimitReject(now time.Time) {
+func (r RunMetricsCollection) ErrConcurrencyLimitReject(ctx context.Context, now time.Time) {
 	for _, c := range r {
-		c.ErrConcurrencyLimitReject(now)
+		c.ErrConcurrencyLimitReject(ctx, now)
 	}
 }
 
 // ErrFailure sends ErrFailure to all collectors
-func (r RunMetricsCollection) ErrFailure(now time.Time, duration time.Duration) {
+func (r RunMetricsCollection) ErrFailure(ctx context.Context, now time.Time, duration time.Duration) {
 	for _, c := range r {
-		c.ErrFailure(now, duration)
+		c.ErrFailure(ctx, now, duration)
 	}
 }
 
 // ErrShortCircuit sends ErrShortCircuit to all collectors
-func (r RunMetricsCollection) ErrShortCircuit(now time.Time) {
+func (r RunMetricsCollection) ErrShortCircuit(ctx context.Context, now time.Time) {
 	for _, c := range r {
-		c.ErrShortCircuit(now)
+		c.ErrShortCircuit(ctx, now)
 	}
 }
 
 // ErrTimeout sends ErrTimeout to all collectors
-func (r RunMetricsCollection) ErrTimeout(now time.Time, duration time.Duration) {
+func (r RunMetricsCollection) ErrTimeout(ctx context.Context, now time.Time, duration time.Duration) {
 	for _, c := range r {
-		c.ErrTimeout(now, duration)
+		c.ErrTimeout(ctx, now, duration)
 	}
 }
 
 // ErrBadRequest sends ErrBadRequest to all collectors
-func (r RunMetricsCollection) ErrBadRequest(now time.Time, duration time.Duration) {
+func (r RunMetricsCollection) ErrBadRequest(ctx context.Context, now time.Time, duration time.Duration) {
 	for _, c := range r {
-		c.ErrBadRequest(now, duration)
+		c.ErrBadRequest(ctx, now, duration)
 	}
 }
 
 // ErrInterrupt sends ErrInterrupt to all collectors
-func (r RunMetricsCollection) ErrInterrupt(now time.Time, duration time.Duration) {
+func (r RunMetricsCollection) ErrInterrupt(ctx context.Context, now time.Time, duration time.Duration) {
 	for _, c := range r {
-		c.ErrInterrupt(now, duration)
+		c.ErrInterrupt(ctx, now, duration)
 	}
 }
 
@@ -95,23 +96,23 @@ type FallbackMetricsCollection []FallbackMetrics
 var _ FallbackMetrics = &FallbackMetricsCollection{}
 
 // Success sends Success to all collectors
-func (r FallbackMetricsCollection) Success(now time.Time, duration time.Duration) {
+func (r FallbackMetricsCollection) Success(ctx context.Context, now time.Time, duration time.Duration) {
 	for _, c := range r {
-		c.Success(now, duration)
+		c.Success(ctx, now, duration)
 	}
 }
 
 // ErrConcurrencyLimitReject sends ErrConcurrencyLimitReject to all collectors
-func (r FallbackMetricsCollection) ErrConcurrencyLimitReject(now time.Time) {
+func (r FallbackMetricsCollection) ErrConcurrencyLimitReject(ctx context.Context, now time.Time) {
 	for _, c := range r {
-		c.ErrConcurrencyLimitReject(now)
+		c.ErrConcurrencyLimitReject(ctx, now)
 	}
 }
 
 // ErrFailure sends ErrFailure to all collectors
-func (r FallbackMetricsCollection) ErrFailure(now time.Time, duration time.Duration) {
+func (r FallbackMetricsCollection) ErrFailure(ctx context.Context, now time.Time, duration time.Duration) {
 	for _, c := range r {
-		c.ErrFailure(now, duration)
+		c.ErrFailure(ctx, now, duration)
 	}
 }
 
@@ -137,25 +138,25 @@ type MetricsCollection []Metrics
 var _ Metrics = &MetricsCollection{}
 
 // Closed sends Closed to all collectors
-func (r MetricsCollection) Closed(now time.Time) {
+func (r MetricsCollection) Closed(ctx context.Context, now time.Time) {
 	for _, c := range r {
-		c.Closed(now)
+		c.Closed(ctx, now)
 	}
 }
 
 // Opened sends Opened to all collectors
-func (r MetricsCollection) Opened(now time.Time) {
+func (r MetricsCollection) Opened(ctx context.Context, now time.Time) {
 	for _, c := range r {
-		c.Opened(now)
+		c.Opened(ctx, now)
 	}
 }
 
 // Metrics reports internal circuit metric events
 type Metrics interface {
 	// Closed is called when the circuit transitions from Open to Closed.
-	Closed(now time.Time)
+	Closed(ctx context.Context, now time.Time)
 	// Opened is called when the circuit transitions from Closed to Opened.
-	Opened(now time.Time)
+	Opened(ctx context.Context, now time.Time)
 }
 
 // RunMetrics is guaranteed to execute one (and only one) of the following functions each time the circuit
@@ -163,14 +164,14 @@ type Metrics interface {
 // durations never called run, probably because of the circuit.
 type RunMetrics interface {
 	// Success each time `Execute` does not return an error
-	Success(now time.Time, duration time.Duration)
+	Success(ctx context.Context, now time.Time, duration time.Duration)
 	// ErrFailure each time a runFunc (the circuit part) ran, but failed
-	ErrFailure(now time.Time, duration time.Duration)
+	ErrFailure(ctx context.Context, now time.Time, duration time.Duration)
 	// ErrTimeout increments the number of timeouts that occurred in the circuit breaker.
-	ErrTimeout(now time.Time, duration time.Duration)
+	ErrTimeout(ctx context.Context, now time.Time, duration time.Duration)
 	// ErrBadRequest is counts of http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/exception/HystrixBadRequestException.html
 	// See https://github.com/Netflix/Hystrix/wiki/How-To-Use#error-propagation
-	ErrBadRequest(now time.Time, duration time.Duration)
+	ErrBadRequest(ctx context.Context, now time.Time, duration time.Duration)
 	// ErrInterrupt means the request ended, not because the runFunc failed, but probably because the original
 	// context canceled.  Your circuit returned an error, but it's probably because someone else killed the context,
 	// and not that your circuit is broken.  Java Manager doesn't have an equivalent for this, but it would be like if
@@ -179,13 +180,13 @@ type RunMetrics interface {
 	// A note on stat tracking: you may or may not consider this duration valid.  Yes, that's how long it executed,
 	// but the circuit never finished correctly since it was asked to end early, so the value is smaller than the
 	// circuit would have otherwise taken.
-	ErrInterrupt(now time.Time, duration time.Duration)
-
+	ErrInterrupt(ctx context.Context, now time.Time, duration time.Duration)
 	// If `Execute` returns an error, it will increment one of the following metrics
+
 	// ErrConcurrencyLimitReject each time a circuit is rejected due to concurrency limits
-	ErrConcurrencyLimitReject(now time.Time)
+	ErrConcurrencyLimitReject(ctx context.Context, now time.Time)
 	// ErrShortCircuit each time runFunc is not called because the circuit was open.
-	ErrShortCircuit(now time.Time)
+	ErrShortCircuit(ctx context.Context, now time.Time)
 }
 
 // FallbackMetrics is guaranteed to execute one (and only one) of the following functions each time a fallback is executed.
@@ -193,12 +194,13 @@ type RunMetrics interface {
 // never called, probably because of some circuit condition.
 type FallbackMetrics interface {
 	// All `fallback` calls will implement one of the following metrics
+
 	// Success each time fallback is called and succeeds.
-	Success(now time.Time, duration time.Duration)
+	Success(ctx context.Context, now time.Time, duration time.Duration)
 	// ErrFailure each time fallback callback fails.
-	ErrFailure(now time.Time, duration time.Duration)
+	ErrFailure(ctx context.Context, now time.Time, duration time.Duration)
 	// ErrConcurrencyLimitReject each time fallback fails due to concurrency limit
-	ErrConcurrencyLimitReject(now time.Time)
+	ErrConcurrencyLimitReject(ctx context.Context, now time.Time)
 }
 
 var _ FallbackMetrics = RunMetrics(nil)
