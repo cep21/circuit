@@ -1,6 +1,7 @@
 package responsetimeslo
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -16,24 +17,25 @@ func checkSLO(t *testing.T, r *Tracker, expectFail int64, expectPass int64) {
 
 func TestTracker(t *testing.T) {
 	r := &Tracker{}
+	ctx := context.Background()
 	r.MaximumHealthyTime.Set(time.Second.Nanoseconds())
-	r.ErrInterrupt(time.Now(), time.Second)
+	r.ErrInterrupt(ctx, time.Now(), time.Second)
 	checkSLO(t, r, 0, 0)
-	r.ErrInterrupt(time.Now(), time.Second*2)
+	r.ErrInterrupt(ctx, time.Now(), time.Second*2)
 	checkSLO(t, r, 1, 0)
-	r.ErrBadRequest(time.Now(), time.Second*2)
+	r.ErrBadRequest(ctx, time.Now(), time.Second*2)
 	checkSLO(t, r, 1, 0)
-	r.ErrConcurrencyLimitReject(time.Now())
+	r.ErrConcurrencyLimitReject(ctx, time.Now())
 	checkSLO(t, r, 2, 0)
-	r.ErrFailure(time.Now(), time.Nanosecond)
+	r.ErrFailure(ctx, time.Now(), time.Nanosecond)
 	checkSLO(t, r, 3, 0)
-	r.ErrShortCircuit(time.Now())
+	r.ErrShortCircuit(ctx, time.Now())
 	checkSLO(t, r, 4, 0)
-	r.ErrTimeout(time.Now(), time.Second)
+	r.ErrTimeout(ctx, time.Now(), time.Second)
 	checkSLO(t, r, 5, 0)
-	r.Success(time.Now(), time.Second)
+	r.Success(ctx, time.Now(), time.Second)
 	checkSLO(t, r, 5, 1)
-	r.Success(time.Now(), time.Second*2)
+	r.Success(ctx, time.Now(), time.Second*2)
 	checkSLO(t, r, 6, 1)
 
 	if r.Var().String() == "" {

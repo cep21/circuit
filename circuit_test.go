@@ -222,8 +222,9 @@ func TestThrottled(t *testing.T) {
 }
 
 func TestCircuitCloses(t *testing.T) {
+	ctx := context.Background()
 	c := NewCircuitFromConfig("TestCircuitCloses", Config{})
-	c.OpenCircuit()
+	c.OpenCircuit(ctx)
 	err := c.Run(context.Background(), func(_ context.Context) error {
 		panic("I should be open")
 	})
@@ -231,7 +232,7 @@ func TestCircuitCloses(t *testing.T) {
 		t.Errorf("I expect to fail now")
 	}
 
-	c.CloseCircuit()
+	c.CloseCircuit(ctx)
 	err = c.Run(context.Background(), func(_ context.Context) error {
 		return errors.New("some string")
 	})
@@ -540,6 +541,7 @@ func TestVariousRaceConditions(t *testing.T) {
 	})
 
 	doNotPassTime := time.Now().Add(time.Millisecond * 20)
+	ctx := context.Background()
 
 	wg := sync.WaitGroup{}
 	for i := 0; i < concurrentThreads; i++ {
@@ -550,10 +552,10 @@ func TestVariousRaceConditions(t *testing.T) {
 			c.IsOpen()
 		})
 		testhelp.DoTillTime(doNotPassTime, &wg, func() {
-			c.CloseCircuit()
+			c.CloseCircuit(ctx)
 		})
 		testhelp.DoTillTime(doNotPassTime, &wg, func() {
-			c.OpenCircuit()
+			c.OpenCircuit(ctx)
 		})
 		testhelp.DoTillTime(doNotPassTime, &wg, func() {
 			c.Name()
@@ -586,11 +588,11 @@ type closeOnFirstErrorOpener struct {
 	isOpened bool
 }
 
-func (o *closeOnFirstErrorOpener) ShouldOpen(_ time.Time) bool {
+func (o *closeOnFirstErrorOpener) ShouldOpen(ctx context.Context, _ time.Time) bool {
 	o.isOpened = true
 	return true
 }
-func (o *closeOnFirstErrorOpener) Prevent(_ time.Time) bool {
+func (o *closeOnFirstErrorOpener) Prevent(ctx context.Context, _ time.Time) bool {
 	return o.isOpened
 }
 

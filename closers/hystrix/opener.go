@@ -1,6 +1,7 @@
 package hystrix
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -97,54 +98,54 @@ func (e *Opener) MarshalJSON() ([]byte, error) {
 var _ json.Marshaler = &Opener{}
 
 // Closed resets the error and attempt count
-func (e *Opener) Closed(now time.Time) {
+func (e *Opener) Closed(ctx context.Context, now time.Time) {
 	e.errorsCount.Reset(now)
 	e.legitimateAttemptsCount.Reset(now)
 }
 
 // Opened resets the error and attempt count
-func (e *Opener) Opened(now time.Time) {
+func (e *Opener) Opened(ctx context.Context, now time.Time) {
 	e.errorsCount.Reset(now)
 	e.legitimateAttemptsCount.Reset(now)
 }
 
 // Success increases the number of correct attempts
-func (e *Opener) Success(now time.Time, duration time.Duration) {
+func (e *Opener) Success(ctx context.Context, now time.Time, duration time.Duration) {
 	e.legitimateAttemptsCount.Inc(now)
 }
 
 // Prevent never returns true
-func (e *Opener) Prevent(now time.Time) (shouldAllow bool) {
+func (e *Opener) Prevent(ctx context.Context, now time.Time) (shouldAllow bool) {
 	return false
 }
 
 // ErrBadRequest is ignored
-func (e *Opener) ErrBadRequest(now time.Time, duration time.Duration) {}
+func (e *Opener) ErrBadRequest(ctx context.Context, now time.Time, duration time.Duration) {}
 
 // ErrInterrupt is ignored
-func (e *Opener) ErrInterrupt(now time.Time, duration time.Duration) {}
+func (e *Opener) ErrInterrupt(ctx context.Context, now time.Time, duration time.Duration) {}
 
 // ErrFailure increases error count for the circuit
-func (e *Opener) ErrFailure(now time.Time, duration time.Duration) {
+func (e *Opener) ErrFailure(ctx context.Context, now time.Time, duration time.Duration) {
 	e.legitimateAttemptsCount.Inc(now)
 	e.errorsCount.Inc(now)
 }
 
 // ErrTimeout increases error count for the circuit
-func (e *Opener) ErrTimeout(now time.Time, duration time.Duration) {
+func (e *Opener) ErrTimeout(ctx context.Context, now time.Time, duration time.Duration) {
 	e.legitimateAttemptsCount.Inc(now)
 	e.errorsCount.Inc(now)
 }
 
 // ErrConcurrencyLimitReject is ignored
-func (e *Opener) ErrConcurrencyLimitReject(now time.Time) {}
+func (e *Opener) ErrConcurrencyLimitReject(ctx context.Context, now time.Time) {}
 
 // ErrShortCircuit is ignored
-func (e *Opener) ErrShortCircuit(now time.Time) {}
+func (e *Opener) ErrShortCircuit(ctx context.Context, now time.Time) {}
 
 // ShouldOpen returns true if rolling count >= threshold and
 // error % is high enough.
-func (e *Opener) ShouldOpen(now time.Time) bool {
+func (e *Opener) ShouldOpen(ctx context.Context, now time.Time) bool {
 	attemptCount := e.legitimateAttemptsCount.RollingSumAt(now)
 	if attemptCount == 0 || attemptCount < e.requestVolumeThreshold.Get() {
 		// not enough requests. Will not open circuit

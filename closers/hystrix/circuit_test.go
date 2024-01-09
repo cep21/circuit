@@ -200,7 +200,8 @@ func TestSleepDurationWorks(t *testing.T) {
 
 	var lastRequestTime atomic.Value
 	lastRequestTime.Store(time.Now())
-	c.OpenCircuit()
+	ctx := context.Background()
+	c.OpenCircuit(ctx)
 	if !c.IsOpen() {
 		t.Errorf("circuit should be open after I open it")
 	}
