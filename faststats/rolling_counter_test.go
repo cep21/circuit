@@ -47,6 +47,8 @@ func TestRollingCounter_NormalConsistency(t *testing.T) {
 	concurrent := 20
 	eachIteration := bucketSize * (numBuckets / 2)
 	end := 50 * eachIteration
+	// Note: Revisit this test: it sometimes fails inconsistently and I think it's because my logic isn't right in the
+	// test, not the code it's testing.
 	for k := 0; k < 50; k++ {
 		wg := sync.WaitGroup{}
 		for i := 0; i < concurrent; i++ {
