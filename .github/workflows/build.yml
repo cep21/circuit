@@ -1,33 +1,33 @@
 name: Test
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
 
 jobs:
   test:
     strategy:
       matrix:
+        # Note: We support the three latest Go versions
         go-version: [1.19.x, 1.20.x, 1.21.x]
     name: Test
     runs-on: ubuntu-latest
     steps:
       - name: Install Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go-version }}
       - name: Check out code
-        uses: actions/checkout@v2
-      - name: Setup CI
-        run: cd v3 && make setup_ci && git stash
+        uses: actions/checkout@v4
       - name: Build
-        run: go build -mod=readonly ./... && cd v3 && go build -mod=readonly ./... && cd -
+        run: go build -mod=readonly ./...
       - name: Verify
         run: go mod verify
       - name: Test
-        run: cd v3 && make test
+        run: env "GORACE=halt_on_error=1" go test -v -race ./...
       - name: Output coverage
-        run: cd v3 && make test_coverage
+        run: go test -v -covermode=count -coverprofile=coverage.out ./...
       - name: upload coverage
-        if: matrix.go-version == '1.20.x'
-        uses: shogo82148/actions-goveralls@v1.6.0
+        uses: shogo82148/actions-goveralls@v1
         with:
-          path-to-profile: v3/coverage.out
+          path-to-profile: coverage.out
