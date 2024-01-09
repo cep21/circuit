@@ -46,6 +46,10 @@ worth looking at.  They tend to be more up to date than the README doc.
 * Support for [Additive increase/multiplicative decrease](https://github.com/cep21/aimdcloser)
 * Prometheus [metrics collector](https://github.com/jiacai2050/prometrics).
 
+# Upgrading
+
+See [UPGRADE_GUIDE.md](./UPGRADE_GUIDE.md) for upgrade instructions if you're upgrading from v3 to v4.
+
 # Usage
 
 ## [Hello world circuit](https://godoc.org/github.com/cep21/circuit#example-Manager-MustCreateCircuit-Helloworld)
