@@ -1,9 +1,8 @@
 package metriceventstream_test
 
 import (
-	"net/http"
-
 	"log"
+	"net/http"
 
 	"github.com/cep21/circuit/v4"
 	"github.com/cep21/circuit/v4/metriceventstream"

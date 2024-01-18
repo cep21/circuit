@@ -2,10 +2,9 @@ package hystrix
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
-
-	"encoding/json"
 
 	"github.com/cep21/circuit/v4"
 	"github.com/cep21/circuit/v4/faststats"

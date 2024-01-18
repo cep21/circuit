@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
-
-	"sync/atomic"
 
 	"github.com/cep21/circuit/v4"
 	"github.com/cep21/circuit/v4/internal/testhelp"

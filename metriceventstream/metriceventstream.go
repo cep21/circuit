@@ -3,11 +3,10 @@ package metriceventstream
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"sync"
 	"time"
-
-	"io"
 
 	"github.com/cep21/circuit/v4"
 	"github.com/cep21/circuit/v4/closers/hystrix"

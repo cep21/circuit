@@ -7,15 +7,13 @@ import (
 	"context"
 	"errors"
 	"expvar"
+	"flag"
 	"log"
 	"math/rand"
 	"net"
 	"net/http"
-	"time"
-
 	"sync/atomic"
-
-	"flag"
+	"time"
 
 	"github.com/cep21/circuit/v4"
 	"github.com/cep21/circuit/v4/closers/hystrix"
