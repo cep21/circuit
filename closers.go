@@ -10,9 +10,10 @@ import (
 type ClosedToOpen interface {
 	RunMetrics
 	Metrics
-	// AttemptToOpen a circuit that is currently closed, after a bad request comes in.  Only called after bad requests,
-	// never called after a successful request
+	// ShouldOpen will attempt to open a circuit that is currently closed, after a bad request comes in.  Only called
+	// after bad requests, never called after a successful request
 	ShouldOpen(ctx context.Context, now time.Time) bool
+	// Prevent a single request from going through while the circuit is closed.
 	// Even though the circuit is closed, and we want to allow the circuit to remain closed, we still prevent this
 	// command from happening.  The error will return as a short circuit to the caller, as well as trigger fallback
 	// logic.  This could be useful if your circuit is closed, but some external force wants you to pretend to be open.
@@ -23,7 +24,8 @@ type ClosedToOpen interface {
 type OpenToClosed interface {
 	RunMetrics
 	Metrics
-	// AttemptToOpen a circuit that is currently closed, after a bad request comes in
+	// ShouldClose is called after a request is allowed to go through, and the circuit is open.  If the circuit should
+	// now close, return true.  If the circuit should remain open, return false.
 	ShouldClose(ctx context.Context, now time.Time) bool
 	// Allow a single request while remaining in the closed state
 	Allow(ctx context.Context, now time.Time) bool

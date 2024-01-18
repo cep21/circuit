@@ -484,27 +484,6 @@ func TestSetConfigThreadSafe(t *testing.T) {
 	}
 }
 
-// func TestSLO(t *testing.T) {
-//	c := NewCircuitFromConfig("TestFailingCircuit", Config{
-//		GoSpecific: GoSpecificConfig{
-//			ResponseTimeSLO: time.Millisecond,
-//		},
-//	})
-//	err := c.Execute(context.Background(), sleepsForX(time.Millisecond*5), nil)
-//	if err != nil {
-//		t.Error("This request should not fail")
-//	}
-//	if c.errorsCount.TotalSum() != 0 {
-//		t.Error("the request should not be an error")
-//	}
-//	if c.responseTimeSLO.MeetsSLOCount.Get() != 0 {
-//		t.Error("the request should not be healthy")
-//	}
-//	if c.responseTimeSLO.FailsSLOCount.Get() != 1 {
-//		t.Error("the request should be failed")
-//	}
-// }
-
 func TestFallbackAfterTimeout(t *testing.T) {
 	c := NewCircuitFromConfig("TestThrottled", Config{
 		Execution: ExecutionConfig{
