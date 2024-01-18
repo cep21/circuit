@@ -23,6 +23,17 @@ func TestManager_Var(t *testing.T) {
 	}
 }
 
+func TestManager_AllCircuits(t *testing.T) {
+	h := Manager{}
+	c := h.MustCreateCircuit("hello-world", Config{})
+	if len(h.AllCircuits()) != 1 {
+		t.Error("unexpected number of circuits")
+	}
+	if h.AllCircuits()[0] != c {
+		t.Error("unexpected circuit")
+	}
+}
+
 func TestSimpleCreate(t *testing.T) {
 	h := Manager{}
 	c := h.MustCreateCircuit("hello-world", Config{})
