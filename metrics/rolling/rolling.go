@@ -3,9 +3,8 @@ package rolling
 import (
 	"context"
 	"expvar"
-	"time"
-
 	"sync"
+	"time"
 
 	"github.com/cep21/circuit/v4"
 	"github.com/cep21/circuit/v4/faststats"

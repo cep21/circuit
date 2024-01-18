@@ -401,10 +401,10 @@ fmt.Println("Result of 10/0 is", err)
 // Output: Result of 10/0 is someone tried to divide by zero
 ```
 
-# [Benchmarking](https://github.com/cep21/circuit/blob/master/v3/benchmarking/benchmark_hystrix_test.go)
+# Benchmarking
 
 This implementation is more efficient than go-hystrix in every configuration.  It has comparable efficiency
-to other implementations, in most faster when running with high concurrency. Run benchmarks with `make bench`.
+to other implementations, faster for most when running with high concurrency. Run benchmarks with `make bench`.
 
 I benchmark the following alternative circuit implementations.  I try to be fair and if
 there is a better way to benchmark one of these circuits, please let me know!
@@ -470,20 +470,19 @@ BenchmarkCiruits/iand_circuit/Default/passing/75-8       	 5000000	       349 ns
 
 # [Development](https://github.com/cep21/circuit/blob/master/Makefile)
 
-Make sure your tests pass with `make test` and your lints pass with `make lint`.
+Make sure your tests pass with `go test` and your lints pass with `golangci-lint run`.
 
 # [Example](https://github.com/cep21/circuit/blob/master/example/main.go)
 
 You can run an example set of circuits inside the /example directory
 
 ```bash
-make run
+go run example/main.go
 ```
 
 The output looks something like this:
 
 ```bash
-< make run
 go run example/main.go
 2017/12/19 15:24:42 Serving on socket :8123
 2017/12/19 15:24:42 To view the stream, execute:
