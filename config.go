@@ -14,7 +14,7 @@ type Config struct {
 	Metrics   MetricsCollectors
 }
 
-// GeneralConfig controls the non general logic of the circuit.  Things specific to metrics, execution, or fallback are
+// GeneralConfig controls the general logic of the circuit.  Things specific to metrics, execution, or fallback are
 // in their own configs
 type GeneralConfig struct {
 	// if disabled, Execute functions pass to just calling runFunc and do no tracking or fallbacks
