@@ -76,7 +76,12 @@ func mustPass(err error) {
 }
 
 func setupAlwaysFails(h *circuit.Manager, tickInterval time.Duration) {
-	failureCircuit := h.MustCreateCircuit("always-fails", circuit.Config{})
+	failureCircuit := h.MustCreateCircuit("always-fails", circuit.Config{
+		General: circuit.GeneralConfig{
+			OpenToClosedFactory: hystrix.CloserFactory(hystrix.ConfigureCloser{}),
+			ClosedToOpenFactory: hystrix.OpenerFactory(hystrix.ConfigureOpener{}),
+		},
+	})
 	go func() {
 		for range time.Tick(tickInterval) {
 			mustFail(failureCircuit.Execute(context.Background(), func(ctx context.Context) error {
@@ -87,7 +92,12 @@ func setupAlwaysFails(h *circuit.Manager, tickInterval time.Duration) {
 }
 
 func setupBadRequest(h *circuit.Manager, tickInterval time.Duration) {
-	failingBadRequest := h.MustCreateCircuit("always-fails-bad-request", circuit.Config{})
+	failingBadRequest := h.MustCreateCircuit("always-fails-bad-request", circuit.Config{
+		General: circuit.GeneralConfig{
+			OpenToClosedFactory: hystrix.CloserFactory(hystrix.ConfigureCloser{}),
+			ClosedToOpenFactory: hystrix.OpenerFactory(hystrix.ConfigureOpener{}),
+		},
+	})
 	go func() {
 		for range time.Tick(tickInterval) {
 			mustFail(failingBadRequest.Execute(context.Background(), func(ctx context.Context) error {
@@ -98,7 +108,12 @@ func setupBadRequest(h *circuit.Manager, tickInterval time.Duration) {
 }
 
 func setupFailsOriginalContext(h *circuit.Manager, tickInterval time.Duration) {
-	failingOriginalContextCanceled := h.MustCreateCircuit("always-fails-original-context", circuit.Config{})
+	failingOriginalContextCanceled := h.MustCreateCircuit("always-fails-original-context", circuit.Config{
+		General: circuit.GeneralConfig{
+			OpenToClosedFactory: hystrix.CloserFactory(hystrix.ConfigureCloser{}),
+			ClosedToOpenFactory: hystrix.OpenerFactory(hystrix.ConfigureOpener{}),
+		},
+	})
 	go func() {
 		for range time.Tick(tickInterval) {
 			endedContext, cancel := context.WithCancel(context.Background())
