@@ -39,37 +39,51 @@ func TestRollingCounter_MovingBackwards(t *testing.T) {
 	}
 }
 
+type atomicTime struct {
+	t  time.Time
+	mu sync.Mutex
+}
+
+func (a *atomicTime) Add(d time.Duration) time.Time {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.t = a.t.Add(d)
+	return a.t
+}
+
+func (a *atomicTime) Get() time.Time {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.t
+}
+
 func TestRollingCounter_NormalConsistency(t *testing.T) {
 	// Start now at 1970
-	now := time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)
+	now := atomicTime{t: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)}
 	bucketSize := 100
-	numBuckets := 20
-	x := NewRollingCounter(time.Millisecond*time.Duration(bucketSize), numBuckets, now)
-	concurrent := 20
-	eachIteration := bucketSize * (numBuckets / 2)
-	end := 50 * eachIteration
-	for k := 0; k < 50; k++ {
+	numBuckets := 10
+	x := NewRollingCounter(time.Millisecond*time.Duration(bucketSize), numBuckets+1, now.Get())
+	concurrent := int64(100)
+	for k := 0; k < bucketSize; k++ {
 		wg := sync.WaitGroup{}
-		for i := 0; i < concurrent; i++ {
+		for i := 0; i < numBuckets; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				for j := 0; j < eachIteration; j++ {
-					newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(j+k*eachIteration)))
-					x.Inc(newNow)
+				for j := 0; j < int(concurrent); j++ {
+					newTime := now.Add(time.Duration(time.Millisecond.Nanoseconds() / concurrent))
+					x.Inc(newTime)
 				}
 				time.Sleep(time.Nanosecond)
 			}()
 		}
 		wg.Wait()
 	}
-	newNow := now.Add(time.Duration(time.Millisecond.Nanoseconds() * int64(end)))
-	if x.RollingSumAt(newNow) != int64(concurrent*bucketSize*(numBuckets-1)) {
-		t.Error("small rolling sum", x.RollingSumAt(newNow), "when we want", concurrent*bucketSize*(numBuckets-1))
-	}
-	b := x.GetBuckets(newNow)
-	if b[1] != int64(concurrent*bucketSize) {
-		t.Error("incorrect size at b[1]", b[1], "wanting", concurrent*bucketSize)
+	newNow := now.Get()
+	expectedValue := bucketSize * numBuckets * int(concurrent)
+	if x.RollingSumAt(newNow) != int64(expectedValue) {
+		t.Logf(x.StringAt(newNow))
+		t.Error("small rolling sum", x.RollingSumAt(newNow), "when we want", expectedValue)
 	}
 }
 
