@@ -33,3 +33,6 @@ issues:
     - linters:
         - gosec
       text: "G114"
+    - linters:
+        - revive
+      text: "unused-parameter"
