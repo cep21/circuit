@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         # Note: We support the three latest Go versions
-        go-version: [1.19.x, 1.20.x, 1.21.x]
+        go-version: [1.20.x, 1.21.x, 1.22.x]
     name: Test
     runs-on: ubuntu-latest
     steps:
@@ -32,13 +32,13 @@ jobs:
       - name: Verify
         run: go mod verify
       - name: Test
-        run: env "GORACE=halt_on_error=1" go test -v -race ./...
+        run: env "GORACE=halt_on_error=1" go test -v -race -count 10 ./...
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
       - name: Output coverage
         run: go test -v -covermode=count -coverprofile=coverage.out ./...
       - name: upload coverage
         uses: shogo82148/actions-goveralls@v1
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && matrix.go-version == '1.21.x'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && matrix.go-version == '1.22.x'
         with:
           path-to-profile: coverage.out
