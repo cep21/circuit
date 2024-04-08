@@ -317,27 +317,6 @@ fmt.Println("The timeout of v1 is", h.GetCircuit("v1").Config().Execution.Timeou
 // Output: The timeout of v1 is 1s
 ```
 
-## [StatsD configuration factory](https://godoc.org/github.com/cep21/circuit/metrics/statsdmetrics#example-CommandFactory-CommandProperties)
-
-A configuration factory for statsd is provided inside ./metrics/statsdmetrics
-
-This example shows how to inject a statsd metric collector into a circuit.
-
-```go
-// This factory allows us to report statsd metrics from the circuit
-f := statsdmetrics.CommandFactory{
-  SubStatter: &statsd.NoopClient{},
-}
-
-// Wire the statsd factory into the circuit manager
-h := circuit.Manager{
-  DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{f.CommandProperties},
-}
-// This created circuit will now use statsd
-h.MustCreateCircuit("using-statsd")
-// Output:
-```
-
 ## [Service health tracking](https://godoc.org/github.com/cep21/circuit/metrics/responsetimeslo#example-Factory)
 
 Most services have the concept of an SLA, or service level agreement.  Unfortunantly,
