@@ -404,7 +404,9 @@ fmt.Println("Result of 10/0 is", err)
 # Benchmarking
 
 This implementation is more efficient than go-hystrix in every configuration.  It has comparable efficiency
-to other implementations, faster for most when running with high concurrency. Run benchmarks with `make bench`.
+to other implementations, faster for most when running with high concurrency.
+
+The benchmarking code is available [here](https://github.com/cep21/circuit-benchmarks). Run benchmarks with `make bench`.
 
 I benchmark the following alternative circuit implementations.  I try to be fair and if
 there is a better way to benchmark one of these circuits, please let me know!
