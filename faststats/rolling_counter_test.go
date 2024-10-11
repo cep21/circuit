@@ -82,7 +82,7 @@ func TestRollingCounter_NormalConsistency(t *testing.T) {
 	newNow := now.Get()
 	expectedValue := bucketSize * numBuckets * int(concurrent)
 	if x.RollingSumAt(newNow) != int64(expectedValue) {
-		t.Logf(x.StringAt(newNow))
+		t.Log(x.StringAt(newNow))
 		t.Error("small rolling sum", x.RollingSumAt(newNow), "when we want", expectedValue)
 	}
 }
