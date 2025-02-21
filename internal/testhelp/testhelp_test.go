@@ -76,9 +76,8 @@ func TestBehaviorCheck_Run(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			// Ignore error result, just checking for proper behavior
-			if b.Run(context.Background()) != nil {
-				t.Errorf("Expected no error, got %v", err)
+			if runErr := b.Run(context.Background()); runErr == nil {
+				t.Error("I expecte an error from running b")
 			}
 		}()
 	}
