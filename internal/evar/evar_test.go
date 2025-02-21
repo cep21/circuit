@@ -2,7 +2,9 @@ package evar
 
 import (
 	"expvar"
+	"fmt"
 	"testing"
+	"time"
 )
 
 // Mock implementation for testing
@@ -35,8 +37,8 @@ func TestExpvarToVal(t *testing.T) {
 		t.Errorf("Expected result to be 42, got %v", result)
 	}
 
-	// Test with a non-Value-implementing expvar
-	nonValueVar := expvar.NewString("test")
+	// Test with a non-Value-implementing expvar - using unique name to avoid collision
+	nonValueVar := expvar.NewString("test_" + t.Name() + "_" + fmt.Sprintf("%d", time.Now().UnixNano()))
 	result = ExpvarToVal(nonValueVar)
 	if result != nil {
 		t.Errorf("Expected result to be nil, got %v", result)
