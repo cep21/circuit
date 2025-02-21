@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         # Note: We support the three latest Go versions
-        go-version: [1.21.x, 1.22.x, 1.23.x]
+        go-version: [1.22.x, 1.23.x, 1.24.x]
     name: Test
     runs-on: ubuntu-latest
     steps:
@@ -39,6 +39,6 @@ jobs:
         run: go test -v -covermode=count -coverprofile=coverage.out ./...
       - name: upload coverage
         uses: shogo82148/actions-goveralls@v1
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && matrix.go-version == '1.23.x'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && matrix.go-version == '1.24.x'
         with:
           path-to-profile: coverage.out
