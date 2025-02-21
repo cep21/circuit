@@ -42,19 +42,26 @@ func TestCloser_closes(t *testing.T) {
 }
 
 func TestCircuitAttemptsToReopen(t *testing.T) {
+	// Use a more reliable sleep window to reduce timing flakiness
+	sleepWindow := 10 * time.Millisecond
+
 	c := circuit.NewCircuitFromConfig("TestCircuitAttemptsToReopen", circuit.Config{
 		General: circuit.GeneralConfig{
 			OpenToClosedFactory: CloserFactory(ConfigureCloser{
-				SleepWindow: time.Millisecond,
+				SleepWindow: sleepWindow,
 			}),
 			ClosedToOpenFactory: OpenerFactory(ConfigureOpener{
 				RequestVolumeThreshold: 1,
 			}),
 		},
 	})
+
+	// Verify initial state
 	if c.IsOpen() {
 		t.Fatal("Circuit should not start out open")
 	}
+
+	// Open the circuit with a failure
 	err := c.Execute(context.Background(), testhelp.AlwaysFails, nil)
 	if err == nil {
 		t.Fatal("Circuit should have failed if run fails")
@@ -62,24 +69,46 @@ func TestCircuitAttemptsToReopen(t *testing.T) {
 	if !c.IsOpen() {
 		t.Fatal("Circuit should be open after having failed once")
 	}
+
+	// Verify circuit is open
 	err = c.Execute(context.Background(), testhelp.AlwaysPasses, nil)
 	if err == nil {
 		t.Fatal("Circuit should be open")
 	}
 
-	// Takes some time for slow servers to trigger the timer
+	// Wait slightly longer than the sleep window to ensure it takes effect
+	time.Sleep(sleepWindow * 2)
+
+	// Try for 20 sec with increasing delay to avoid excessive CPU usage
 	var i int
-	// Try for 20 sec
-	for i = 0; i < 200; i++ {
+	maxAttempts := 20
+	for i = 0; i < maxAttempts; i++ {
 		err = c.Execute(context.Background(), testhelp.AlwaysPasses, nil)
 		if err == nil {
+			t.Logf("Circuit reopened after %d attempts", i+1)
 			break
 		}
-		time.Sleep(time.Millisecond * 100)
+
+		// Exponential backoff (100ms, 200ms, 400ms...)
+		// Calculate backoff multiplier: 1, 2, 4, 8, etc.
+		var backoffMultiplier int64 = 1
+		shift := i / 3
+		if shift > 0 {
+			if shift > 10 {
+				shift = 10 // Cap the shift at 10 to prevent overflow
+			}
+			backoffMultiplier = int64(1) << shift // Use int64 to avoid overflow
+		}
+		sleepTime := time.Millisecond * 100 * time.Duration(backoffMultiplier)
+		if sleepTime > time.Second {
+			sleepTime = time.Second // Cap at 1 second
+		}
+		time.Sleep(sleepTime)
 	}
 
-	if i == 200 {
-		t.Fatal("Circuit should try to reopen")
+	if i == maxAttempts {
+		t.Fatalf("Circuit did not reopen after %d attempts and %s sleep window",
+			maxAttempts, sleepWindow)
 	}
 }
 
