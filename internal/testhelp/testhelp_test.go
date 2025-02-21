@@ -13,7 +13,7 @@ func TestMustTesting(t *testing.T) {
 	mockT := &testing.T{}
 	// Should not cause an error
 	MustTesting(mockT, nil)
-	
+
 	// Should cause an error
 	MustTesting(mockT, errors.New("test error"))
 	// Note: we can't easily check that the mock testing.T recorded an error
@@ -23,7 +23,7 @@ func TestMustNotTesting(t *testing.T) {
 	mockT := &testing.T{}
 	// Should cause an error
 	MustNotTesting(mockT, nil)
-	
+
 	// Should not cause an error
 	MustNotTesting(mockT, errors.New("test error"))
 	// Note: we can't easily check that the mock testing.T recorded an error
@@ -35,7 +35,7 @@ func TestBehaviorCheck_Run(t *testing.T) {
 			return nil
 		},
 	}
-	
+
 	// Test success case
 	err := b.Run(context.Background())
 	if err != nil {
@@ -53,12 +53,12 @@ func TestBehaviorCheck_Run(t *testing.T) {
 	if b.currentConcurrent != 0 {
 		t.Errorf("Expected current concurrent to be 0, got %d", b.currentConcurrent)
 	}
-	
+
 	// Test error case
 	b.RunFunc = func(ctx context.Context) error {
 		return errors.New("test error")
 	}
-	
+
 	err = b.Run(context.Background())
 	if err == nil {
 		t.Error("Expected an error")
@@ -69,18 +69,21 @@ func TestBehaviorCheck_Run(t *testing.T) {
 	if b.totalErrors != 1 {
 		t.Errorf("Expected 1 total error, got %d", b.totalErrors)
 	}
-	
+
 	// Test concurrency tracking
 	wg := sync.WaitGroup{}
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			b.Run(context.Background())
+			// Ignore error result, just checking for proper behavior
+			if b.Run(context.Background()) != nil {
+				t.Errorf("Expected no error, got %v", err)
+			}
 		}()
 	}
 	wg.Wait()
-	
+
 	if b.TotalRuns != 7 {
 		t.Errorf("Expected 7 total runs, got %d", b.TotalRuns)
 	}
@@ -104,7 +107,7 @@ func TestSleepsForX(t *testing.T) {
 	if elapsed < 100*time.Millisecond {
 		t.Errorf("Expected sleep of at least 100ms, got %v", elapsed)
 	}
-	
+
 	// Test context cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	start = time.Now()
@@ -115,7 +118,7 @@ func TestSleepsForX(t *testing.T) {
 	fn = SleepsForX(10 * time.Second)
 	err = fn(ctx)
 	elapsed = time.Since(start)
-	
+
 	if err == nil {
 		t.Error("Expected an error due to context cancellation")
 	}
@@ -148,7 +151,6 @@ func TestAlwaysFailsFallback(t *testing.T) {
 	}
 }
 
-
 func TestAlwaysFails(t *testing.T) {
 	err := AlwaysFails(context.Background())
 	if err == nil {
@@ -169,12 +171,12 @@ func TestAlwaysPasses(t *testing.T) {
 func TestDoTillTime(t *testing.T) {
 	var counter int
 	wg := &sync.WaitGroup{}
-	
+
 	endTime := time.Now().Add(500 * time.Millisecond)
 	DoTillTime(endTime, wg, func() {
 		counter++
 	})
-	
+
 	wg.Wait()
 	if counter <= 0 {
 		t.Error("Function should have executed at least once")

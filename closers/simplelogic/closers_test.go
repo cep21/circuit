@@ -50,33 +50,33 @@ func TestConsecutiveErrOpener_Merge(t *testing.T) {
 func TestConsecutiveErrOpener_ShouldOpen(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
-	
+
 	opener := &ConsecutiveErrOpener{}
 	opener.SetConfigThreadSafe(ConfigConsecutiveErrOpener{
 		ErrorThreshold: 3,
 	})
-	
+
 	// Initially should not open
 	if opener.ShouldOpen(ctx, now) {
 		t.Error("Circuit should not open initially")
 	}
-	
+
 	// Add errors and check when it should open
 	opener.ErrFailure(ctx, now, time.Second)
 	if opener.ShouldOpen(ctx, now) {
 		t.Error("Circuit should not open after 1 error")
 	}
-	
+
 	opener.ErrTimeout(ctx, now, time.Second)
 	if opener.ShouldOpen(ctx, now) {
 		t.Error("Circuit should not open after 2 errors")
 	}
-	
+
 	opener.ErrFailure(ctx, now, time.Second)
 	if !opener.ShouldOpen(ctx, now) {
 		t.Error("Circuit should open after 3 errors")
 	}
-	
+
 	// Reset on success
 	opener.Success(ctx, now, time.Second)
 	if opener.ShouldOpen(ctx, now) {
@@ -106,7 +106,7 @@ func TestConsecutiveErrOpener_ShouldOpen(t *testing.T) {
 
 func TestConsecutiveErrOpener_Config(t *testing.T) {
 	opener := &ConsecutiveErrOpener{}
-	
+
 	// Test thread-safe config
 	opener.SetConfigThreadSafe(ConfigConsecutiveErrOpener{
 		ErrorThreshold: 7,
@@ -114,7 +114,7 @@ func TestConsecutiveErrOpener_Config(t *testing.T) {
 	if opener.closeThreshold.Get() != 7 {
 		t.Errorf("Expected threshold to be 7, got %d", opener.closeThreshold.Get())
 	}
-	
+
 	// Test non-thread-safe config
 	opener.SetConfigNotThreadSafe(ConfigConsecutiveErrOpener{
 		ErrorThreshold: 9,
@@ -128,18 +128,18 @@ func TestConsecutiveErrOpener_OtherMethods(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 	opener := &ConsecutiveErrOpener{}
-	
+
 	// Test methods that don't affect counts
 	if opener.Prevent(ctx, now) {
 		t.Error("Prevent should always return false")
 	}
-	
+
 	// These should not affect the counter
 	opener.ErrBadRequest(ctx, now, time.Second)
 	opener.ErrInterrupt(ctx, now, time.Second)
 	opener.ErrConcurrencyLimitReject(ctx, now)
 	opener.ErrShortCircuit(ctx, now)
-	
+
 	// These should not increment the counter
 	if opener.consecutiveCount.Get() != 0 {
 		t.Error("Methods should not have incremented error counter")
@@ -155,15 +155,15 @@ func TestConsecutiveErrOpener_CircuitIntegration(t *testing.T) {
 			}),
 		},
 	}
-	
+
 	h := circuit.Manager{}
 	c := h.MustCreateCircuit("SimpleLogic", configuration)
-	
+
 	// Circuit should start closed
 	if c.IsOpen() {
 		t.Error("Circuit should start in a closed state")
 	}
-	
+
 	// Bad requests shouldn't count towards failures
 	err := c.Execute(context.Background(), func(_ context.Context) error {
 		return circuit.SimpleBadRequest{} // Bad requests don't count
@@ -174,7 +174,7 @@ func TestConsecutiveErrOpener_CircuitIntegration(t *testing.T) {
 	if c.IsOpen() {
 		t.Error("Circuit should remain closed after a bad request")
 	}
-	
+
 	// Two failures should open the circuit
 	for i := 0; i < 2; i++ {
 		err = c.Execute(context.Background(), func(_ context.Context) error {
@@ -184,7 +184,7 @@ func TestConsecutiveErrOpener_CircuitIntegration(t *testing.T) {
 			t.Error("Expected an error from failure")
 		}
 	}
-	
+
 	// Circuit should now be open
 	if !c.IsOpen() {
 		t.Error("Circuit should be open after threshold failures")
