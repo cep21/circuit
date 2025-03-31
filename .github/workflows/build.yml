@@ -34,7 +34,7 @@ jobs:
       - name: Test
         run: env "GORACE=halt_on_error=1" go test -v -race -count 10 ./...
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
       - name: Output coverage
         run: go test -v -covermode=count -coverprofile=coverage.out ./...
       - name: upload coverage
