@@ -73,6 +73,19 @@ func Test_goroutineWrapper_waitForErrors(t *testing.T) {
 				panics: "bad panic",
 			},
 		},
+		{
+			name: "nilPanicResults",
+			args: args{
+				runFuncErr:   make(chan error),
+				panicResults: nil,
+			},
+			gorun: func(t *testRun) {
+				t.args.runFuncErr <- errors.New("lost")
+			},
+			expected: errWaiter{
+				err: errors.New("lost"),
+			},
+		},
 	}
 	for _, tt := range tests {
 		tt := tt

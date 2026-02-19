@@ -2,6 +2,7 @@ package faststats
 
 import (
 	"encoding/json"
+	"expvar"
 	"reflect"
 	"strings"
 	"sync"
@@ -206,4 +207,32 @@ func TestRollingPercentile_Movement(t *testing.T) {
 		50:  -1,
 		100: -1,
 	})
+}
+
+func TestRollingPercentile_AddDurationBeforeStartTime(t *testing.T) {
+	now := time.Now()
+	x := NewRollingPercentile(time.Second, 10, 100, now)
+	// Should not panic when adding a duration before StartTime
+	x.AddDuration(time.Millisecond, now.Add(-time.Hour))
+	// The duration should be silently dropped
+	snap := x.SnapshotAt(now)
+	expectSnap(t, "before start time", snap, 0, -1, map[float64]time.Duration{
+		50: -1,
+	})
+}
+
+func TestSortedDurations_Var(t *testing.T) {
+	durations := make(SortedDurations, 100)
+	for i := 0; i < 100; i++ {
+		durations[i] = time.Duration(i+1) * time.Millisecond
+	}
+	v := durations.Var()
+	m := v.(expvar.Func).Value().(map[string]string)
+	// p50 should be near 50ms, not near 0.5ms
+	if m["p50"] != durations.Percentile(50).String() {
+		t.Errorf("p50 mismatch: got %s, want %s", m["p50"], durations.Percentile(50).String())
+	}
+	if m["p90"] != durations.Percentile(90).String() {
+		t.Errorf("p90 mismatch: got %s, want %s", m["p90"], durations.Percentile(90).String())
+	}
 }

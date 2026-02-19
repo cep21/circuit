@@ -64,8 +64,11 @@ func (s SimpleBadRequest) Cause() error {
 	return s.Err
 }
 
-// Cause returns the wrapped error
+// Error returns the error message
 func (s SimpleBadRequest) Error() string {
+	if s.Err == nil {
+		return "bad request"
+	}
 	return s.Err.Error()
 }
 

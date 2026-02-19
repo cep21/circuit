@@ -608,3 +608,89 @@ func circuitFactory(t *testing.T, cfgOpts ...configOverride) *Circuit {
 
 	return NewCircuitFromConfig(t.Name(), cfg)
 }
+
+// Bug 5: OpenCircuit should use c.now() not time.Now()
+func TestOpenCircuitUsesMockTime(t *testing.T) {
+	mockTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	var openedTime time.Time
+
+	c := NewCircuitFromConfig("TestOpenCircuitMockTime", Config{
+		General: GeneralConfig{
+			TimeKeeper: TimeKeeper{
+				Now: func() time.Time { return mockTime },
+			},
+		},
+	})
+	// Override the CircuitMetricsCollector to capture the Opened time
+	origCollector := c.CircuitMetricsCollector
+	c.CircuitMetricsCollector = MetricsCollection{&openedTimeCapture{
+		underlying:   origCollector,
+		capturedTime: &openedTime,
+	}}
+	c.OpenCircuit(context.Background())
+	if !openedTime.Equal(mockTime) {
+		t.Errorf("OpenCircuit should use mock time, got %v, want %v", openedTime, mockTime)
+	}
+}
+
+type openedTimeCapture struct {
+	underlying   Metrics
+	capturedTime *time.Time
+}
+
+func (o *openedTimeCapture) Opened(ctx context.Context, now time.Time) {
+	*o.capturedTime = now
+	if o.underlying != nil {
+		o.underlying.Opened(ctx, now)
+	}
+}
+
+func (o *openedTimeCapture) Closed(ctx context.Context, now time.Time) {
+	if o.underlying != nil {
+		o.underlying.Closed(ctx, now)
+	}
+}
+
+// Bug 7: Double now() call at timeout boundary
+func TestNoSpuriousTimeout(t *testing.T) {
+	mockTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	c := NewCircuitFromConfig("TestNoSpuriousTimeout", Config{
+		General: GeneralConfig{
+			TimeKeeper: TimeKeeper{
+				// Always return the same time — the function completes "instantly",
+				// so it should never be considered timed out.
+				Now: func() time.Time {
+					return mockTime
+				},
+			},
+		},
+		Execution: ExecutionConfig{
+			Timeout: time.Millisecond * 10,
+		},
+	})
+	var timeoutSeen bool
+	c.CmdMetricCollector = append(c.CmdMetricCollector, &timeoutChecker{seen: &timeoutSeen})
+	err := c.Execute(context.Background(), func(_ context.Context) error {
+		return nil
+	}, nil)
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if timeoutSeen {
+		t.Error("should not see a timeout when runFunc completes within deadline")
+	}
+}
+
+type timeoutChecker struct {
+	seen *bool
+}
+
+func (tc *timeoutChecker) Success(_ context.Context, _ time.Time, _ time.Duration)    {}
+func (tc *timeoutChecker) ErrFailure(_ context.Context, _ time.Time, _ time.Duration) {}
+func (tc *timeoutChecker) ErrTimeout(_ context.Context, _ time.Time, _ time.Duration) {
+	*tc.seen = true
+}
+func (tc *timeoutChecker) ErrBadRequest(_ context.Context, _ time.Time, _ time.Duration) {}
+func (tc *timeoutChecker) ErrInterrupt(_ context.Context, _ time.Time, _ time.Duration)  {}
+func (tc *timeoutChecker) ErrConcurrencyLimitReject(_ context.Context, _ time.Time)      {}
+func (tc *timeoutChecker) ErrShortCircuit(_ context.Context, _ time.Time)                {}

@@ -26,8 +26,9 @@ type Closer struct {
 func CloserFactory(config ConfigureCloser) func() circuit.OpenToClosed {
 	return func() circuit.OpenToClosed {
 		s := Closer{}
-		config.Merge(defaultConfigureCloser)
-		s.SetConfigNotThreadSafe(config)
+		cfg := config
+		cfg.Merge(defaultConfigureCloser)
+		s.SetConfigNotThreadSafe(cfg)
 		return &s
 	}
 }

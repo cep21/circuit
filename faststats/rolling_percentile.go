@@ -66,17 +66,17 @@ func (s SortedDurations) Var() expvar.Var {
 		return map[string]string{
 			// Convert to string because it's easier to read
 			"min":  s.Min().String(),
-			"p25":  s.Percentile(.25).String(),
-			"p50":  s.Percentile(.5).String(),
-			"p90":  s.Percentile(.9).String(),
-			"p99":  s.Percentile(.99).String(),
+			"p25":  s.Percentile(25).String(),
+			"p50":  s.Percentile(50).String(),
+			"p90":  s.Percentile(90).String(),
+			"p99":  s.Percentile(99).String(),
 			"max":  s.Max().String(),
 			"mean": s.Mean().String(),
 		}
 	})
 }
 
-// Percentile returns a p [0.0 - 1.0] percentile of the list
+// Percentile returns a p [0 - 100] percentile of the list
 func (s SortedDurations) Percentile(p float64) time.Duration {
 	if len(s) == 0 {
 		// A meaningless value for a meaningless list
@@ -171,6 +171,9 @@ func (r *RollingPercentile) AddDuration(d time.Duration, now time.Time) {
 		return
 	}
 	idx := r.rollingBucket.Advance(now, r.clearBucket)
+	if idx < 0 {
+		return
+	}
 	r.buckets[idx].addDuration(d)
 }
 

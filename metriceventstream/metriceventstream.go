@@ -24,7 +24,8 @@ type MetricEventStream struct {
 	eventStreams map[*http.Request]chan []byte
 	closeChan    chan struct{}
 	mu           sync.Mutex
-	once         sync.Once
+	once         sync.Once // guards initialization of closeChan and eventStreams
+	closeOnce    sync.Once // guards closing closeChan to prevent double-close panic
 }
 
 var _ http.Handler = &MetricEventStream{}
@@ -150,7 +151,9 @@ func (m *MetricEventStream) Start() error {
 // Close ends the Start function
 func (m *MetricEventStream) Close() error {
 	m.once.Do(m.doOnce)
-	close(m.closeChan)
+	m.closeOnce.Do(func() {
+		close(m.closeChan)
+	})
 	return nil
 }
 

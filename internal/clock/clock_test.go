@@ -213,3 +213,16 @@ func TestTickUntil(t *testing.T) {
 		t.Errorf("Expected time to be %v, got %v", expected, m.Now())
 	}
 }
+
+func TestMockClock_AfterFunc_ReturnsNonNil(t *testing.T) {
+	m := &MockClock{}
+	now := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
+	m.Set(now)
+
+	timer := m.AfterFunc(time.Hour, func() {})
+	if timer == nil {
+		t.Fatal("AfterFunc should return a non-nil *time.Timer")
+	}
+	// Should not panic
+	timer.Stop()
+}

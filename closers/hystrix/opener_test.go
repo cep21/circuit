@@ -3,6 +3,7 @@ package hystrix
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -55,4 +56,27 @@ func TestOpener(t *testing.T) {
 	if !o.ShouldOpen(ctx, now) {
 		t.Fatal("should now open")
 	}
+}
+
+func TestOpenerFactory_ConcurrentCreation(t *testing.T) {
+	factory := OpenerFactory(ConfigureOpener{
+		RequestVolumeThreshold:   10,
+		ErrorThresholdPercentage: 30,
+	})
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			o := factory().(*Opener)
+			cfg := o.Config()
+			if cfg.RequestVolumeThreshold != 10 {
+				t.Errorf("RequestVolumeThreshold = %d, want 10", cfg.RequestVolumeThreshold)
+			}
+			if cfg.ErrorThresholdPercentage != 30 {
+				t.Errorf("ErrorThresholdPercentage = %d, want 30", cfg.ErrorThresholdPercentage)
+			}
+		}()
+	}
+	wg.Wait()
 }

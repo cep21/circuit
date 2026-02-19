@@ -2,6 +2,7 @@ package faststats
 
 import (
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -12,6 +13,19 @@ func TestRollingBuckets_String(t *testing.T) {
 	}
 	if !strings.Contains(x.String(), "101") {
 		t.Fatal("expected string 101 in output")
+	}
+}
+
+func TestRollingBuckets_ZeroBucketWidth(t *testing.T) {
+	now := time.Now()
+	x := RollingBuckets{
+		NumBuckets:  5,
+		StartTime:   now,
+		BucketWidth: 0,
+	}
+	// Should not panic with division by zero
+	if nextBucket := x.Advance(now, nil); nextBucket != -1 {
+		t.Fatalf("Expected -1 for zero BucketWidth, got %d", nextBucket)
 	}
 }
 
@@ -43,4 +57,29 @@ func TestRollingBuckets_Advance(t *testing.T) {
 	if clearBucketCount != 6 {
 		t.Fatalf("Expect 6 clears, not %d", clearBucketCount)
 	}
+
+	// Bug 3: backward time beyond window should return -1
+	if nextBucket := x.Advance(now.Add(time.Second*1), clearIgnore); nextBucket != -1 {
+		t.Fatalf("Expected -1 for backward time beyond window, got %d", nextBucket)
+	}
+}
+
+func TestRollingBuckets_ConcurrentAdvance(t *testing.T) {
+	now := time.Now()
+	x := RollingBuckets{
+		NumBuckets:  10,
+		StartTime:   now,
+		BucketWidth: time.Millisecond,
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				x.Advance(now.Add(time.Millisecond*time.Duration(i*100+j)), func(_ int) {})
+			}
+		}(i)
+	}
+	wg.Wait()
 }

@@ -29,8 +29,9 @@ var _ circuit.ClosedToOpen = &Opener{}
 func OpenerFactory(config ConfigureOpener) func() circuit.ClosedToOpen {
 	return func() circuit.ClosedToOpen {
 		s := Opener{}
-		config.Merge(defaultConfigureOpener)
-		s.SetConfigNotThreadSafe(config)
+		cfg := config
+		cfg.Merge(defaultConfigureOpener)
+		s.SetConfigNotThreadSafe(cfg)
 		return &s
 	}
 }

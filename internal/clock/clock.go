@@ -57,20 +57,28 @@ func (m *MockClock) Now() time.Time {
 	return m.currentTime
 }
 
-// AfterFunc simulates time.AfterFunc
-func (m *MockClock) AfterFunc(d time.Duration, f func()) *time.Timer {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if d == 0 {
-		f()
-		return nil
-	}
-	m.callbacks = append(m.callbacks, timedCallbacks{when: m.currentTime.Add(d), f: f})
-	// Do not use what is returned ...
-	return nil
+// stoppedTimer returns a timer that is already stopped, safe for callers to call Stop() on.
+func stoppedTimer() *time.Timer {
+	t := time.NewTimer(time.Hour)
+	t.Stop()
+	return t
 }
 
-// AfterFunc simulates time.After
+// AfterFunc simulates time.AfterFunc. The returned *time.Timer is a dummy
+// stopped timer; calling Stop on it is safe but has no effect on the scheduled callback.
+func (m *MockClock) AfterFunc(d time.Duration, f func()) *time.Timer {
+	m.mu.Lock()
+	if d == 0 {
+		m.mu.Unlock()
+		f()
+		return stoppedTimer()
+	}
+	m.callbacks = append(m.callbacks, timedCallbacks{when: m.currentTime.Add(d), f: f})
+	m.mu.Unlock()
+	return stoppedTimer()
+}
+
+// After simulates time.After
 func (m *MockClock) After(d time.Duration) <-chan time.Time {
 	c := make(chan time.Time, 1)
 	m.AfterFunc(d, func() {

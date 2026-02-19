@@ -183,7 +183,7 @@ func (c *Circuit) CloseCircuit(ctx context.Context) {
 
 // OpenCircuit will open a closed circuit.  The circuit will then try to repair itself
 func (c *Circuit) OpenCircuit(ctx context.Context) {
-	c.openCircuit(ctx, time.Now())
+	c.openCircuit(ctx, c.now())
 }
 
 // OpenCircuit opens a circuit, without checking error thresholds or request volume thresholds.  The circuit will, after
@@ -242,7 +242,8 @@ func (c *Circuit) Execute(ctx context.Context, runFunc func(context.Context) err
 // --------- only private functions below here
 
 func (c *Circuit) throttleConcurrentCommands(currentCommandCount int64) error {
-	if c.threadSafeConfig.Execution.MaxConcurrentRequests.Get() >= 0 && currentCommandCount > c.threadSafeConfig.Execution.MaxConcurrentRequests.Get() {
+	maxRequests := c.threadSafeConfig.Execution.MaxConcurrentRequests.Get()
+	if maxRequests >= 0 && currentCommandCount > maxRequests {
 		return errThrottledConcurrentCommands
 	}
 	return nil
@@ -290,9 +291,8 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 	}
 
 	ret := runFunc(ctx)
-	endTime := c.now()
-	totalCmdTime := endTime.Sub(startTime)
 	runFuncDoneTime := c.now()
+	totalCmdTime := runFuncDoneTime.Sub(startTime)
 	// See bad request documentation at https://github.com/Netflix/Hystrix/wiki/How-To-Use#error-propagation
 	// This request had invalid input, but shouldn't be marked as an 'error' for the circuit
 	// From documentation

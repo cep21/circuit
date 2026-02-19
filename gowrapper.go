@@ -67,5 +67,7 @@ func (g *goroutineWrapper) waitForErrors(runFuncErr chan error, panicResults cha
 		g.lostErrors(nil, panicResult)
 	}
 	close(runFuncErr)
-	close(panicResults)
+	if panicResults != nil {
+		close(panicResults)
+	}
 }

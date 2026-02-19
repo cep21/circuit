@@ -144,3 +144,27 @@ func TestCloser_AfterFunc(t *testing.T) {
 		}
 	})
 }
+
+func TestCloserFactory_ConcurrentCreation(t *testing.T) {
+	factory := CloserFactory(ConfigureCloser{
+		SleepWindow:                  time.Second * 3,
+		HalfOpenAttempts:             2,
+		RequiredConcurrentSuccessful: 2,
+	})
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c := factory().(*Closer)
+			cfg := c.Config()
+			if cfg.SleepWindow != time.Second*3 {
+				t.Errorf("SleepWindow = %v, want 3s", cfg.SleepWindow)
+			}
+			if cfg.HalfOpenAttempts != 2 {
+				t.Errorf("HalfOpenAttempts = %d, want 2", cfg.HalfOpenAttempts)
+			}
+		}()
+	}
+	wg.Wait()
+}
