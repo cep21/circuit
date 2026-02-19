@@ -44,7 +44,7 @@ func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 	if indexDiff < 0 {
 		// This point is backwards in time.  We should return a valid
 		// index past where we are
-		if indexDiff >= r.NumBuckets {
+		if -indexDiff >= r.NumBuckets {
 			// We rolled past the list.  This point is before the start
 			// of our rolling window.  We should just do what ... ignore it?
 			return -1

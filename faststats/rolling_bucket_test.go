@@ -43,4 +43,9 @@ func TestRollingBuckets_Advance(t *testing.T) {
 	if clearBucketCount != 6 {
 		t.Fatalf("Expect 6 clears, not %d", clearBucketCount)
 	}
+
+	// Bug 3: backward time beyond window should return -1
+	if nextBucket := x.Advance(now.Add(time.Second*1), clearIgnore); nextBucket != -1 {
+		t.Fatalf("Expected -1 for backward time beyond window, got %d", nextBucket)
+	}
 }
