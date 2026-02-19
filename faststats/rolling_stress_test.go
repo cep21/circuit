@@ -91,7 +91,7 @@ func TestRollingPercentileConcurrency(t *testing.T) {
 				if i%10 == 0 {
 					// Use Snapshot which returns SortedDurations with proper methods
 					snap := percentile.SnapshotAt(now)
-					_ = snap.Percentile(0.5)
+					_ = snap.Percentile(50)
 					_ = snap.Mean()
 					_ = snap.Min() // Max not directly accessible
 				}
@@ -112,7 +112,7 @@ func TestRollingPercentileConcurrency(t *testing.T) {
 			defer wg.Done()
 
 			// Read different percentiles
-			percentiles := []float64{0.5, 0.9, 0.95, 0.99}
+			percentiles := []float64{50, 90, 95, 99}
 
 			for i := 0; i < 1000; i++ {
 				now := time.Now()

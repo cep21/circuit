@@ -76,7 +76,7 @@ func (s SortedDurations) Var() expvar.Var {
 	})
 }
 
-// Percentile returns a p [0.0 - 1.0] percentile of the list
+// Percentile returns a p [0 - 100] percentile of the list
 func (s SortedDurations) Percentile(p float64) time.Duration {
 	if len(s) == 0 {
 		// A meaningless value for a meaningless list
