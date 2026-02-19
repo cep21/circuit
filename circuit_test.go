@@ -613,29 +613,6 @@ func circuitFactory(t *testing.T, cfgOpts ...configOverride) *Circuit {
 func TestOpenCircuitUsesMockTime(t *testing.T) {
 	mockTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	var openedTime time.Time
-	type metricsCapture struct {
-		neverOpens
-	}
-	capture := &struct {
-		metricsCapture
-		openedTime time.Time
-	}{}
-	captureOpener := func() ClosedToOpen {
-		return capture
-	}
-	// We need a custom Metrics that captures the Opened time
-	type openedCapture struct {
-		neverCloses
-	}
-	closerCapture := &struct {
-		openedCapture
-		openedTime time.Time
-	}{}
-	closerFactory := func() OpenToClosed {
-		return closerCapture
-	}
-	_ = captureOpener
-	_ = closerFactory
 
 	c := NewCircuitFromConfig("TestOpenCircuitMockTime", Config{
 		General: GeneralConfig{
