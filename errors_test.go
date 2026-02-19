@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
 func TestSimpleBadRequest_NilErr(t *testing.T) {
 	s := SimpleBadRequest{Err: nil}
 	// Should not panic

@@ -209,7 +209,6 @@ func TestRollingPercentile_Movement(t *testing.T) {
 	})
 }
 
-
 func TestRollingPercentile_AddDurationBeforeStartTime(t *testing.T) {
 	now := time.Now()
 	x := NewRollingPercentile(time.Second, 10, 100, now)
