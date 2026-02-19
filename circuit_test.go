@@ -608,3 +608,68 @@ func circuitFactory(t *testing.T, cfgOpts ...configOverride) *Circuit {
 
 	return NewCircuitFromConfig(t.Name(), cfg)
 }
+
+// Bug 5: OpenCircuit should use c.now() not time.Now()
+func TestOpenCircuitUsesMockTime(t *testing.T) {
+	mockTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	var openedTime time.Time
+	type metricsCapture struct {
+		neverOpens
+	}
+	capture := &struct {
+		metricsCapture
+		openedTime time.Time
+	}{}
+	captureOpener := func() ClosedToOpen {
+		return capture
+	}
+	// We need a custom Metrics that captures the Opened time
+	type openedCapture struct {
+		neverCloses
+	}
+	closerCapture := &struct {
+		openedCapture
+		openedTime time.Time
+	}{}
+	closerFactory := func() OpenToClosed {
+		return closerCapture
+	}
+	_ = captureOpener
+	_ = closerFactory
+
+	c := NewCircuitFromConfig("TestOpenCircuitMockTime", Config{
+		General: GeneralConfig{
+			TimeKeeper: TimeKeeper{
+				Now: func() time.Time { return mockTime },
+			},
+		},
+	})
+	// Override the CircuitMetricsCollector to capture the Opened time
+	origCollector := c.CircuitMetricsCollector
+	c.CircuitMetricsCollector = MetricsCollection{openedTimeCapture{
+		underlying: origCollector,
+		capturedTime: &openedTime,
+	}}
+	c.OpenCircuit(context.Background())
+	if !openedTime.Equal(mockTime) {
+		t.Errorf("OpenCircuit should use mock time, got %v, want %v", openedTime, mockTime)
+	}
+}
+
+type openedTimeCapture struct {
+	underlying Metrics
+	capturedTime *time.Time
+}
+
+func (o openedTimeCapture) Opened(ctx context.Context, now time.Time) {
+	*o.capturedTime = now
+	if o.underlying != nil {
+		o.underlying.Opened(ctx, now)
+	}
+}
+
+func (o openedTimeCapture) Closed(ctx context.Context, now time.Time) {
+	if o.underlying != nil {
+		o.underlying.Closed(ctx, now)
+	}
+}

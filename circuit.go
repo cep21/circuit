@@ -183,7 +183,7 @@ func (c *Circuit) CloseCircuit(ctx context.Context) {
 
 // OpenCircuit will open a closed circuit.  The circuit will then try to repair itself
 func (c *Circuit) OpenCircuit(ctx context.Context) {
-	c.openCircuit(ctx, time.Now())
+	c.openCircuit(ctx, c.now())
 }
 
 // OpenCircuit opens a circuit, without checking error thresholds or request volume thresholds.  The circuit will, after
