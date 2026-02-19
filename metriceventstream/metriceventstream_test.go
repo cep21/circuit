@@ -10,7 +10,6 @@ import (
 	"github.com/cep21/circuit/v4"
 )
 
-
 func TestMetricEventStream_DoubleClose(t *testing.T) {
 	eventStream := MetricEventStream{}
 	if err := eventStream.Close(); err != nil {

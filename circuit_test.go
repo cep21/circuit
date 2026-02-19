@@ -624,7 +624,7 @@ func TestOpenCircuitUsesMockTime(t *testing.T) {
 	// Override the CircuitMetricsCollector to capture the Opened time
 	origCollector := c.CircuitMetricsCollector
 	c.CircuitMetricsCollector = MetricsCollection{&openedTimeCapture{
-		underlying: origCollector,
+		underlying:   origCollector,
 		capturedTime: &openedTime,
 	}}
 	c.OpenCircuit(context.Background())
@@ -634,7 +634,7 @@ func TestOpenCircuitUsesMockTime(t *testing.T) {
 }
 
 type openedTimeCapture struct {
-	underlying Metrics
+	underlying   Metrics
 	capturedTime *time.Time
 }
 
@@ -685,10 +685,12 @@ type timeoutChecker struct {
 	seen *bool
 }
 
-func (tc *timeoutChecker) Success(_ context.Context, _ time.Time, _ time.Duration)       {}
-func (tc *timeoutChecker) ErrFailure(_ context.Context, _ time.Time, _ time.Duration)    {}
-func (tc *timeoutChecker) ErrTimeout(_ context.Context, _ time.Time, _ time.Duration)    { *tc.seen = true }
+func (tc *timeoutChecker) Success(_ context.Context, _ time.Time, _ time.Duration)    {}
+func (tc *timeoutChecker) ErrFailure(_ context.Context, _ time.Time, _ time.Duration) {}
+func (tc *timeoutChecker) ErrTimeout(_ context.Context, _ time.Time, _ time.Duration) {
+	*tc.seen = true
+}
 func (tc *timeoutChecker) ErrBadRequest(_ context.Context, _ time.Time, _ time.Duration) {}
 func (tc *timeoutChecker) ErrInterrupt(_ context.Context, _ time.Time, _ time.Duration)  {}
-func (tc *timeoutChecker) ErrConcurrencyLimitReject(_ context.Context, _ time.Time)       {}
-func (tc *timeoutChecker) ErrShortCircuit(_ context.Context, _ time.Time)                 {}
+func (tc *timeoutChecker) ErrConcurrencyLimitReject(_ context.Context, _ time.Time)      {}
+func (tc *timeoutChecker) ErrShortCircuit(_ context.Context, _ time.Time)                {}
