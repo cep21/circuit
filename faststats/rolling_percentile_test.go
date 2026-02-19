@@ -215,6 +215,11 @@ func TestRollingPercentile_AddDurationBeforeStartTime(t *testing.T) {
 	x := NewRollingPercentile(time.Second, 10, 100, now)
 	// Should not panic when adding a duration before StartTime
 	x.AddDuration(time.Millisecond, now.Add(-time.Hour))
+	// The duration should be silently dropped
+	snap := x.SnapshotAt(now)
+	expectSnap(t, "before start time", snap, 0, -1, map[float64]time.Duration{
+		50: -1,
+	})
 }
 
 func TestSortedDurations_Var(t *testing.T) {
