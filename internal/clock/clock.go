@@ -57,22 +57,24 @@ func (m *MockClock) Now() time.Time {
 	return m.currentTime
 }
 
+// stoppedTimer returns a timer that is already stopped, safe for callers to call Stop() on.
+func stoppedTimer() *time.Timer {
+	t := time.NewTimer(time.Hour)
+	t.Stop()
+	return t
+}
+
 // AfterFunc simulates time.AfterFunc
 func (m *MockClock) AfterFunc(d time.Duration, f func()) *time.Timer {
 	m.mu.Lock()
 	if d == 0 {
 		m.mu.Unlock()
 		f()
-		t := time.NewTimer(time.Hour)
-		t.Stop()
-		return t
+		return stoppedTimer()
 	}
 	m.callbacks = append(m.callbacks, timedCallbacks{when: m.currentTime.Add(d), f: f})
 	m.mu.Unlock()
-	// Return a stopped timer so callers can safely call Stop() on it.
-	t := time.NewTimer(time.Hour)
-	t.Stop()
-	return t
+	return stoppedTimer()
 }
 
 // AfterFunc simulates time.After
