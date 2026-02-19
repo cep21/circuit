@@ -60,14 +60,15 @@ func (m *MockClock) Now() time.Time {
 // AfterFunc simulates time.AfterFunc
 func (m *MockClock) AfterFunc(d time.Duration, f func()) *time.Timer {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if d == 0 {
+		m.mu.Unlock()
 		f()
 		t := time.NewTimer(time.Hour)
 		t.Stop()
 		return t
 	}
 	m.callbacks = append(m.callbacks, timedCallbacks{when: m.currentTime.Add(d), f: f})
+	m.mu.Unlock()
 	// Return a stopped timer so callers can safely call Stop() on it.
 	t := time.NewTimer(time.Hour)
 	t.Stop()
