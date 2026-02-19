@@ -8,6 +8,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+
+func TestSimpleBadRequest_NilErr(t *testing.T) {
+	s := SimpleBadRequest{Err: nil}
+	// Should not panic
+	got := s.Error()
+	if got != "bad request" {
+		t.Errorf("expected 'bad request', got %q", got)
+	}
+}
+
 func TestIsBadRequest(t *testing.T) {
 	require.False(t, IsBadRequest(nil))
 	require.False(t, IsBadRequest(errors.New("not bad")))
