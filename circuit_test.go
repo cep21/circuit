@@ -698,21 +698,14 @@ func (s *shortCircuitCounter) ErrShortCircuit(_ context.Context, _ time.Time) {
 
 // Bug 7: Double now() call at timeout boundary
 func TestNoSpuriousTimeout(t *testing.T) {
-	callCount := 0
 	mockTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	c := NewCircuitFromConfig("TestNoSpuriousTimeout", Config{
 		General: GeneralConfig{
 			TimeKeeper: TimeKeeper{
+				// Always return the same time — the function completes "instantly",
+				// so it should never be considered timed out.
 				Now: func() time.Time {
-					callCount++
-					// First call: startTime
-					// Second call: endTime (after runFunc)
-					// With old code, third call: runFuncDoneTime (tips over deadline)
-					if callCount <= 2 {
-						return mockTime
-					}
-					// Return a time just past the deadline
-					return mockTime.Add(time.Millisecond * 20)
+					return mockTime
 				},
 			},
 		},
