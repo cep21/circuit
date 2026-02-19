@@ -66,10 +66,10 @@ func (s SortedDurations) Var() expvar.Var {
 		return map[string]string{
 			// Convert to string because it's easier to read
 			"min":  s.Min().String(),
-			"p25":  s.Percentile(.25).String(),
-			"p50":  s.Percentile(.5).String(),
-			"p90":  s.Percentile(.9).String(),
-			"p99":  s.Percentile(.99).String(),
+			"p25":  s.Percentile(25).String(),
+			"p50":  s.Percentile(50).String(),
+			"p90":  s.Percentile(90).String(),
+			"p99":  s.Percentile(99).String(),
 			"max":  s.Max().String(),
 			"mean": s.Mean().String(),
 		}
