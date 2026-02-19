@@ -271,6 +271,7 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 	}
 
 	if c.ClosedToOpen.Prevent(ctx, startTime) {
+		c.CmdMetricCollector.ErrShortCircuit(ctx, startTime)
 		return errCircuitOpen
 	}
 

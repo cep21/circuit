@@ -673,3 +673,48 @@ func (o openedTimeCapture) Closed(ctx context.Context, now time.Time) {
 		o.underlying.Closed(ctx, now)
 	}
 }
+
+// Bug 6: Missing metric when ClosedToOpen.Prevent() blocks
+func TestPreventEmitsErrShortCircuit(t *testing.T) {
+	var shortCircuitCount int
+	c := NewCircuitFromConfig("TestPrevent", Config{
+		General: GeneralConfig{
+			ClosedToOpenFactory: func() ClosedToOpen {
+				return &alwaysPreventOpener{}
+			},
+		},
+	})
+	c.CmdMetricCollector = append(c.CmdMetricCollector, &shortCircuitCounter{count: &shortCircuitCount})
+	err := c.Execute(context.Background(), func(_ context.Context) error {
+		t.Fatal("should not execute")
+		return nil
+	}, nil)
+	if err != errCircuitOpen {
+		t.Errorf("expected errCircuitOpen, got %v", err)
+	}
+	if shortCircuitCount != 1 {
+		t.Errorf("expected ErrShortCircuit metric to be emitted, count=%d", shortCircuitCount)
+	}
+}
+
+type alwaysPreventOpener struct {
+	neverOpens
+}
+
+func (a *alwaysPreventOpener) Prevent(_ context.Context, _ time.Time) bool {
+	return true
+}
+
+type shortCircuitCounter struct {
+	count *int
+}
+
+func (s *shortCircuitCounter) Success(_ context.Context, _ time.Time, _ time.Duration)       {}
+func (s *shortCircuitCounter) ErrFailure(_ context.Context, _ time.Time, _ time.Duration)    {}
+func (s *shortCircuitCounter) ErrTimeout(_ context.Context, _ time.Time, _ time.Duration)    {}
+func (s *shortCircuitCounter) ErrBadRequest(_ context.Context, _ time.Time, _ time.Duration) {}
+func (s *shortCircuitCounter) ErrInterrupt(_ context.Context, _ time.Time, _ time.Duration)  {}
+func (s *shortCircuitCounter) ErrConcurrencyLimitReject(_ context.Context, _ time.Time)       {}
+func (s *shortCircuitCounter) ErrShortCircuit(_ context.Context, _ time.Time) {
+	*s.count++
+}
