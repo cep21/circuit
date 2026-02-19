@@ -37,7 +37,7 @@ func Example_http() {
 			return circuit.SimpleBadRequest{Err: err}
 		}
 		req = req.WithContext(ctx)
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := http.DefaultClient.Do(req) //nolint:gosec // test code with httptest server URL
 		if err != nil {
 			return err
 		}
