@@ -2,6 +2,7 @@ package faststats
 
 import (
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -61,4 +62,24 @@ func TestRollingBuckets_Advance(t *testing.T) {
 	if nextBucket := x.Advance(now.Add(time.Second*1), clearIgnore); nextBucket != -1 {
 		t.Fatalf("Expected -1 for backward time beyond window, got %d", nextBucket)
 	}
+}
+
+func TestRollingBuckets_ConcurrentAdvance(t *testing.T) {
+	now := time.Now()
+	x := RollingBuckets{
+		NumBuckets:  10,
+		StartTime:   now,
+		BucketWidth: time.Millisecond,
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				x.Advance(now.Add(time.Millisecond*time.Duration(i*100+j)), func(_ int) {})
+			}
+		}(i)
+	}
+	wg.Wait()
 }
