@@ -623,7 +623,7 @@ func TestOpenCircuitUsesMockTime(t *testing.T) {
 	})
 	// Override the CircuitMetricsCollector to capture the Opened time
 	origCollector := c.CircuitMetricsCollector
-	c.CircuitMetricsCollector = MetricsCollection{openedTimeCapture{
+	c.CircuitMetricsCollector = MetricsCollection{&openedTimeCapture{
 		underlying: origCollector,
 		capturedTime: &openedTime,
 	}}
@@ -638,14 +638,14 @@ type openedTimeCapture struct {
 	capturedTime *time.Time
 }
 
-func (o openedTimeCapture) Opened(ctx context.Context, now time.Time) {
+func (o *openedTimeCapture) Opened(ctx context.Context, now time.Time) {
 	*o.capturedTime = now
 	if o.underlying != nil {
 		o.underlying.Opened(ctx, now)
 	}
 }
 
-func (o openedTimeCapture) Closed(ctx context.Context, now time.Time) {
+func (o *openedTimeCapture) Closed(ctx context.Context, now time.Time) {
 	if o.underlying != nil {
 		o.underlying.Closed(ctx, now)
 	}
