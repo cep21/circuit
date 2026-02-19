@@ -68,6 +68,8 @@ func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 		// indexDiff > 0 at this point.  We have to roll our window forward
 		// Cleared all the buckets.  Try to advance back to wherever we need
 		r.LastAbsIndex.CompareAndSwap(int64(lastAbsVal), int64(absIndex))
+		// CAS may fail if another goroutine advanced further; that's fine.
+		return absIndex % r.NumBuckets
 	}
 }
 
