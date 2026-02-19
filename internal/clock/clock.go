@@ -77,7 +77,7 @@ func (m *MockClock) AfterFunc(d time.Duration, f func()) *time.Timer {
 	return stoppedTimer()
 }
 
-// AfterFunc simulates time.After
+// After simulates time.After
 func (m *MockClock) After(d time.Duration) <-chan time.Time {
 	c := make(chan time.Time, 1)
 	m.AfterFunc(d, func() {
