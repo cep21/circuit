@@ -26,7 +26,7 @@ func (r *RollingBuckets) String() string {
 
 // Advance to now, clearing buckets as needed
 func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
-	if r.NumBuckets == 0 {
+	if r.NumBuckets == 0 || r.BucketWidth == 0 {
 		return -1
 	}
 	diff := now.Sub(r.StartTime)

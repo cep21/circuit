@@ -15,6 +15,19 @@ func TestRollingBuckets_String(t *testing.T) {
 	}
 }
 
+func TestRollingBuckets_ZeroBucketWidth(t *testing.T) {
+	now := time.Now()
+	x := RollingBuckets{
+		NumBuckets:  5,
+		StartTime:   now,
+		BucketWidth: 0,
+	}
+	// Should not panic with division by zero
+	if nextBucket := x.Advance(now, nil); nextBucket != -1 {
+		t.Fatalf("Expected -1 for zero BucketWidth, got %d", nextBucket)
+	}
+}
+
 func TestRollingBuckets_Advance(t *testing.T) {
 	now := time.Now()
 	x := RollingBuckets{
