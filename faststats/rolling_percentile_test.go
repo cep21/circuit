@@ -209,6 +209,14 @@ func TestRollingPercentile_Movement(t *testing.T) {
 	})
 }
 
+
+func TestRollingPercentile_AddDurationBeforeStartTime(t *testing.T) {
+	now := time.Now()
+	x := NewRollingPercentile(time.Second, 10, 100, now)
+	// Should not panic when adding a duration before StartTime
+	x.AddDuration(time.Millisecond, now.Add(-time.Hour))
+}
+
 func TestSortedDurations_Var(t *testing.T) {
 	durations := make(SortedDurations, 100)
 	for i := 0; i < 100; i++ {

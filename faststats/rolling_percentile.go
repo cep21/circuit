@@ -171,6 +171,9 @@ func (r *RollingPercentile) AddDuration(d time.Duration, now time.Time) {
 		return
 	}
 	idx := r.rollingBucket.Advance(now, r.clearBucket)
+	if idx < 0 {
+		return
+	}
 	r.buckets[idx].addDuration(d)
 }
 
