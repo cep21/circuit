@@ -242,7 +242,8 @@ func (c *Circuit) Execute(ctx context.Context, runFunc func(context.Context) err
 // --------- only private functions below here
 
 func (c *Circuit) throttleConcurrentCommands(currentCommandCount int64) error {
-	if c.threadSafeConfig.Execution.MaxConcurrentRequests.Get() >= 0 && currentCommandCount > c.threadSafeConfig.Execution.MaxConcurrentRequests.Get() {
+	maxRequests := c.threadSafeConfig.Execution.MaxConcurrentRequests.Get()
+	if maxRequests >= 0 && currentCommandCount > maxRequests {
 		return errThrottledConcurrentCommands
 	}
 	return nil
