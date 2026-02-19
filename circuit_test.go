@@ -718,3 +718,52 @@ func (s *shortCircuitCounter) ErrConcurrencyLimitReject(_ context.Context, _ tim
 func (s *shortCircuitCounter) ErrShortCircuit(_ context.Context, _ time.Time) {
 	*s.count++
 }
+
+// Bug 7: Double now() call at timeout boundary
+func TestNoSpuriousTimeout(t *testing.T) {
+	callCount := 0
+	mockTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	c := NewCircuitFromConfig("TestNoSpuriousTimeout", Config{
+		General: GeneralConfig{
+			TimeKeeper: TimeKeeper{
+				Now: func() time.Time {
+					callCount++
+					// First call: startTime
+					// Second call: endTime (after runFunc)
+					// With old code, third call: runFuncDoneTime (tips over deadline)
+					if callCount <= 2 {
+						return mockTime
+					}
+					// Return a time just past the deadline
+					return mockTime.Add(time.Millisecond * 20)
+				},
+			},
+		},
+		Execution: ExecutionConfig{
+			Timeout: time.Millisecond * 10,
+		},
+	})
+	var timeoutSeen bool
+	c.CmdMetricCollector = append(c.CmdMetricCollector, &timeoutChecker{seen: &timeoutSeen})
+	err := c.Execute(context.Background(), func(_ context.Context) error {
+		return nil
+	}, nil)
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if timeoutSeen {
+		t.Error("should not see a timeout when runFunc completes within deadline")
+	}
+}
+
+type timeoutChecker struct {
+	seen *bool
+}
+
+func (tc *timeoutChecker) Success(_ context.Context, _ time.Time, _ time.Duration)       {}
+func (tc *timeoutChecker) ErrFailure(_ context.Context, _ time.Time, _ time.Duration)    {}
+func (tc *timeoutChecker) ErrTimeout(_ context.Context, _ time.Time, _ time.Duration)    { *tc.seen = true }
+func (tc *timeoutChecker) ErrBadRequest(_ context.Context, _ time.Time, _ time.Duration) {}
+func (tc *timeoutChecker) ErrInterrupt(_ context.Context, _ time.Time, _ time.Duration)  {}
+func (tc *timeoutChecker) ErrConcurrencyLimitReject(_ context.Context, _ time.Time)       {}
+func (tc *timeoutChecker) ErrShortCircuit(_ context.Context, _ time.Time)                 {}

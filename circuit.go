@@ -291,9 +291,8 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 	}
 
 	ret := runFunc(ctx)
-	endTime := c.now()
-	totalCmdTime := endTime.Sub(startTime)
 	runFuncDoneTime := c.now()
+	totalCmdTime := runFuncDoneTime.Sub(startTime)
 	// See bad request documentation at https://github.com/Netflix/Hystrix/wiki/How-To-Use#error-propagation
 	// This request had invalid input, but shouldn't be marked as an 'error' for the circuit
 	// From documentation
