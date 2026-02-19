@@ -10,6 +10,18 @@ import (
 	"github.com/cep21/circuit/v4"
 )
 
+
+func TestMetricEventStream_DoubleClose(t *testing.T) {
+	eventStream := MetricEventStream{}
+	if err := eventStream.Close(); err != nil {
+		t.Fatal("first close should not error:", err)
+	}
+	// Second close should not panic
+	if err := eventStream.Close(); err != nil {
+		t.Fatal("second close should not error:", err)
+	}
+}
+
 func TestMetricEventStream(t *testing.T) {
 	h := &circuit.Manager{}
 	c := h.MustCreateCircuit("hello-world", circuit.Config{})
