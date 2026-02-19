@@ -64,7 +64,8 @@ func stoppedTimer() *time.Timer {
 	return t
 }
 
-// AfterFunc simulates time.AfterFunc
+// AfterFunc simulates time.AfterFunc. The returned *time.Timer is a dummy
+// stopped timer; calling Stop on it is safe but has no effect on the scheduled callback.
 func (m *MockClock) AfterFunc(d time.Duration, f func()) *time.Timer {
 	m.mu.Lock()
 	if d == 0 {
