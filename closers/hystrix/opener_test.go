@@ -2,8 +2,8 @@ package hystrix
 
 import (
 	"context"
-	"sync"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
