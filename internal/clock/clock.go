@@ -13,9 +13,8 @@ type MockClock struct {
 }
 
 type timedCallbacks struct {
-	when      time.Time
-	f         func()
-	cancelled bool
+	when time.Time
+	f    func()
 }
 
 // Set the current time
@@ -38,9 +37,6 @@ func (m *MockClock) triggerCallbacks() {
 	var toCall []timedCallbacks
 	m.mu.Lock()
 	for _, c := range m.callbacks {
-		if c.cancelled {
-			continue
-		}
 		if m.currentTime.Before(c.when) {
 			newArray = append(newArray, c)
 		} else {
