@@ -30,14 +30,125 @@ func TestRollingCounter_Empty(t *testing.T) {
 	}
 }
 
-func TestRollingCounter_UnmarshalJSON_PartialInput(t *testing.T) {
-	// Unmarshalling partial/empty JSON should not panic on nil pointer deref
-	var x RollingCounter
-	if err := x.UnmarshalJSON([]byte(`{}`)); err != nil {
-		t.Errorf("unexpected error unmarshalling empty JSON: %v", err)
+func TestRollingCounter_UnmarshalJSON_IncompleteInput(t *testing.T) {
+	// Unmarshalling incomplete JSON must not panic (nil pointer deref) and must
+	// return an error rather than leaving the receiver in an inconsistent state.
+	// The receiver must be left unmodified when an error is returned.
+	now := time.Now()
+	for _, tc := range []struct {
+		name string
+		json string
+	}{
+		{"empty", `{}`},
+		{"only-TotalSum", `{"TotalSum":5}`},
+		{"only-RollingSum", `{"RollingSum":3}`},
+		{"only-RollingBucket", `{"RollingBucket":{"NumBuckets":10,"StartTime":"2020-01-01T00:00:00Z","BucketWidth":1000000000,"LastAbsIndex":0}}`},
+		{"missing-RollingBucket", `{"Buckets":[1,2,3],"RollingSum":6,"TotalSum":6}`},
+	} {
+		t.Run(tc.name+"/zero-value-receiver", func(t *testing.T) {
+			var x RollingCounter
+			err := x.UnmarshalJSON([]byte(tc.json))
+			if err == nil {
+				t.Fatalf("expected error for incomplete JSON, got nil")
+			}
+			// Receiver must be unmodified (still zero-value)
+			if x.TotalSum() != 0 {
+				t.Errorf("receiver modified on error: TotalSum = %d, want 0", x.TotalSum())
+			}
+			// Must not panic on subsequent use
+			if b := x.GetBuckets(now); b != nil {
+				t.Errorf("GetBuckets after failed unmarshal = %v, want nil", b)
+			}
+		})
+		t.Run(tc.name+"/pre-initialized-receiver", func(t *testing.T) {
+			x := NewRollingCounter(time.Second, 10, now)
+			x.Inc(now)
+			x.Inc(now)
+			err := x.UnmarshalJSON([]byte(tc.json))
+			if err == nil {
+				t.Fatalf("expected error for incomplete JSON, got nil")
+			}
+			// Receiver must be unmodified — state preserved
+			if x.TotalSum() != 2 {
+				t.Errorf("receiver modified on error: TotalSum = %d, want 2", x.TotalSum())
+			}
+			if x.RollingSumAt(now) != 2 {
+				t.Errorf("receiver modified on error: RollingSumAt = %d, want 2", x.RollingSumAt(now))
+			}
+			// Must not panic on subsequent GetBuckets (the M1 regression)
+			b := x.GetBuckets(now)
+			if len(b) != 10 {
+				t.Errorf("GetBuckets after failed unmarshal: len = %d, want 10", len(b))
+			}
+		})
 	}
-	if x.TotalSum() != 0 {
-		t.Errorf("expected zero totals after empty unmarshal, got %d", x.TotalSum())
+}
+
+// TestRollingCounter_UnmarshalJSON_RoundTrip is the key backwards-compatibility
+// test: JSON produced by MarshalJSON must round-trip cleanly through UnmarshalJSON.
+// This is the ONLY supported input format — partial/truncated JSON is an error.
+func TestRollingCounter_UnmarshalJSON_RoundTrip(t *testing.T) {
+	now := time.Now()
+	for _, tc := range []struct {
+		name     string
+		build    func() *RollingCounter
+		wantSum  int64
+		wantBkts int
+	}{
+		{
+			name:     "zero-value",
+			build:    func() *RollingCounter { return &RollingCounter{} },
+			wantSum:  0,
+			wantBkts: 0,
+		},
+		{
+			name: "initialized-empty",
+			build: func() *RollingCounter {
+				r := NewRollingCounter(time.Second, 10, now)
+				return &r
+			},
+			wantSum:  0,
+			wantBkts: 10,
+		},
+		{
+			name: "initialized-with-data",
+			build: func() *RollingCounter {
+				r := NewRollingCounter(time.Second, 10, now)
+				r.Inc(now)
+				r.Inc(now)
+				r.Inc(now)
+				return &r
+			},
+			wantSum:  3,
+			wantBkts: 10,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			orig := tc.build()
+			data, err := json.Marshal(orig)
+			if err != nil {
+				t.Fatalf("Marshal failed: %v", err)
+			}
+
+			var restored RollingCounter
+			if err := json.Unmarshal(data, &restored); err != nil {
+				t.Fatalf("Unmarshal failed: %v (JSON was: %s)", err, data)
+			}
+
+			if restored.TotalSum() != tc.wantSum {
+				t.Errorf("TotalSum = %d, want %d", restored.TotalSum(), tc.wantSum)
+			}
+			if restored.RollingSumAt(now) != tc.wantSum {
+				t.Errorf("RollingSumAt = %d, want %d", restored.RollingSumAt(now), tc.wantSum)
+			}
+			// GetBuckets must not panic and must have correct length
+			b := restored.GetBuckets(now)
+			if len(b) != tc.wantBkts {
+				t.Errorf("GetBuckets len = %d, want %d", len(b), tc.wantBkts)
+			}
+			// String must not panic
+			_ = restored.String()
+		})
 	}
 }
 
