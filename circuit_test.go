@@ -694,3 +694,63 @@ func (tc *timeoutChecker) ErrBadRequest(_ context.Context, _ time.Time, _ time.D
 func (tc *timeoutChecker) ErrInterrupt(_ context.Context, _ time.Time, _ time.Duration)  {}
 func (tc *timeoutChecker) ErrConcurrencyLimitReject(_ context.Context, _ time.Time)      {}
 func (tc *timeoutChecker) ErrShortCircuit(_ context.Context, _ time.Time)                {}
+
+// transitionCounter counts Opened()/Closed() calls to verify exactly-once semantics.
+type transitionCounter struct {
+	opened faststats.AtomicInt64
+	closed faststats.AtomicInt64
+}
+
+func (tc *transitionCounter) Opened(_ context.Context, _ time.Time) { tc.opened.Add(1) }
+func (tc *transitionCounter) Closed(_ context.Context, _ time.Time) { tc.closed.Add(1) }
+
+// TestOpenCircuit_EmitsOpenedExactlyOnce ensures concurrent openCircuit calls
+// emit the Opened() metric exactly once per actual state transition.
+func TestOpenCircuit_EmitsOpenedExactlyOnce(t *testing.T) {
+	tc := &transitionCounter{}
+	c := NewCircuitFromConfig("TestOpenOnce", Config{
+		Metrics: MetricsCollectors{
+			Circuit: []Metrics{tc},
+		},
+	})
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.OpenCircuit(context.Background())
+		}()
+	}
+	wg.Wait()
+	if got := tc.opened.Get(); got != 1 {
+		t.Errorf("Opened() called %d times, want exactly 1", got)
+	}
+}
+
+// TestCloseCircuit_EmitsClosedExactlyOnce ensures concurrent CloseCircuit calls
+// emit the Closed() metric exactly once per actual state transition.
+func TestCloseCircuit_EmitsClosedExactlyOnce(t *testing.T) {
+	tc := &transitionCounter{}
+	c := NewCircuitFromConfig("TestCloseOnce", Config{
+		Metrics: MetricsCollectors{
+			Circuit: []Metrics{tc},
+		},
+	})
+	c.OpenCircuit(context.Background())
+	// Reset the opened counter; we only care about closed here
+	tc.opened.Set(0)
+	tc.closed.Set(0)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.CloseCircuit(context.Background())
+		}()
+	}
+	wg.Wait()
+	if got := tc.closed.Get(); got != 1 {
+		t.Errorf("Closed() called %d times, want exactly 1", got)
+	}
+}

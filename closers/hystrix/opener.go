@@ -177,7 +177,7 @@ func (e *Opener) SetConfigThreadSafe(props ConfigureOpener) {
 // SetConfigNotThreadSafe recreates the buckets.  It is not safe to call while the circuit is active.
 func (e *Opener) SetConfigNotThreadSafe(props ConfigureOpener) {
 	e.SetConfigThreadSafe(props)
-	now := props.Now()
+	now := props.now()
 	rollingCounterBucketWidth := time.Duration(props.RollingDuration.Nanoseconds() / int64(props.NumBuckets))
 	e.errorsCount = faststats.NewRollingCounter(rollingCounterBucketWidth, props.NumBuckets, now)
 	e.legitimateAttemptsCount = faststats.NewRollingCounter(rollingCounterBucketWidth, props.NumBuckets, now)

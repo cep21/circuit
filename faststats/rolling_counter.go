@@ -61,9 +61,15 @@ func (r *RollingCounter) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	r.buckets = into.Buckets
-	r.rollingSum.Store(into.RollingSum.Get())
-	r.totalSum.Store(into.TotalSum.Get())
-	r.rollingBucket.Store(into.RollingBucket)
+	if into.RollingSum != nil {
+		r.rollingSum.Store(into.RollingSum.Get())
+	}
+	if into.TotalSum != nil {
+		r.totalSum.Store(into.TotalSum.Get())
+	}
+	if into.RollingBucket != nil {
+		r.rollingBucket.Store(into.RollingBucket)
+	}
 	return nil
 }
 
@@ -115,6 +121,9 @@ func (r *RollingCounter) TotalSum() int64 {
 
 // GetBuckets returns a copy of the buckets in order backwards in time
 func (r *RollingCounter) GetBuckets(now time.Time) []int64 {
+	if r.rollingBucket.NumBuckets == 0 {
+		return nil
+	}
 	r.rollingBucket.Advance(now, r.clearBucket)
 	startIdx := int(r.rollingBucket.LastAbsIndex.Get() % int64(r.rollingBucket.NumBuckets))
 	ret := make([]int64, r.rollingBucket.NumBuckets)

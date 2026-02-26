@@ -21,6 +21,24 @@ func TestRollingCounter_Empty(t *testing.T) {
 	if x.TotalSum() != 1 {
 		t.Error("Total sum should work even on empty structure")
 	}
+	// Zero-value GetBuckets and String should not panic with divide-by-zero
+	if b := x.GetBuckets(now); b != nil {
+		t.Errorf("expected nil buckets for zero-value counter, got %v", b)
+	}
+	if !strings.Contains(x.String(), "rolling_sum=0") {
+		t.Errorf("unexpected String() on zero-value: %s", x.String())
+	}
+}
+
+func TestRollingCounter_UnmarshalJSON_PartialInput(t *testing.T) {
+	// Unmarshalling partial/empty JSON should not panic on nil pointer deref
+	var x RollingCounter
+	if err := x.UnmarshalJSON([]byte(`{}`)); err != nil {
+		t.Errorf("unexpected error unmarshalling empty JSON: %v", err)
+	}
+	if x.TotalSum() != 0 {
+		t.Errorf("expected zero totals after empty unmarshal, got %d", x.TotalSum())
+	}
 }
 
 func TestRollingCounter_MovingBackwards(t *testing.T) {
