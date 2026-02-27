@@ -66,27 +66,34 @@ func TestMockClock_AfterFunc(t *testing.T) {
 		return callCount
 	}
 
-	// Test AfterFunc with immediate execution
+	// Test AfterFunc with immediate execution (d == 0)
 	m.AfterFunc(0, incrementCallCount)
 	if count := getCallCount(); count != 1 {
 		t.Errorf("Expected call count to be 1, got %d", count)
 	}
 
+	// Test AfterFunc with negative duration — must also fire immediately,
+	// matching real time.AfterFunc behavior for d <= 0
+	m.AfterFunc(-time.Second, incrementCallCount)
+	if count := getCallCount(); count != 2 {
+		t.Errorf("Expected negative-duration callback to fire immediately, got count %d", count)
+	}
+
 	// Test AfterFunc with delayed execution
 	m.AfterFunc(time.Hour, incrementCallCount)
-	if count := getCallCount(); count != 1 {
+	if count := getCallCount(); count != 2 {
 		t.Errorf("Function should not be called before time advances, got count %d", count)
 	}
 
 	// Add half the time - callback shouldn't fire yet
 	m.Add(30 * time.Minute)
-	if count := getCallCount(); count != 1 {
+	if count := getCallCount(); count != 2 {
 		t.Errorf("Function should not be called before time reaches target, got count %d", count)
 	}
 
 	// Add remaining time - callback should fire
 	m.Add(30 * time.Minute)
-	if count := getCallCount(); count != 2 {
+	if count := getCallCount(); count != 3 {
 		t.Errorf("Function should be called after time reaches target, got count %d", count)
 	}
 }
@@ -173,16 +180,6 @@ func TestTickUntil(t *testing.T) {
 	m.Set(now)
 
 	var tickCount int
-	done := make(chan struct{})
-
-	// Run TickUntil in a goroutine
-	go func() {
-		defer close(done)
-		TickUntil(m, func() bool {
-			return tickCount >= 3
-		}, time.Millisecond, time.Hour)
-	}()
-
 	// Create a function that increments tickCount when time advances
 	var mu sync.Mutex
 	incrementTickCount := func() {
@@ -191,10 +188,22 @@ func TestTickUntil(t *testing.T) {
 		tickCount++
 	}
 
-	// Set up callbacks at hourly intervals
+	// Set up callbacks at hourly intervals BEFORE starting the TickUntil goroutine.
+	// If TickUntil runs first and advances mock time, AfterFunc would schedule
+	// callbacks relative to the advanced time (currentTime+d, not now+d), breaking
+	// the final m.Now() == now+3h assertion.
 	m.AfterFunc(time.Hour, incrementTickCount)
 	m.AfterFunc(2*time.Hour, incrementTickCount)
 	m.AfterFunc(3*time.Hour, incrementTickCount)
+
+	done := make(chan struct{})
+	// Run TickUntil in a goroutine
+	go func() {
+		defer close(done)
+		TickUntil(m, func() bool {
+			return tickCount >= 3
+		}, time.Millisecond, time.Hour)
+	}()
 
 	// Wait for TickUntil to complete
 	select {

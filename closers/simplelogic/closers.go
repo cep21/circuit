@@ -18,8 +18,9 @@ type ConsecutiveErrOpener struct {
 func ConsecutiveErrOpenerFactory(config ConfigConsecutiveErrOpener) func() circuit.ClosedToOpen {
 	return func() circuit.ClosedToOpen {
 		ret := &ConsecutiveErrOpener{}
-		config.Merge(defaultConfigConsecutiveErrOpener)
-		ret.SetConfigThreadSafe(config)
+		cfg := config
+		cfg.Merge(defaultConfigConsecutiveErrOpener)
+		ret.SetConfigThreadSafe(cfg)
 		return ret
 	}
 }

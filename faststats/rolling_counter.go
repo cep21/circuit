@@ -55,10 +55,15 @@ func (r *RollingCounter) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON stores the previous JSON encoding.  Note, this is *NOT* thread safe.
+// Returns an error if the JSON is missing required fields (i.e., was not produced
+// by MarshalJSON or was truncated); the receiver is left unmodified in that case.
 func (r *RollingCounter) UnmarshalJSON(b []byte) error {
 	var into jsonCounter
 	if err := json.Unmarshal(b, &into); err != nil {
 		return err
+	}
+	if into.RollingSum == nil || into.TotalSum == nil || into.RollingBucket == nil {
+		return fmt.Errorf("RollingCounter.UnmarshalJSON: incomplete JSON (missing required fields)")
 	}
 	r.buckets = into.Buckets
 	r.rollingSum.Store(into.RollingSum.Get())
@@ -115,6 +120,9 @@ func (r *RollingCounter) TotalSum() int64 {
 
 // GetBuckets returns a copy of the buckets in order backwards in time
 func (r *RollingCounter) GetBuckets(now time.Time) []int64 {
+	if r.rollingBucket.NumBuckets == 0 {
+		return nil
+	}
 	r.rollingBucket.Advance(now, r.clearBucket)
 	startIdx := int(r.rollingBucket.LastAbsIndex.Get() % int64(r.rollingBucket.NumBuckets))
 	ret := make([]int64, r.rollingBucket.NumBuckets)

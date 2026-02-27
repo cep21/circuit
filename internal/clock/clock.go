@@ -68,7 +68,7 @@ func stoppedTimer() *time.Timer {
 // stopped timer; calling Stop on it is safe but has no effect on the scheduled callback.
 func (m *MockClock) AfterFunc(d time.Duration, f func()) *time.Timer {
 	m.mu.Lock()
-	if d == 0 {
+	if d <= 0 {
 		m.mu.Unlock()
 		f()
 		return stoppedTimer()

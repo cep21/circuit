@@ -3,6 +3,7 @@ package simplelogic
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,6 +25,24 @@ func TestConsecutiveErrOpenerFactory(t *testing.T) {
 	if opener.closeThreshold.Get() != 10 {
 		t.Errorf("Expected default threshold to be 10, got %d", opener.closeThreshold.Get())
 	}
+}
+
+func TestConsecutiveErrOpenerFactory_ConcurrentCreation(t *testing.T) {
+	// Concurrent factory calls must not race on the captured config.
+	// Run with -race to verify no data race on config.ErrorThreshold.
+	factory := ConsecutiveErrOpenerFactory(ConfigConsecutiveErrOpener{})
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			o := factory().(*ConsecutiveErrOpener)
+			if o.closeThreshold.Get() != 10 {
+				t.Errorf("closeThreshold = %d, want 10 (default)", o.closeThreshold.Get())
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func TestConsecutiveErrOpener_Merge(t *testing.T) {

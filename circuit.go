@@ -197,8 +197,11 @@ func (c *Circuit) openCircuit(ctx context.Context, now time.Time) {
 		// Don't bother opening a circuit that is already open
 		return
 	}
+	if !c.isOpen.CompareAndSwap(false, true) {
+		// Another goroutine already opened it; don't double-emit Opened()
+		return
+	}
 	c.CircuitMetricsCollector.Opened(ctx, now)
-	c.isOpen.Set(true)
 }
 
 // Go executes `Execute`, but uses spawned goroutines to end early if the context is canceled.  Use this if you don't trust
@@ -403,7 +406,8 @@ func (c *Circuit) fallback(ctx context.Context, err error, fallbackFunc func(con
 	// Throttle concurrent fallback calls
 	currentFallbackCount := c.concurrentFallbacks.Add(1)
 	defer c.concurrentFallbacks.Add(-1)
-	if c.threadSafeConfig.Fallback.MaxConcurrentRequests.Get() >= 0 && currentFallbackCount > c.threadSafeConfig.Fallback.MaxConcurrentRequests.Get() {
+	maxFallback := c.threadSafeConfig.Fallback.MaxConcurrentRequests.Get()
+	if maxFallback >= 0 && currentFallbackCount > maxFallback {
 		c.FallbackMetricCollector.ErrConcurrencyLimitReject(ctx, c.now())
 		return &circuitError{concurrencyLimitReached: true, msg: "throttling concurrency to fallbacks"}
 	}
@@ -441,8 +445,11 @@ func (c *Circuit) close(ctx context.Context, now time.Time, forceClosed bool) {
 		return
 	}
 	if forceClosed || c.OpenToClose.ShouldClose(ctx, now) {
+		if !c.isOpen.CompareAndSwap(true, false) {
+			// Another goroutine already closed it; don't double-emit Closed()
+			return
+		}
 		c.CircuitMetricsCollector.Closed(ctx, now)
-		c.isOpen.Set(false)
 	}
 }
 

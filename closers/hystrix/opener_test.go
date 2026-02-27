@@ -58,6 +58,22 @@ func TestOpener(t *testing.T) {
 	}
 }
 
+func TestOpener_SetConfigNotThreadSafe_NilNow(t *testing.T) {
+	// SetConfigNotThreadSafe should not panic when Now is nil; it should fall
+	// back to time.Now via the nil-safe now() helper.
+	o := &Opener{}
+	o.SetConfigNotThreadSafe(ConfigureOpener{
+		RequestVolumeThreshold:   20,
+		ErrorThresholdPercentage: 50,
+		NumBuckets:               10,
+		RollingDuration:          10 * time.Second,
+		// Now intentionally left nil
+	})
+	if o.Config().RequestVolumeThreshold != 20 {
+		t.Errorf("config not applied: RequestVolumeThreshold = %d", o.Config().RequestVolumeThreshold)
+	}
+}
+
 func TestOpenerFactory_ConcurrentCreation(t *testing.T) {
 	factory := OpenerFactory(ConfigureOpener{
 		RequestVolumeThreshold:   10,
