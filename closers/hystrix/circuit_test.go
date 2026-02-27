@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cep21/circuit/v4"
+	"github.com/cep21/circuit/v4/internal/clock"
 	"github.com/cep21/circuit/v4/internal/testhelp"
 )
 
@@ -113,13 +114,26 @@ func TestCircuitAttemptsToReopen(t *testing.T) {
 }
 
 func TestCircuitAttemptsToReopenOnlyOnce(t *testing.T) {
+	// Use a mock clock for deterministic timing — the previous real-clock version
+	// with SleepWindow: 1ms flaked when CI scheduling delays exceeded 1ms.
+	mockClock := &clock.MockClock{}
+	now := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	mockClock.Set(now)
+	sleepWindow := time.Second
+
 	c := circuit.NewCircuitFromConfig("TestCircuitAttemptsToReopenOnlyOnce", circuit.Config{
 		General: circuit.GeneralConfig{
+			TimeKeeper: circuit.TimeKeeper{
+				Now:       mockClock.Now,
+				AfterFunc: mockClock.AfterFunc,
+			},
 			OpenToClosedFactory: CloserFactory(ConfigureCloser{
-				SleepWindow: time.Millisecond,
+				SleepWindow: sleepWindow,
+				AfterFunc:   mockClock.AfterFunc,
 			}),
 			ClosedToOpenFactory: OpenerFactory(ConfigureOpener{
 				RequestVolumeThreshold: 1,
+				Now:                    mockClock.Now,
 			}),
 		},
 	})
@@ -133,16 +147,20 @@ func TestCircuitAttemptsToReopenOnlyOnce(t *testing.T) {
 	if !c.IsOpen() {
 		t.Fatal("Circuit should be open after having failed once")
 	}
+	// No time has advanced — sleep window is still active, circuit must reject
 	err = c.Execute(context.Background(), testhelp.AlwaysPasses, nil)
 	if err == nil {
 		t.Fatal("Circuit should be open")
 	}
 
-	time.Sleep(time.Millisecond * 3)
+	// Advance mock time past the sleep window
+	mockClock.Add(sleepWindow + time.Millisecond)
+	// Half-open probe: allowed once, fails → circuit stays open, sleep window resets
 	err = c.Execute(context.Background(), testhelp.AlwaysFails, nil)
 	if err == nil {
 		t.Fatal("Circuit should try to reopen, but fail")
 	}
+	// Second attempt in the same (new) sleep window must be rejected
 	err = c.Execute(context.Background(), testhelp.AlwaysPasses, nil)
 	if err == nil {
 		t.Fatal("Circuit should only try to reopen once")

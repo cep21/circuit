@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -197,27 +196,44 @@ func TestThrottled(t *testing.T) {
 			MaxConcurrentRequests: 2,
 		},
 	})
+	// Barrier pattern: wait until ALL goroutines have either entered runFunc or been
+	// rejected BEFORE releasing the ones inside. This guarantees the 3rd attempts
+	// while 2 are still occupying slots, regardless of CI scheduling delays.
+	const numGoroutines = 3
+	const limit = 2
+	attempted := make(chan struct{}, numGoroutines)
+	release := make(chan struct{})
 	bc := testhelp.BehaviorCheck{
-		RunFunc: testhelp.SleepsForX(time.Millisecond),
+		RunFunc: func(ctx context.Context) error {
+			attempted <- struct{}{} // entered runFunc
+			<-release
+			return nil
+		},
 	}
 	wg := sync.WaitGroup{}
-	errCount := 0
-	for i := 0; i < 3; i++ {
+	var errCount faststats.AtomicInt64
+	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			err := c.Execute(context.Background(), bc.Run, nil)
 			if err != nil {
-				errCount++
+				errCount.Add(1)
+				attempted <- struct{}{} // rejected goroutine also signals
 			}
 		}()
 	}
+	// Wait until all have attempted (2 inside runFunc, 1 rejected) before releasing.
+	for i := 0; i < numGoroutines; i++ {
+		<-attempted
+	}
+	close(release)
 	wg.Wait()
-	if bc.MostConcurrent != 2 {
+	if bc.MostConcurrent != limit {
 		t.Errorf("Concurrent count not correct: %d", bc.MostConcurrent)
 	}
-	if errCount != 1 {
-		t.Errorf("did not see error return count: %d", errCount)
+	if errCount.Get() != 1 {
+		t.Errorf("did not see error return count: %d", errCount.Get())
 	}
 }
 
@@ -429,30 +445,46 @@ func TestFallbackCircuitConcurrency(t *testing.T) {
 			MaxConcurrentRequests: 2,
 		},
 	})
+	// Barrier pattern: wait until ALL goroutines have either entered the fallback or
+	// been rejected BEFORE releasing the ones inside. This guarantees the 3rd attempts
+	// while 2 are still occupying fallback slots, regardless of CI scheduling delays.
+	const numGoroutines = 3
+	const limit = 2
+	attempted := make(chan struct{}, numGoroutines)
+	release := make(chan struct{})
 	wg := sync.WaitGroup{}
-	workingCircuitCount := int64(0)
+	var workingCircuitCount faststats.AtomicInt64
 	var fallbackExecuted faststats.AtomicInt64
 	var totalExecuted faststats.AtomicInt64
-	for i := 0; i < 3; i++ {
+	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
 		go func() {
 			totalExecuted.Add(1)
 			defer wg.Done()
 			err := c.Execute(context.Background(), testhelp.AlwaysFails, func(ctx context.Context, err error) error {
 				fallbackExecuted.Add(1)
-				return testhelp.SleepsForX(time.Millisecond * 500)(ctx)
+				attempted <- struct{}{} // entered fallback
+				<-release
+				return nil
 			})
 			if err == nil {
-				atomic.AddInt64(&workingCircuitCount, 1)
+				workingCircuitCount.Add(1)
+			} else {
+				attempted <- struct{}{} // rejected goroutine also signals
 			}
 		}()
 	}
+	// Wait until all have attempted (2 inside fallback, 1 rejected) before releasing.
+	for i := 0; i < numGoroutines; i++ {
+		<-attempted
+	}
+	close(release)
 	wg.Wait()
 	if totalExecuted.Get() == fallbackExecuted.Get() {
 		t.Error("At least one fallback call should never happen due to concurrency")
 	}
-	if workingCircuitCount != 2 {
-		t.Error("Should see 2 working examples")
+	if workingCircuitCount.Get() != limit {
+		t.Errorf("Should see %d working examples, got %d", limit, workingCircuitCount.Get())
 	}
 }
 

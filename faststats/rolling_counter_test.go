@@ -327,8 +327,11 @@ func TestRollingCounter_IncPast(t *testing.T) {
 func TestRollingCounter_Inc(t *testing.T) {
 	now := time.Now()
 	x := NewRollingCounter(time.Millisecond, 10, now)
-	if x.String() != "rolling_sum=0 total_sum=0 parts=(0,0,0,0,0,0,0,0,0,0)" {
-		t.Errorf("String() function does not work: %s", x.String())
+	// Use StringAt(now) not String() — String() uses real time.Now() which can
+	// advance past the 10ms rolling window on a slow CI runner, rolling out buckets
+	// before later Inc(now) calls (which would then be dropped as too-old).
+	if x.StringAt(now) != "rolling_sum=0 total_sum=0 parts=(0,0,0,0,0,0,0,0,0,0)" {
+		t.Errorf("StringAt() function does not work: %s", x.StringAt(now))
 	}
 	x.Inc(now)
 	if x.RollingSumAt(now) != 1 {
@@ -342,7 +345,8 @@ func TestRollingCounter_Inc(t *testing.T) {
 	if ans := x.RollingSumAt(now); ans != 2 {
 		t.Errorf("Should see two items now, not %d", ans)
 	}
-	if x.RollingSum() != 2 {
+	// Use RollingSumAt(now) not RollingSum() — same time.Now() issue as above.
+	if x.RollingSumAt(now) != 2 {
 		t.Errorf("Should see two items still")
 	}
 
