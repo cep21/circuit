@@ -65,6 +65,10 @@ func (r *RollingCounter) UnmarshalJSON(b []byte) error {
 	if into.RollingSum == nil || into.TotalSum == nil || into.RollingBucket == nil {
 		return fmt.Errorf("RollingCounter.UnmarshalJSON: incomplete JSON (missing required fields)")
 	}
+	if len(into.Buckets) != into.RollingBucket.NumBuckets {
+		return fmt.Errorf("RollingCounter.UnmarshalJSON: inconsistent JSON (Buckets len=%d, NumBuckets=%d)",
+			len(into.Buckets), into.RollingBucket.NumBuckets)
+	}
 	r.buckets = into.Buckets
 	r.rollingSum.Store(into.RollingSum.Get())
 	r.totalSum.Store(into.TotalSum.Get())

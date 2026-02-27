@@ -104,10 +104,17 @@ func TestRaceOnConfigChange(t *testing.T) {
 	wg.Wait()
 }
 
-// TestCircuitStateTransitionRace tests for race conditions during circuit state transitions
+// TestCircuitStateTransitionRace tests for race conditions during circuit
+// state transitions. Previously this test had NO assertions (just t.Logf).
+// Now it verifies the Opened/Closed alternation invariant under contention.
 func TestCircuitStateTransitionRace(t *testing.T) {
+	tc := &transitionCounter{}
 	// Create a circuit that will open after 20 consecutive failures
-	c := NewCircuitFromConfig("state-transition-race", Config{})
+	c := NewCircuitFromConfig("state-transition-race", Config{
+		Metrics: MetricsCollectors{
+			Circuit: []Metrics{tc},
+		},
+	})
 
 	var wg sync.WaitGroup
 	goroutines := 100
@@ -160,6 +167,21 @@ func TestCircuitStateTransitionRace(t *testing.T) {
 
 	t.Logf("Circuit open observed: %d, Circuit closed observed: %d",
 		circuitOpenObserved, circuitClosedObserved)
+
+	// Transition alternation: starting from closed, each Closed() must be
+	// preceded by an Opened(). Hence: closed ≤ opened ≤ closed+1.
+	opened, closed := tc.opened.Get(), tc.closed.Get()
+	if closed > opened {
+		t.Errorf("Closed()=%d > Opened()=%d — Closed emitted without matching Opened", closed, opened)
+	}
+	if opened > closed+1 {
+		t.Errorf("Opened()=%d > Closed()+1=%d — duplicate Opened() emission (TOCTOU regression)",
+			opened, closed+1)
+	}
+
+	if cc := c.ConcurrentCommands(); cc != 0 {
+		t.Errorf("concurrentCommands counter unbalanced: %d", cc)
+	}
 }
 
 // TestContextCancellationStress tests how the circuit handles many context cancellations

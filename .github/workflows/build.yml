@@ -28,11 +28,11 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v6
       - name: Build
-        run: go build -mod=readonly ./...
+        run: make build
       - name: Verify
         run: go mod verify
       - name: Test
-        run: env "GORACE=halt_on_error=1" go test -v -race -count 10 ./...
+        run: make test-race
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
       - name: Output coverage
