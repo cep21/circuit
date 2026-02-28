@@ -451,7 +451,14 @@ BenchmarkCiruits/iand_circuit/Default/passing/75-8       	 5000000	       349 ns
 
 # [Development](https://github.com/cep21/circuit/blob/master/Makefile)
 
-Make sure your tests pass with `go test` and your lints pass with `golangci-lint run`.
+```bash
+make          # fast dev loop: build + test + lint (~5s)
+make ci       # everything CI runs — use before submitting a PR (~1min)
+make fuzz     # active fuzzing (FUZZTIME per target, default 30s)
+make help     # full target list
+```
+
+`make ci` mirrors the GitHub Actions workflow: build, `go test -race -count 10`, and `golangci-lint run`. If it passes locally, CI should pass.
 
 # [Example](https://github.com/cep21/circuit/blob/master/example/main.go)
 
