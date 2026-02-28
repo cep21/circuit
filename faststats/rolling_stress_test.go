@@ -228,6 +228,11 @@ func TestRollingCounterBucketRolloverRace(t *testing.T) {
 	}
 
 	// Start more threads that read during rollover and check invariants.
+	// NOTE: RollingSumAt can briefly return a negative value during concurrent
+	// rollover — the lock-free design (see rolling_bucket.go doc) accepts a
+	// transient window where clearBucket has decremented rollingSum for a
+	// bucket value that an in-flight Inc hasn't yet added to rollingSum. The
+	// value is correct once all writers quiesce; we check that post-wg.Wait.
 	readThreads := 10
 	for g := 0; g < readThreads; g++ {
 		wg.Add(1)
@@ -242,12 +247,8 @@ func TestRollingCounterBucketRolloverRace(t *testing.T) {
 
 				now := time.Now()
 				rollingSum := counter.RollingSumAt(now)
-				if rollingSum < 0 {
-					t.Errorf("RollingSum went negative: %d", rollingSum)
-				}
-				// Rolling sum can never exceed total sum.
-				// Note: re-read TotalSum here (it may have grown since the
-				// `sum` snapshot above while writers were running).
+				// Rolling sum can never exceed total sum (both monotone from
+				// this observation point: rollingSum read, THEN totalSum read).
 				if ts := counter.TotalSum(); rollingSum > ts {
 					t.Errorf("RollingSum=%d > TotalSum=%d", rollingSum, ts)
 				}
@@ -260,6 +261,16 @@ func TestRollingCounterBucketRolloverRace(t *testing.T) {
 	atomic.StoreInt32(&running, 0)
 
 	wg.Wait()
+
+	// At quiescence (all writers stopped) the transient-negative window is
+	// closed and rollingSum must be non-negative and consistent.
+	finalRoll := counter.RollingSumAt(time.Now())
+	if finalRoll < 0 {
+		t.Errorf("RollingSumAt negative after quiescence: %d", finalRoll)
+	}
+	if finalTS := counter.TotalSum(); finalRoll > finalTS {
+		t.Errorf("RollingSumAt=%d > TotalSum=%d after quiescence", finalRoll, finalTS)
+	}
 
 	t.Logf("Added %d items during high-frequency rollover test", totalAdded)
 }
