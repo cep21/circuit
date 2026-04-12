@@ -45,6 +45,7 @@ func (c *ConfigureAdaptive) Merge(other ConfigureAdaptive) {
 	}
 }
 
+// defaultConfigureAdaptive is the default configuration for the adaptive opener
 var defaultConfigureAdaptive = ConfigureAdaptive{
 	ConfigureOpener: hystrix.ConfigureOpener{
 		RequestVolumeThreshold:   20,
@@ -63,6 +64,7 @@ var defaultConfigureAdaptive = ConfigureAdaptive{
 // Factory builds circuit configs that use the adaptive opener with optional hystrix closer wiring.
 type Factory struct {
 	hystrix.Factory
+
 	ConfigureAdaptive       ConfigureAdaptive
 	CreateConfigureAdaptive []func(circuitName string) ConfigureAdaptive
 }
@@ -70,11 +72,11 @@ type Factory struct {
 // Configure returns a circuit.Config with adaptive ClosedToOpen and hystrix OpenToClosed.
 func (f *Factory) Configure(circuitName string) circuit.Config {
 	cfg := f.Factory.Configure(circuitName)
-	final := ConfigureAdaptive{}
+	adaptiveCfg := ConfigureAdaptive{}
 	for i := len(f.CreateConfigureAdaptive) - 1; i >= 0; i-- {
-		final.Merge(f.CreateConfigureAdaptive[i](circuitName))
+		adaptiveCfg.Merge(f.CreateConfigureAdaptive[i](circuitName))
 	}
-	final.Merge(f.ConfigureAdaptive)
-	cfg.General.ClosedToOpenFactory = OpenerFactory(final)
+	adaptiveCfg.Merge(f.ConfigureAdaptive)
+	cfg.General.ClosedToOpenFactory = OpenerFactory(adaptiveCfg)
 	return cfg
 }
