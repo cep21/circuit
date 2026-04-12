@@ -142,9 +142,9 @@ fmt.Println("This is a hystrix configured circuit", c.Name())
 // Output: This is a hystrix configured circuit hystrix-circuit
 ```
 
-## Adaptive Hystrix 
+## Adaptive Hystrix (`closers/hystrix-adaptive`)
 
-The [hystrix](https://pkg.go.dev/github.com/cep21/circuit/v4/closers/hystrix) opener trips the breaker when enough requests fail. That is what you want when the dependency is actually unhealthy—but when *everything* is simply a bit slow, many calls may time out and look like total failure even though nothing is uniquely broken. **`hystrixadaptive`** layers on top of the usual Hystrix opener: it can be more patient in that situation (mostly timeouts, not hard errors), give a little slack while the outage pattern looks like blanket slowness, and tighten again when fast successes return. You tune how much slack is allowed and how quickly it grows or shrinks.
+The [hystrix](https://pkg.go.dev/github.com/cep21/circuit/v4/closers/hystrix) opener trips the breaker when enough requests fail. That is what you want when the dependency is actually unhealthy—but when *everything* is simply a bit slow, many calls may time out and look like total failure even though nothing is uniquely broken. Package **`hystrixadaptive`** (`import "github.com/cep21/circuit/v4/closers/hystrix-adaptive"`) layers on top of the usual Hystrix opener: it can be more patient in that situation (mostly timeouts, not hard errors), give a little slack while the outage pattern looks like blanket slowness, and tighten again when fast successes return. You tune how much slack is allowed and how quickly it grows or shrinks. It only affects **when** the breaker opens; **per-call** deadlines are still whatever you set on **`Execution.Timeout`**.
 
 ```go
 configuration := hystrixadaptive.Factory{
