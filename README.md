@@ -142,6 +142,47 @@ fmt.Println("This is a hystrix configured circuit", c.Name())
 // Output: This is a hystrix configured circuit hystrix-circuit
 ```
 
+## Adaptive Hystrix opener (`closers/hystrix-adaptive`)
+
+The [hystrix](https://pkg.go.dev/github.com/cep21/circuit/v4/closers/hystrix) opener opens the circuit when error rate and volume pass configured thresholds. If the whole dependency slows down a little (for example every call hits your execution timeout), that can look like 100% errors even though the system is only degraded. The **`hystrixadaptive`** package composes the same `*hystrix.Opener` and makes **`ShouldOpen`** adaptive: it tracks extra latency **headroom** (min / max / step size on success and timeout) and, when headroom is non-zero, can **defer opening** while recent failures are mostly **timeouts** rather than application failures.
+
+This does **not** change **`Execution.Timeout`** on the circuit. You still set the run deadline in `circuit.ExecutionConfig` (and may raise it toward `BaselineLatency + MaxExtraLatency` by other means if you want slow requests to complete). The adaptive opener only changes when the breaker **opens** given the same Hystrix rolling error metrics.
+
+Use **`hystrixadaptive.Factory`** like **`hystrix.Factory`**: embed **`hystrix.Factory`** for the closer (and optional base opener defaults), and set **`ConfigureAdaptive`** for adaptive fields. The package name is **`hystrixadaptive`** (`import "github.com/cep21/circuit/v4/closers/hystrix-adaptive"`).
+
+```go
+configuration := hystrixadaptive.Factory{
+  Factory: hystrix.Factory{
+    ConfigureCloser: hystrix.ConfigureCloser{
+      // Same half-open / sleep window behavior as plain Hystrix
+    },
+  },
+  ConfigureAdaptive: hystrixadaptive.ConfigureAdaptive{
+    ConfigureOpener: hystrix.ConfigureOpener{
+      RequestVolumeThreshold: 10,
+    },
+    // Expected healthy latency; "fast" successes decay headroom below this.
+    BaselineLatency: 100 * time.Millisecond,
+    // Cap on accumulated headroom (e.g. allow up to baseline + 200ms conceptually).
+    MaxExtraLatency: 200 * time.Millisecond,
+    // Added on each timeout and on successes slower than baseline+headroom.
+    IncreaseExtra: 10 * time.Millisecond,
+    // Subtracted when a success finishes faster than BaselineLatency.
+    DecreaseExtra: 10 * time.Millisecond,
+    // While headroom > 0, defer opening if timeouts/(timeouts+failures) is at least this ratio.
+    MinTimeoutRatioToDefer: 0.85,
+  },
+}
+h := circuit.Manager{
+  DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{configuration.Configure},
+}
+c := h.MustCreateCircuit("adaptive-hystrix")
+fmt.Println("This circuit uses the adaptive Hystrix opener", c.Name())
+// Output: This circuit uses the adaptive Hystrix opener adaptive-hystrix
+```
+
+To wire only the opener (for example with a custom closer), use **`hystrixadaptive.OpenerFactory`** with **`hystrixadaptive.ConfigureAdaptive`** (which embeds **`hystrix.ConfigureOpener`**). At runtime you can type-assert **`ClosedToOpen`** to **`*hystrixadaptive.AdaptiveOpener`** and call **`ExtraLatency()`** or inspect **`Opener`** (`*hystrix.Opener`) if you need the inner metrics.
+
 ## [Enable dashboard metrics](https://godoc.org/github.com/cep21/circuit/metriceventstream#example-MetricEventStream)
 
 Dashboard metrics can be enabled with the MetricEventStream object. This example creates an event stream handler,
