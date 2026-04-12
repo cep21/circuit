@@ -10,7 +10,7 @@ import (
 )
 
 // This example wires a manager with the adaptive Hystrix opener: same rolling error logic as
-// closers/hystrix, plus adaptive ShouldOpen behavior (see package doc).
+// closers/hystrix, plus adaptive ShouldOpen behavior (see package doc)
 func ExampleFactory() {
 	configuration := hystrixadaptive.Factory{
 		Factory: hystrix.Factory{
@@ -37,7 +37,7 @@ func ExampleFactory() {
 }
 
 // You can use OpenerFactory directly when you build a [circuit.Config] yourself and pair it
-// with [hystrix.CloserFactory] (or another OpenToClosed implementation).
+// with [hystrix.CloserFactory] (or another OpenToClosed implementation)
 func ExampleOpenerFactory() {
 	cfg := circuit.Config{
 		General: circuit.GeneralConfig{
@@ -56,7 +56,7 @@ func ExampleOpenerFactory() {
 }
 
 // Baseline latency and other adaptive fields can be updated at runtime together with the
-// embedded Hystrix opener thresholds via [hystrixadaptive.AdaptiveOpener.SetConfigThreadSafe].
+// embedded Hystrix opener thresholds via [hystrixadaptive.AdaptiveOpener.SetConfigThreadSafe]
 func ExampleAdaptiveOpener_SetConfigThreadSafe() {
 	configuration := hystrixadaptive.Factory{}
 	h := circuit.Manager{

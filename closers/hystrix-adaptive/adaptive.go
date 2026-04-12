@@ -12,14 +12,14 @@ import (
 )
 
 // AdaptiveOpener composes *hystrix.Opener and overrides ShouldOpen to avoid opening when
-// recent failures are mostly timeouts during elevated latency headroom.
+// recent failures are mostly timeouts during elevated latency headroom
 type AdaptiveOpener struct {
 	Opener *hystrix.Opener
 
 	mu     sync.Mutex
 	config ConfigureAdaptive
 
-	// extra is added to BaselineLatency when deciding if a success was "slow" and for ShouldOpen.
+	// extra is added to BaselineLatency when deciding if a success was "slow" and for ShouldOpen
 	extra time.Duration
 
 	timeoutCount faststats.RollingCounter
@@ -32,7 +32,7 @@ var (
 	_ json.Marshaler       = (*AdaptiveOpener)(nil)
 )
 
-// OpenerFactory returns a ClosedToOpen factory that wraps hystrix.OpenerFactory.
+// OpenerFactory returns a ClosedToOpen factory that wraps hystrix.OpenerFactory
 func OpenerFactory(config ConfigureAdaptive) func() circuit.ClosedToOpen {
 	return func() circuit.ClosedToOpen {
 		cfg := config
@@ -45,7 +45,7 @@ func OpenerFactory(config ConfigureAdaptive) func() circuit.ClosedToOpen {
 }
 
 // ShouldOpen delegates to the Hystrix opener, then may suppress opening when headroom is
-// non-zero and rolling failures are predominantly timeouts (ambient slowness).
+// non-zero and rolling failures are predominantly timeouts (ambient slowness)
 func (a *AdaptiveOpener) ShouldOpen(ctx context.Context, now time.Time) bool {
 	if !a.Opener.ShouldOpen(ctx, now) {
 		return false
@@ -166,7 +166,7 @@ func (a *AdaptiveOpener) resetAdaptive(now time.Time) {
 	a.failureCount.Reset(now)
 }
 
-// SetConfigThreadSafe updates hystrix opener fields from ConfigureOpener.
+// SetConfigThreadSafe updates hystrix opener fields from ConfigureOpener
 func (a *AdaptiveOpener) SetConfigThreadSafe(props ConfigureAdaptive) {
 	props.Merge(defaultConfigureAdaptive)
 	a.mu.Lock()
@@ -175,7 +175,7 @@ func (a *AdaptiveOpener) SetConfigThreadSafe(props ConfigureAdaptive) {
 	a.Opener.SetConfigThreadSafe(props.ConfigureOpener)
 }
 
-// SetConfigNotThreadSafe reinitializes rolling windows for the adaptive split counters.
+// SetConfigNotThreadSafe reinitializes rolling windows for the adaptive split counters
 func (a *AdaptiveOpener) SetConfigNotThreadSafe(props ConfigureAdaptive) {
 	a.setConfigNotThreadSafeLocked(props)
 }
@@ -201,21 +201,21 @@ func (a *AdaptiveOpener) setConfigNotThreadSafeLocked(props ConfigureAdaptive) {
 	a.mu.Unlock()
 }
 
-// Config returns the merged adaptive configuration (including embedded hystrix opener config).
+// Config returns the merged adaptive configuration (including embedded hystrix opener config)
 func (a *AdaptiveOpener) Config() ConfigureAdaptive {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.config
 }
 
-// ExtraLatency returns the current adaptive headroom on top of BaselineLatency.
+// ExtraLatency returns the current adaptive headroom on top of BaselineLatency
 func (a *AdaptiveOpener) ExtraLatency() time.Duration {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.extra
 }
 
-// MarshalJSON exposes opener state for debugging.
+// MarshalJSON exposes opener state for debugging
 func (a *AdaptiveOpener) MarshalJSON() ([]byte, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()

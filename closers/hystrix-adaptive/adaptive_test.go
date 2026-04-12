@@ -21,7 +21,7 @@ func TestAdaptiveOpener_TimeoutHeavyDefersOpen(t *testing.T) {
 		},
 		MinTimeoutRatioToDefer: 0.85,
 	})().(*AdaptiveOpener)
-	// Timestamps must be >= rolling window StartTime (set when the opener is constructed).
+	// Timestamps must be >= rolling window StartTime (set when the opener is constructed)
 	now := time.Now()
 
 	if o.ShouldOpen(ctx, now) {
@@ -138,7 +138,7 @@ func TestAdaptiveOpener_ClosedResetsAdaptiveState(t *testing.T) {
 }
 
 // TestCircuit_AdaptiveVsPlainHystrix_OpenerBehavior drives the real circuit Execute path and
-// checks that plain Hystrix opens on a timeout-only burst while the adaptive opener stays closed.
+// checks that plain Hystrix opens on a timeout-only burst while the adaptive opener stays closed
 func TestCircuit_AdaptiveVsPlainHystrix_OpenerBehavior(t *testing.T) {
 	ctx := context.Background()
 	opener := hystrix.ConfigureOpener{

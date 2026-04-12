@@ -7,25 +7,25 @@ import (
 	"github.com/cep21/circuit/v4/closers/hystrix"
 )
 
-// ConfigureAdaptive configures the adaptive opener and embeds hystrix.ConfigureOpener.
+// ConfigureAdaptive configures the adaptive opener and embeds hystrix.ConfigureOpener
 type ConfigureAdaptive struct {
 	hystrix.ConfigureOpener
 
 	// BaselineLatency is the expected healthy latency (e.g. matches a strict timeout budget
-	// before adaptive headroom is applied).
+	// before adaptive headroom is applied)
 	BaselineLatency time.Duration
-	// MaxExtraLatency caps how much additional headroom can accumulate (e.g. 200ms above baseline).
+	// MaxExtraLatency caps how much additional headroom can accumulate (e.g. 200ms above baseline)
 	MaxExtraLatency time.Duration
-	// IncreaseExtra is added to the headroom when a run is slower than baseline+headroom or on timeout.
+	// IncreaseExtra is added to the headroom when a run is slower than baseline+headroom or on timeout
 	IncreaseExtra time.Duration
-	// DecreaseExtra is subtracted from headroom on fast successes (duration below BaselineLatency).
+	// DecreaseExtra is subtracted from headroom on fast successes (duration below BaselineLatency)
 	DecreaseExtra time.Duration
 	// MinTimeoutRatioToDefer is the minimum rolling ratio of timeouts to (timeouts+failures)
-	// required before ShouldOpen defers to the inner opener when headroom is non-zero.
+	// required before ShouldOpen defers to the inner opener when headroom is non-zero
 	MinTimeoutRatioToDefer float64
 }
 
-// Merge fills zero values from other.
+// Merge fills zero values from other
 func (c *ConfigureAdaptive) Merge(other ConfigureAdaptive) {
 	c.ConfigureOpener.Merge(other.ConfigureOpener)
 	if c.BaselineLatency == 0 {
@@ -61,7 +61,7 @@ var defaultConfigureAdaptive = ConfigureAdaptive{
 	MinTimeoutRatioToDefer: 0.85,
 }
 
-// Factory builds circuit configs that use the adaptive opener with optional hystrix closer wiring.
+// Factory builds circuit configs that use the adaptive opener with optional hystrix closer wiring
 type Factory struct {
 	hystrix.Factory
 
@@ -69,7 +69,7 @@ type Factory struct {
 	CreateConfigureAdaptive []func(circuitName string) ConfigureAdaptive
 }
 
-// Configure returns a circuit.Config with adaptive ClosedToOpen and hystrix OpenToClosed.
+// Configure returns a circuit.Config with adaptive ClosedToOpen and hystrix OpenToClosed
 func (f *Factory) Configure(circuitName string) circuit.Config {
 	cfg := f.Factory.Configure(circuitName)
 	adaptiveCfg := ConfigureAdaptive{}
