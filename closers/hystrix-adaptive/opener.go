@@ -54,6 +54,7 @@ func (a *Opener) ShouldOpen(ctx context.Context, now time.Time) bool {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
 	if a.extra <= 0 {
 		return true
 	}
@@ -67,10 +68,12 @@ func (a *Opener) ShouldOpen(ctx context.Context, now time.Time) bool {
 	if t+f == 0 {
 		return true
 	}
+
 	ratio := float64(t) / float64(t+f)
 	if ratio >= a.config.MinTimeoutRatioToDefer {
 		return false
 	}
+
 	return true
 }
 
