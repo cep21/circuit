@@ -10,7 +10,7 @@ import (
 	"github.com/cep21/circuit/v4/closers/hystrix"
 )
 
-func TestAdaptiveOpener_TimeoutHeavyDefersOpen(t *testing.T) {
+func TestOpener_TimeoutHeavyDefersOpen(t *testing.T) {
 	ctx := context.Background()
 	o := OpenerFactory(ConfigureAdaptive{
 		ConfigureOpener: hystrix.ConfigureOpener{
@@ -20,7 +20,7 @@ func TestAdaptiveOpener_TimeoutHeavyDefersOpen(t *testing.T) {
 			RollingDuration:          10 * time.Second,
 		},
 		MinTimeoutRatioToDefer: 0.85,
-	})().(*AdaptiveOpener)
+	})().(*Opener)
 	// Timestamps must be >= rolling window StartTime (set when the opener is constructed)
 	now := time.Now()
 
@@ -41,7 +41,7 @@ func TestAdaptiveOpener_TimeoutHeavyDefersOpen(t *testing.T) {
 	}
 }
 
-func TestAdaptiveOpener_FailuresStillOpen(t *testing.T) {
+func TestOpener_FailuresStillOpen(t *testing.T) {
 	ctx := context.Background()
 	o := OpenerFactory(ConfigureAdaptive{
 		ConfigureOpener: hystrix.ConfigureOpener{
@@ -50,7 +50,7 @@ func TestAdaptiveOpener_FailuresStillOpen(t *testing.T) {
 			NumBuckets:               10,
 			RollingDuration:          10 * time.Second,
 		},
-	})().(*AdaptiveOpener)
+	})().(*Opener)
 	now := time.Now()
 
 	for i := 0; i < 3; i++ {
@@ -61,8 +61,8 @@ func TestAdaptiveOpener_FailuresStillOpen(t *testing.T) {
 	}
 }
 
-func TestAdaptiveOpener_MarshalJSON(t *testing.T) {
-	o := OpenerFactory(ConfigureAdaptive{})().(*AdaptiveOpener)
+func TestOpener_MarshalJSON(t *testing.T) {
+	o := OpenerFactory(ConfigureAdaptive{})().(*Opener)
 	ctx := context.Background()
 	now := time.Now()
 	o.ErrTimeout(ctx, now, time.Second)
@@ -84,13 +84,13 @@ func TestFactoryConfigure(t *testing.T) {
 		},
 	}
 	cfg := f.Configure("x")
-	ao := cfg.General.ClosedToOpenFactory().(*AdaptiveOpener)
+	ao := cfg.General.ClosedToOpenFactory().(*Opener)
 	if ao.Config().ConfigureOpener.RequestVolumeThreshold != 7 {
 		t.Fatalf("got threshold %d", ao.Config().ConfigureOpener.RequestVolumeThreshold)
 	}
 }
 
-func TestAdaptiveOpener_FastSuccessClearsExtraHeadroom(t *testing.T) {
+func TestOpener_FastSuccessClearsExtraHeadroom(t *testing.T) {
 	ctx := context.Background()
 	o := OpenerFactory(ConfigureAdaptive{
 		ConfigureOpener: hystrix.ConfigureOpener{
@@ -103,7 +103,7 @@ func TestAdaptiveOpener_FastSuccessClearsExtraHeadroom(t *testing.T) {
 		IncreaseExtra:   10 * time.Millisecond,
 		DecreaseExtra:   10 * time.Millisecond,
 		MaxExtraLatency: 200 * time.Millisecond,
-	})().(*AdaptiveOpener)
+	})().(*Opener)
 	now := time.Now()
 
 	o.ErrTimeout(ctx, now, 100*time.Millisecond)
@@ -116,7 +116,7 @@ func TestAdaptiveOpener_FastSuccessClearsExtraHeadroom(t *testing.T) {
 	}
 }
 
-func TestAdaptiveOpener_ClosedResetsAdaptiveState(t *testing.T) {
+func TestOpener_ClosedResetsAdaptiveState(t *testing.T) {
 	ctx := context.Background()
 	o := OpenerFactory(ConfigureAdaptive{
 		ConfigureOpener: hystrix.ConfigureOpener{
@@ -125,7 +125,7 @@ func TestAdaptiveOpener_ClosedResetsAdaptiveState(t *testing.T) {
 			NumBuckets:               10,
 			RollingDuration:          10 * time.Second,
 		},
-	})().(*AdaptiveOpener)
+	})().(*Opener)
 	now := time.Now()
 	o.ErrTimeout(ctx, now, time.Millisecond)
 	if o.ExtraLatency() <= 0 {

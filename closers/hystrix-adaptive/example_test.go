@@ -56,14 +56,10 @@ func ExampleOpenerFactory() {
 }
 
 // Baseline latency and other adaptive fields can be updated at runtime together with the
-// embedded Hystrix opener thresholds via [hystrixadaptive.AdaptiveOpener.SetConfigThreadSafe]
-func ExampleAdaptiveOpener_SetConfigThreadSafe() {
-	configuration := hystrixadaptive.Factory{}
-	h := circuit.Manager{
-		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{configuration.Configure},
-	}
-	c := h.MustCreateCircuit("adaptive-circuit")
-	ao := c.ClosedToOpen.(*hystrixadaptive.AdaptiveOpener)
+// embedded Hystrix opener thresholds via [hystrixadaptive.Opener.SetConfigThreadSafe]
+// Use [hystrixadaptive.NewOpener] when you need the concrete type without a type assertion
+func ExampleOpener_SetConfigThreadSafe() {
+	ao := hystrixadaptive.NewOpener(hystrixadaptive.ConfigureAdaptive{})
 	fmt.Println("default baseline:", ao.Config().BaselineLatency)
 	ao.SetConfigThreadSafe(hystrixadaptive.ConfigureAdaptive{
 		BaselineLatency: 50 * time.Millisecond,

@@ -11,9 +11,10 @@ import (
 	"github.com/cep21/circuit/v4/faststats"
 )
 
-// AdaptiveOpener composes *hystrix.Opener and overrides ShouldOpen to avoid opening when
-// recent failures are mostly timeouts during elevated latency headroom
-type AdaptiveOpener struct {
+// Opener is the adaptive ClosedToOpen implementation: it wraps an inner *hystrix.Opener
+// (field Opener) and overrides ShouldOpen to avoid opening when recent failures are mostly
+// timeouts during elevated latency headroom
+type Opener struct {
 	Opener *hystrix.Opener
 
 	mu     sync.Mutex
@@ -26,27 +27,33 @@ type AdaptiveOpener struct {
 	failureCount faststats.RollingCounter
 }
 
-// Compile-time assertions that AdaptiveOpener implements circuit.ClosedToOpen and json.Marshaler
+// Compile-time assertions that Opener implements circuit.ClosedToOpen and json.Marshaler
 var (
-	_ circuit.ClosedToOpen = (*AdaptiveOpener)(nil)
-	_ json.Marshaler       = (*AdaptiveOpener)(nil)
+	_ circuit.ClosedToOpen = (*Opener)(nil)
+	_ json.Marshaler       = (*Opener)(nil)
 )
+
+// NewOpener returns a new Opener with defaults merged into config.
+// It is the same implementation as the value returned from OpenerFactory(config)().
+func NewOpener(config ConfigureAdaptive) *Opener {
+	cfg := config
+	cfg.Merge(defaultConfigureAdaptive)
+	inner := hystrix.OpenerFactory(cfg.ConfigureOpener)().(*hystrix.Opener)
+	a := &Opener{Opener: inner}
+	a.setConfigNotThreadSafeLocked(cfg)
+	return a
+}
 
 // OpenerFactory returns a ClosedToOpen factory that wraps hystrix.OpenerFactory
 func OpenerFactory(config ConfigureAdaptive) func() circuit.ClosedToOpen {
 	return func() circuit.ClosedToOpen {
-		cfg := config
-		cfg.Merge(defaultConfigureAdaptive)
-		opener := hystrix.OpenerFactory(cfg.ConfigureOpener)().(*hystrix.Opener)
-		a := &AdaptiveOpener{Opener: opener}
-		a.setConfigNotThreadSafeLocked(cfg)
-		return a
+		return NewOpener(config)
 	}
 }
 
 // ShouldOpen delegates to the Hystrix opener, then may suppress opening when headroom is
 // non-zero and rolling failures are predominantly timeouts (ambient slowness)
-func (a *AdaptiveOpener) ShouldOpen(ctx context.Context, now time.Time) bool {
+func (a *Opener) ShouldOpen(ctx context.Context, now time.Time) bool {
 	if !a.Opener.ShouldOpen(ctx, now) {
 		return false
 	}
@@ -68,24 +75,24 @@ func (a *AdaptiveOpener) ShouldOpen(ctx context.Context, now time.Time) bool {
 }
 
 // Prevent delegates to the Hystrix opener
-func (a *AdaptiveOpener) Prevent(ctx context.Context, now time.Time) bool {
+func (a *Opener) Prevent(ctx context.Context, now time.Time) bool {
 	return a.Opener.Prevent(ctx, now)
 }
 
 // Closed resets the adaptive state and delegates to the Hystrix opener
-func (a *AdaptiveOpener) Closed(ctx context.Context, now time.Time) {
+func (a *Opener) Closed(ctx context.Context, now time.Time) {
 	a.Opener.Closed(ctx, now)
 	a.resetAdaptive(now)
 }
 
 // Opened resets the adaptive state and delegates to the Hystrix opener
-func (a *AdaptiveOpener) Opened(ctx context.Context, now time.Time) {
+func (a *Opener) Opened(ctx context.Context, now time.Time) {
 	a.Opener.Opened(ctx, now)
 	a.resetAdaptive(now)
 }
 
 // Success adjusts the adaptive headroom and delegates to the Hystrix opener
-func (a *AdaptiveOpener) Success(ctx context.Context, now time.Time, d time.Duration) {
+func (a *Opener) Success(ctx context.Context, now time.Time, d time.Duration) {
 	a.Opener.Success(ctx, now, d)
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -93,17 +100,17 @@ func (a *AdaptiveOpener) Success(ctx context.Context, now time.Time, d time.Dura
 }
 
 // ErrBadRequest delegates to the Hystrix opener
-func (a *AdaptiveOpener) ErrBadRequest(ctx context.Context, now time.Time, d time.Duration) {
+func (a *Opener) ErrBadRequest(ctx context.Context, now time.Time, d time.Duration) {
 	a.Opener.ErrBadRequest(ctx, now, d)
 }
 
 // ErrInterrupt delegates to the Hystrix opener
-func (a *AdaptiveOpener) ErrInterrupt(ctx context.Context, now time.Time, d time.Duration) {
+func (a *Opener) ErrInterrupt(ctx context.Context, now time.Time, d time.Duration) {
 	a.Opener.ErrInterrupt(ctx, now, d)
 }
 
 // ErrFailure increases the failure count and delegates to the Hystrix opener
-func (a *AdaptiveOpener) ErrFailure(ctx context.Context, now time.Time, d time.Duration) {
+func (a *Opener) ErrFailure(ctx context.Context, now time.Time, d time.Duration) {
 	a.Opener.ErrFailure(ctx, now, d)
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -111,7 +118,7 @@ func (a *AdaptiveOpener) ErrFailure(ctx context.Context, now time.Time, d time.D
 }
 
 // ErrTimeout increases the timeout count and delegates to the Hystrix opener
-func (a *AdaptiveOpener) ErrTimeout(ctx context.Context, now time.Time, d time.Duration) {
+func (a *Opener) ErrTimeout(ctx context.Context, now time.Time, d time.Duration) {
 	a.Opener.ErrTimeout(ctx, now, d)
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -120,17 +127,17 @@ func (a *AdaptiveOpener) ErrTimeout(ctx context.Context, now time.Time, d time.D
 }
 
 // ErrConcurrencyLimitReject delegates to the Hystrix opener
-func (a *AdaptiveOpener) ErrConcurrencyLimitReject(ctx context.Context, now time.Time) {
+func (a *Opener) ErrConcurrencyLimitReject(ctx context.Context, now time.Time) {
 	a.Opener.ErrConcurrencyLimitReject(ctx, now)
 }
 
 // ErrShortCircuit delegates to the Hystrix opener
-func (a *AdaptiveOpener) ErrShortCircuit(ctx context.Context, now time.Time) {
+func (a *Opener) ErrShortCircuit(ctx context.Context, now time.Time) {
 	a.Opener.ErrShortCircuit(ctx, now)
 }
 
 // adjustExtraOnSuccessLocked adjusts the adaptive headroom based on the success duration
-func (a *AdaptiveOpener) adjustExtraOnSuccessLocked(d time.Duration) {
+func (a *Opener) adjustExtraOnSuccessLocked(d time.Duration) {
 	base := a.config.BaselineLatency
 	maxE := a.config.MaxExtraLatency
 	effectiveSlow := base + a.extra
@@ -149,7 +156,7 @@ func (a *AdaptiveOpener) adjustExtraOnSuccessLocked(d time.Duration) {
 }
 
 // bumpExtraLocked increases the adaptive headroom based on the increase extra
-func (a *AdaptiveOpener) bumpExtraLocked() {
+func (a *Opener) bumpExtraLocked() {
 	maxE := a.config.MaxExtraLatency
 	a.extra += a.config.IncreaseExtra
 	if a.extra > maxE {
@@ -158,7 +165,7 @@ func (a *AdaptiveOpener) bumpExtraLocked() {
 }
 
 // resetAdaptive resets the adaptive state
-func (a *AdaptiveOpener) resetAdaptive(now time.Time) {
+func (a *Opener) resetAdaptive(now time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.extra = 0
@@ -167,7 +174,7 @@ func (a *AdaptiveOpener) resetAdaptive(now time.Time) {
 }
 
 // SetConfigThreadSafe updates hystrix opener fields from ConfigureOpener
-func (a *AdaptiveOpener) SetConfigThreadSafe(props ConfigureAdaptive) {
+func (a *Opener) SetConfigThreadSafe(props ConfigureAdaptive) {
 	props.Merge(defaultConfigureAdaptive)
 	a.mu.Lock()
 	a.config = props
@@ -176,12 +183,12 @@ func (a *AdaptiveOpener) SetConfigThreadSafe(props ConfigureAdaptive) {
 }
 
 // SetConfigNotThreadSafe reinitializes rolling windows for the adaptive split counters
-func (a *AdaptiveOpener) SetConfigNotThreadSafe(props ConfigureAdaptive) {
+func (a *Opener) SetConfigNotThreadSafe(props ConfigureAdaptive) {
 	a.setConfigNotThreadSafeLocked(props)
 }
 
 // setConfigNotThreadSafeLocked sets the adaptive configuration and reinitializes rolling windows
-func (a *AdaptiveOpener) setConfigNotThreadSafeLocked(props ConfigureAdaptive) {
+func (a *Opener) setConfigNotThreadSafeLocked(props ConfigureAdaptive) {
 	props.Merge(defaultConfigureAdaptive)
 	a.mu.Lock()
 	a.config = props
@@ -202,21 +209,21 @@ func (a *AdaptiveOpener) setConfigNotThreadSafeLocked(props ConfigureAdaptive) {
 }
 
 // Config returns the merged adaptive configuration (including embedded hystrix opener config)
-func (a *AdaptiveOpener) Config() ConfigureAdaptive {
+func (a *Opener) Config() ConfigureAdaptive {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.config
 }
 
 // ExtraLatency returns the current adaptive headroom on top of BaselineLatency
-func (a *AdaptiveOpener) ExtraLatency() time.Duration {
+func (a *Opener) ExtraLatency() time.Duration {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.extra
 }
 
 // MarshalJSON exposes opener state for debugging
-func (a *AdaptiveOpener) MarshalJSON() ([]byte, error) {
+func (a *Opener) MarshalJSON() ([]byte, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return json.Marshal(map[string]interface{}{
