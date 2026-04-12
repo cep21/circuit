@@ -41,6 +41,34 @@ func TestOpener_TimeoutHeavyDefersOpen(t *testing.T) {
 	}
 }
 
+func TestOpener_MaxExtraLatencySaturatedAllowsOpen(t *testing.T) {
+	ctx := context.Background()
+	o := OpenerFactory(ConfigureAdaptive{
+		ConfigureOpener: hystrix.ConfigureOpener{
+			RequestVolumeThreshold:   3,
+			ErrorThresholdPercentage: 50,
+			NumBuckets:               10,
+			RollingDuration:          10 * time.Second,
+		},
+		MinTimeoutRatioToDefer: 0.85,
+		MaxExtraLatency:        30 * time.Millisecond,
+		IncreaseExtra:          10 * time.Millisecond,
+	})().(*Opener)
+	now := time.Now()
+	for i := 0; i < 3; i++ {
+		o.ErrTimeout(ctx, now, time.Millisecond)
+	}
+	if got := o.ExtraLatency(); got != 30*time.Millisecond {
+		t.Fatalf("extra headroom: got %v want 30ms", got)
+	}
+	if !o.Opener.ShouldOpen(ctx, now) {
+		t.Fatal("inner opener should want to open")
+	}
+	if !o.ShouldOpen(ctx, now) {
+		t.Fatal("expected open when extra is saturated at MaxExtraLatency (timeout defer ends)")
+	}
+}
+
 func TestOpener_FailuresStillOpen(t *testing.T) {
 	ctx := context.Background()
 	o := OpenerFactory(ConfigureAdaptive{
@@ -137,8 +165,7 @@ func TestOpener_ClosedResetsAdaptiveState(t *testing.T) {
 	}
 }
 
-// TestCircuit_AdaptiveVsPlainHystrix_OpenerBehavior drives the real circuit Execute path and
-// checks that plain Hystrix opens on a timeout-only burst while the adaptive opener stays closed
+// TestCircuit_AdaptiveVsPlainHystrix_OpenerBehavior compares Execute timeout bursts: plain Hystrix opens, adaptive defers
 func TestCircuit_AdaptiveVsPlainHystrix_OpenerBehavior(t *testing.T) {
 	ctx := context.Background()
 	opener := hystrix.ConfigureOpener{

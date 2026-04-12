@@ -9,8 +9,7 @@ import (
 	hystrixadaptive "github.com/cep21/circuit/v4/closers/hystrix-adaptive"
 )
 
-// This example wires a manager with the adaptive Hystrix opener: same rolling error logic as
-// closers/hystrix, plus adaptive ShouldOpen behavior (see package doc)
+// ExampleFactory wires circuit.Manager with adaptive ClosedToOpen on top of hystrix.Factory
 func ExampleFactory() {
 	configuration := hystrixadaptive.Factory{
 		Factory: hystrix.Factory{
@@ -36,8 +35,7 @@ func ExampleFactory() {
 	// circuit: adaptive-hystrix
 }
 
-// You can use OpenerFactory directly when you build a [circuit.Config] yourself and pair it
-// with [hystrix.CloserFactory] (or another OpenToClosed implementation)
+// ExampleOpenerFactory builds a [circuit.Config] with OpenerFactory and a Hystrix closer
 func ExampleOpenerFactory() {
 	cfg := circuit.Config{
 		General: circuit.GeneralConfig{
@@ -55,9 +53,7 @@ func ExampleOpenerFactory() {
 	// circuit: custom-opener
 }
 
-// Baseline latency and other adaptive fields can be updated at runtime together with the
-// embedded Hystrix opener thresholds via [hystrixadaptive.Opener.SetConfigThreadSafe]
-// Use [hystrixadaptive.NewOpener] when you need the concrete type without a type assertion
+// ExampleOpener_SetConfigThreadSafe updates adaptive fields via SetConfigThreadSafe; use NewOpener for a concrete *Opener
 func ExampleOpener_SetConfigThreadSafe() {
 	ao := hystrixadaptive.NewOpener(hystrixadaptive.ConfigureAdaptive{})
 	fmt.Println("default baseline:", ao.Config().BaselineLatency)

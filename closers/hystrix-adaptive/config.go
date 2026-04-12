@@ -7,25 +7,23 @@ import (
 	"github.com/cep21/circuit/v4/closers/hystrix"
 )
 
-// ConfigureAdaptive configures the adaptive opener and embeds hystrix.ConfigureOpener
+// ConfigureAdaptive holds adaptive policy and embeds hystrix.ConfigureOpener; it does not set circuit execution timeouts
 type ConfigureAdaptive struct {
 	hystrix.ConfigureOpener
 
-	// BaselineLatency is the expected healthy latency (e.g. matches a strict timeout budget
-	// before adaptive headroom is applied)
+	// BaselineLatency is the nominal fast path; successes below it decrease extra
 	BaselineLatency time.Duration
-	// MaxExtraLatency caps how much additional headroom can accumulate (e.g. 200ms above baseline)
+	// MaxExtraLatency caps extra; slow-success threshold is roughly baseline+extra; at the cap, timeout deferral ends if inner ShouldOpen
 	MaxExtraLatency time.Duration
-	// IncreaseExtra is added to the headroom when a run is slower than baseline+headroom or on timeout
+	// IncreaseExtra added to extra on each timeout and on each success slower than baseline+current extra
 	IncreaseExtra time.Duration
-	// DecreaseExtra is subtracted from headroom on fast successes (duration below BaselineLatency)
+	// DecreaseExtra subtracted from extra when a success finishes faster than BaselineLatency
 	DecreaseExtra time.Duration
-	// MinTimeoutRatioToDefer is the minimum rolling ratio of timeouts to (timeouts+failures)
-	// required before ShouldOpen defers to the inner opener when headroom is non-zero
+	// MinTimeoutRatioToDefer is the rolling timeouts/(timeouts+failures) above which ShouldOpen may defer while 0 < extra < MaxExtraLatency
 	MinTimeoutRatioToDefer float64
 }
 
-// Merge fills zero values from other
+// Merge copies missing fields from other
 func (c *ConfigureAdaptive) Merge(other ConfigureAdaptive) {
 	c.ConfigureOpener.Merge(other.ConfigureOpener)
 	if c.BaselineLatency == 0 {
@@ -45,7 +43,7 @@ func (c *ConfigureAdaptive) Merge(other ConfigureAdaptive) {
 	}
 }
 
-// defaultConfigureAdaptive is the default configuration for the adaptive opener
+// defaultConfigureAdaptive is the default adaptive configuration
 var defaultConfigureAdaptive = ConfigureAdaptive{
 	ConfigureOpener: hystrix.ConfigureOpener{
 		RequestVolumeThreshold:   20,
@@ -61,7 +59,7 @@ var defaultConfigureAdaptive = ConfigureAdaptive{
 	MinTimeoutRatioToDefer: 0.85,
 }
 
-// Factory builds circuit configs that use the adaptive opener with optional hystrix closer wiring
+// Factory merges hystrix.Factory with adaptive configuration
 type Factory struct {
 	hystrix.Factory
 
@@ -69,7 +67,7 @@ type Factory struct {
 	CreateConfigureAdaptive []func(circuitName string) ConfigureAdaptive
 }
 
-// Configure returns a circuit.Config with adaptive ClosedToOpen and hystrix OpenToClosed
+// Configure returns circuit.Config with adaptive ClosedToOpen from this factory
 func (f *Factory) Configure(circuitName string) circuit.Config {
 	cfg := f.Factory.Configure(circuitName)
 	adaptiveCfg := ConfigureAdaptive{}
