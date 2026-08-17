@@ -4,6 +4,8 @@ import (
 	"errors"
 	"expvar"
 	"sync"
+
+	"github.com/cep21/circuit/v4/internal/evar"
 )
 
 // CommandPropertiesConstructor is a generic function that can create command properties to configure a circuit by name
@@ -48,7 +50,7 @@ func (h *Manager) Var() expvar.Var {
 		h.mu.RLock()
 		defer h.mu.RUnlock()
 		for k, v := range h.circuitMap {
-			ev := expvarToVal(v.Var())
+			ev := evar.ExpvarToVal(v.Var())
 			if ev != nil {
 				ret[k] = ev
 			}
@@ -79,7 +81,9 @@ func (h *Manager) MustCreateCircuit(name string, config ...Config) *Circuit {
 
 var errCircuitExists = errors.New("circuit with that name already exists")
 
-// CreateCircuit creates a new circuit, or returns error if a circuit with that name already exists
+// CreateCircuit creates a new circuit, or returns an error if a circuit with that name already exists (in which case
+// DefaultCircuitProperties constructors are not run).  Constructors run one create at a time and may call
+// GetCircuit/AllCircuits, but must not call CreateCircuit/MustCreateCircuit on the same Manager.
 func (h *Manager) CreateCircuit(name string, configs ...Config) (*Circuit, error) {
 	// Creates are serialized by createMu (constructors are not required to be thread safe), but h.mu is *not* held
 	// while user constructors run so they may safely call back into the Manager (GetCircuit/AllCircuits).
@@ -104,9 +108,6 @@ func (h *Manager) CreateCircuit(name string, configs ...Config) (*Circuit, error
 	defer h.mu.Unlock()
 	if h.circuitMap == nil {
 		h.circuitMap = make(map[string]*Circuit, 5)
-	}
-	if _, exists := h.circuitMap[name]; exists {
-		return nil, errCircuitExists
 	}
 	h.circuitMap[name] = created
 	return created, nil

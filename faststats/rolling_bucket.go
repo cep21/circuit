@@ -7,15 +7,16 @@ import (
 )
 
 // RollingBuckets simulates a time rolling list of buckets of items.  It is safe to use JSON to encode this object
-// in a thread safe way.
+// in a thread safe way.  A RollingBuckets must not be copied after first use.
 //
 // The steady state (now falls in the current bucket) is a single atomic load.  Rolling the window forward takes a
 // mutex, at most once per BucketWidth, so that buckets are always cleared *before* the new index is published to
 // concurrent writers.
 //
-// One inherent limitation remains: a caller whose `now` lags behind another concurrent caller's `now` by more than
-// the whole window (NumBuckets * BucketWidth) may have its write cleared.  Callers share a clock, so in anything but
-// absurdly small windows this cannot happen.
+// One inherent limitation remains: a write whose bucket index was computed a full window (NumBuckets*BucketWidth) or
+// more before it lands -- because the caller's `now` lags that far behind another caller's, or the goroutine was
+// descheduled that long between Advance and the write -- may be cleared or land in a newer bucket.  With realistic
+// windows this does not happen.
 type RollingBuckets struct {
 	NumBuckets   int
 	StartTime    time.Time
@@ -32,7 +33,7 @@ func (r *RollingBuckets) String() string {
 }
 
 // Advance to now, clearing buckets as needed.  Returns the bucket index that `now` falls into, or -1 if `now` is
-// outside the window (before StartTime, or more than a full window behind the most recent Advance).
+// before StartTime or a full window or more behind the most recent Advance.
 func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 	if r.NumBuckets <= 0 || r.BucketWidth <= 0 {
 		return -1
@@ -55,23 +56,30 @@ func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 		return bucket
 	}
 
-	// Slow path: the window has to roll forward.  Serialize so that exactly one goroutine clears each expired
-	// bucket, and so LastAbsIndex is only published once those buckets are empty.  Publishing first (as a lock-free
-	// CAS walk must) lets other goroutines start writing into a bucket that is about to be wiped.
-	r.advanceMu.Lock()
-	last := r.LastAbsIndex.Get()
-	if absIndex > last {
-		for i := last + 1; i <= absIndex && i <= last+n; i++ {
-			clearBucket(int(i % n))
-		}
-		r.LastAbsIndex.Set(absIndex)
-	}
-	r.advanceMu.Unlock()
-	if r.LastAbsIndex.Get()-absIndex >= n {
+	// Slow path: the window has to roll forward.
+	if r.rollForward(absIndex, n, clearBucket)-absIndex >= n {
 		// While we waited for the lock someone advanced an entire window (or more) past us
 		return -1
 	}
 	return bucket
+}
+
+// rollForward moves LastAbsIndex forward to absIndex, unless another goroutine got there (or further) first, and
+// returns the LastAbsIndex it left behind.  It serializes on advanceMu so that exactly one goroutine clears each
+// expired bucket, and so LastAbsIndex is only published once those buckets are empty.  Publishing first (as the
+// previous lock-free implementation did) lets other goroutines start writing into a bucket that is about to be wiped.
+func (r *RollingBuckets) rollForward(absIndex int64, n int64, clearBucket func(int)) int64 {
+	r.advanceMu.Lock()
+	defer r.advanceMu.Unlock()
+	last := r.LastAbsIndex.Get()
+	if absIndex <= last {
+		return last
+	}
+	for i := last + 1; i <= absIndex && i <= last+n; i++ {
+		clearBucket(int(i % n))
+	}
+	r.LastAbsIndex.Set(absIndex)
+	return absIndex
 }
 
 // Store copies the exported state of bucket into r.  It is not thread safe.

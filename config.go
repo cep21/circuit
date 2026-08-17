@@ -21,8 +21,12 @@ type GeneralConfig struct {
 	// Note: Java Manager calls this "Enabled".  I call it "Disabled" so the zero struct can fill defaults
 	Disabled bool `json:",omitempty"`
 	// ForceOpen is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceopen
+	// While set, every Execute is short-circuited (no half-open probes are attempted) and IsOpen reports true.  The
+	// circuit's underlying open/closed state is still tracked and is what applies once the flag is cleared.
 	ForceOpen bool `json:",omitempty"`
 	// ForcedClosed is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerforceclosed
+	// While set, every Execute is allowed to run and IsOpen reports false; failures are still counted but do not
+	// open the circuit.  OpenCircuit/CloseCircuit still change the underlying state.
 	ForcedClosed bool `json:",omitempty"`
 	// GoLostErrors can receive errors that would otherwise be lost by `Go` executions.  For example, if Go returns
 	// early but some long time later an error or panic eventually happens.

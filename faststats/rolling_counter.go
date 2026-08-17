@@ -14,9 +14,10 @@ type RollingCounter struct {
 	// The values of the individual buckets are atomic, so they do not take the mutex
 	buckets []AtomicInt64
 
-	// The rolling sum is derived on read as the sum of buckets (a handful of atomic loads) rather than maintained as
-	// a second contended counter on every Inc: that is both faster on the hot path and can never disagree with the
-	// buckets (the separately-maintained sum could transiently go negative).
+	// totalSum counts every event ever.  There is deliberately no rollingSum field: the rolling sum is derived on read
+	// as the sum of buckets (a handful of atomic loads) rather than maintained as a second contended counter on every
+	// Inc, which is both faster on the hot path and can never disagree with the buckets (a separately-maintained sum
+	// could transiently go negative).
 	totalSum AtomicInt64
 
 	rollingBucket RollingBuckets

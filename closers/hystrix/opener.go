@@ -39,6 +39,7 @@ func OpenerFactory(config ConfigureOpener) func() circuit.ClosedToOpen {
 // ConfigureOpener configures Opener
 type ConfigureOpener struct {
 	// ErrorThresholdPercentage is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakererrorthresholdpercentage
+	// The circuit opens when the rolling error percentage is at or above this value.
 	ErrorThresholdPercentage int64
 	// RequestVolumeThreshold is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerrequestvolumethreshold
 	RequestVolumeThreshold int64
@@ -176,7 +177,9 @@ func (e *Opener) SetConfigThreadSafe(props ConfigureOpener) {
 	e.requestVolumeThreshold.Set(props.RequestVolumeThreshold)
 }
 
-// SetConfigNotThreadSafe recreates the buckets.  It is not safe to call while the circuit is active.
+// SetConfigNotThreadSafe recreates the buckets.  It is only for use before the Opener is attached to a live
+// circuit: it reassigns the rolling counters (including their internal locks) wholesale, so calling it while the
+// circuit is active may corrupt state or crash, not merely race.
 // Unset (zero) or invalid bucket settings take their values from the defaults rather than panic.
 func (e *Opener) SetConfigNotThreadSafe(props ConfigureOpener) {
 	if props.NumBuckets <= 0 {

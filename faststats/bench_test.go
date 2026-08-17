@@ -67,3 +67,15 @@ func BenchmarkRollingBucketsAdvance(b *testing.B) {
 		})
 	})
 }
+
+// BenchmarkRollingPercentileAddDurationIdleGap measures the rollover cost: every AddDuration lands a full window
+// after the previous one, so each call clears every bucket before writing.
+func BenchmarkRollingPercentileAddDurationIdleGap(b *testing.B) {
+	now := time.Now()
+	x := NewRollingPercentile(10*time.Second, 6, 100, now)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		now = now.Add(2 * time.Minute)
+		x.AddDuration(time.Millisecond, now)
+	}
+}

@@ -44,9 +44,23 @@ func TestRegression_ConfiguredClockUsedEverywhere(t *testing.T) {
 	if snap, ok := asMap["Latencies"]["snap"]; !ok || !strings.Contains(string(snap), `"p50"`) {
 		t.Fatalf("expected Latencies.snap latency snapshot in Var (same shape as before): %s", rs.Var().String())
 	}
+	successesRollingSum := func() int64 {
+		t.Helper()
+		var decoded struct{ Successes struct{ RollingSum *int64 } }
+		if err := json.Unmarshal([]byte(rs.Var().String()), &decoded); err != nil {
+			t.Fatal(err)
+		}
+		if decoded.Successes.RollingSum == nil {
+			t.Fatalf("expected Successes.RollingSum in Var: %s", rs.Var().String())
+		}
+		return *decoded.Successes.RollingSum
+	}
+	if got := successesRollingSum(); got != 2 {
+		t.Fatalf("Successes.RollingSum=%d want 2: %s", got, rs.Var().String())
+	}
 	mc.Add(time.Hour)
-	if strings.Contains(rs.Var().String(), `"RollingSum":2`) {
-		t.Fatalf("Var should roll idle windows forward: %s", rs.Var().String())
+	if got := successesRollingSum(); got != 0 {
+		t.Fatalf("Var should roll idle windows forward (Successes.RollingSum=%d): %s", got, rs.Var().String())
 	}
 }
 
@@ -61,12 +75,21 @@ func TestRegression_SetConfigNotThreadSafePartialConfig(t *testing.T) {
 	fs.SetConfigNotThreadSafe(FallbackStatsConfig{RollingStatsDuration: 10 * time.Second, RollingStatsNumBuckets: 10})
 	fs.Success(context.Background(), time.Now(), time.Millisecond)
 
-	s := StatFactory{RunConfig: RunStatsConfig{RollingStatsNumBuckets: -1, RollingPercentileBucketSize: -1}}
+	s := StatFactory{
+		RunConfig:      RunStatsConfig{RollingStatsNumBuckets: -1, RollingPercentileBucketSize: -1},
+		FallbackConfig: FallbackStatsConfig{RollingStatsDuration: -1, RollingStatsNumBuckets: -1},
+	}
 	var m circuit.Manager
 	m.DefaultCircuitProperties = append(m.DefaultCircuitProperties, s.CreateConfig)
 	c := m.MustCreateCircuit("neg")
 	if err := c.Execute(context.Background(), testhelp.AlwaysPasses, nil); err != nil {
 		t.Fatal(err)
+	}
+	if err := c.Execute(context.Background(), testhelp.AlwaysFails, func(context.Context, error) error { return nil }); err != nil {
+		t.Fatalf("fallback should have rescued the failure: %v", err)
+	}
+	if got := s.FallbackStats("neg").Successes.TotalSum(); got != 1 {
+		t.Fatalf("expected one fallback success recorded with default buckets, got %d", got)
 	}
 }
 

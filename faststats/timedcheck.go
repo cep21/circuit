@@ -17,8 +17,8 @@ type TimedCheck struct {
 	isFastFail        AtomicBoolean
 	isFailFastVersion AtomicInt64
 
-	// TimeAfterFunc, if set, replaces time.AfterFunc.  Set it before the TimedCheck is in use: it is read under the
-	// internal lock and must not be modified concurrently with SleepStart/Check.
+	// TimeAfterFunc, if set, replaces time.AfterFunc.  It is not synchronized: assign it once before the TimedCheck
+	// is in use and never while SleepStart/Check may be running.
 	TimeAfterFunc func(time.Duration, func()) *time.Timer
 
 	// All 3 of these variables must be accessed with the RWMutex

@@ -5,9 +5,9 @@ import (
 	"fmt"
 )
 
-var errThrottledConcurrentCommands = newCircuitError("throttling connections to command", true, false)
-var errThrottledConcurrentFallbacks = newCircuitError("throttling concurrency to fallbacks", true, false)
-var errCircuitOpen = newCircuitError("circuit is open", false, true)
+var errThrottledConcurrentCommands = (&circuitError{concurrencyLimitReached: true}).withMsg("throttling connections to command")
+var errThrottledConcurrentFallbacks = (&circuitError{concurrencyLimitReached: true}).withMsg("throttling concurrency to fallbacks")
+var errCircuitOpen = (&circuitError{circuitOpen: true}).withMsg("circuit is open")
 
 // circuitError is used for internally generated errors
 type circuitError struct {
@@ -18,12 +18,10 @@ type circuitError struct {
 	msg string
 }
 
-func newCircuitError(msg string, concurrencyLimitReached bool, circuitOpen bool) *circuitError {
-	return &circuitError{
-		concurrencyLimitReached: concurrencyLimitReached,
-		circuitOpen:             circuitOpen,
-		msg:                     fmt.Sprintf("%s: concurrencyReached=%t circuitOpen=%t", msg, concurrencyLimitReached, circuitOpen),
-	}
+// withMsg precomputes Error() (so the shared, immutable sentinels never allocate) and returns m for chaining.
+func (m *circuitError) withMsg(msg string) *circuitError {
+	m.msg = fmt.Sprintf("%s: concurrencyReached=%t circuitOpen=%t", msg, m.concurrencyLimitReached, m.circuitOpen)
+	return m
 }
 
 var _ Error = &circuitError{}

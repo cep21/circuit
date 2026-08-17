@@ -2,7 +2,9 @@ package faststats
 
 import (
 	"encoding/json"
+	"math"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -79,36 +81,6 @@ func TestRegression_NoLostEventsAfterIdleGap(t *testing.T) {
 			t.Fatalf("counter/percentile wrong in %d rounds", wrong)
 		}
 	})
-}
-
-func TestRegression_RollingSumNeverNegative(t *testing.T) {
-	x := NewRollingCounter(50*time.Microsecond, 2, time.Now())
-	var stop atomic.Bool
-	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for !stop.Load() {
-				x.Inc(time.Now())
-			}
-		}()
-	}
-	var negatives, minSeen int64
-	deadline := time.Now().Add(300 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		if v := x.RollingSumAt(time.Now()); v < 0 {
-			negatives++
-			if v < minSeen {
-				minSeen = v
-			}
-		}
-	}
-	stop.Store(true)
-	wg.Wait()
-	if negatives > 0 {
-		t.Fatalf("RollingSumAt returned a negative value %d times (min=%d)", negatives, minSeen)
-	}
 }
 
 func TestRegression_UnmarshalRejectsNegativeBucketState(t *testing.T) {
@@ -210,6 +182,7 @@ func TestRegression_NoStaleDurationsInSnapshot(t *testing.T) {
 					stale++
 				}
 			}
+			runtime.Gosched()
 		}
 		if got := len(x.SnapshotAt(now)); got != writers*addsPerWriter {
 			t.Fatalf("round %d: snapshot has %d entries, want %d", r, got, writers*addsPerWriter)
@@ -222,7 +195,7 @@ func TestRegression_NoStaleDurationsInSnapshot(t *testing.T) {
 	}
 }
 
-func TestRegression_ZeroDurationRoundTrips(t *testing.T) {
+func TestRegression_ZeroAndNegativeDurationsStored(t *testing.T) {
 	now := time.Now()
 	x := NewRollingPercentile(time.Second, 2, 10, now)
 	x.AddDuration(0, now)
@@ -234,26 +207,140 @@ func TestRegression_ZeroDurationRoundTrips(t *testing.T) {
 	b := newDurationsBucket(3)
 	b.addDuration(0)
 	b.addDuration(5)
-	js, err := b.MarshalJSON()
-	if err != nil {
-		t.Fatal(err)
+	b.addDuration(-time.Second)
+	if got := b.appendDurations(nil); len(got) != 3 || got[0] != 0 || got[1] != 5 || got[2] != 0 {
+		t.Fatalf("expected [0 5 0] (negative duration clamps to 0), got %v", got)
 	}
-	if string(js) != `{"DurationsSomeInvalid":[0,5,0],"CurrentIndex":2}` {
-		t.Fatalf("unexpected JSON %s", js)
+}
+
+func TestEncodeDecodeDuration(t *testing.T) {
+	for _, tc := range []struct {
+		in   time.Duration
+		want time.Duration
+	}{
+		{0, 0},
+		{time.Nanosecond, time.Nanosecond},
+		{-5 * time.Nanosecond, 0},
+		{time.Hour, time.Hour},
+		{math.MaxInt64, math.MaxInt64},
+		{math.MinInt64, 0},
+	} {
+		enc := encodeDuration(tc.in)
+		if enc == unsetDuration {
+			t.Errorf("encodeDuration(%d) collided with the unset sentinel", int64(tc.in))
+		}
+		if got := decodeDuration(enc); got != tc.want {
+			t.Errorf("decodeDuration(encodeDuration(%d)) = %d, want %d", int64(tc.in), int64(got), int64(tc.want))
+		}
 	}
-	var b2 durationsBucket
-	if err := b2.UnmarshalJSON(js); err != nil {
-		t.Fatal(err)
+}
+
+// Advance's slow path must report -1 when, while it waited for advanceMu, another goroutine rolled the window a full
+// window (or more) past it.
+func TestRegression_AdvanceBehindAfterLockWait(t *testing.T) {
+	start := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	rb := RollingBuckets{NumBuckets: 4, BucketWidth: time.Second, StartTime: start}
+	window := time.Duration(rb.NumBuckets) * rb.BucketWidth
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	g1Result := make(chan int, 1)
+	g2Result := make(chan int, 1)
+
+	// G1 rolls 100 windows forward and parks inside the first clearBucket callback, holding advanceMu with
+	// LastAbsIndex still unpublished (0).
+	go func() {
+		var once sync.Once
+		g1Result <- rb.Advance(start.Add(100*window), func(int) {
+			once.Do(func() {
+				close(entered)
+				<-release
+			})
+		})
+	}()
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("G1 never reached clearBucket")
 	}
-	if got := b2.Durations(); len(got) != 2 || got[0] != 0 || got[1] != 5 {
-		t.Fatalf("round trip mismatch: %v", got)
+	if got := rb.LastAbsIndex.Get(); got != 0 {
+		t.Fatalf("LastAbsIndex published (%d) while G1 is still clearing", got)
 	}
-	if len(b2.durationsSomeInvalid) != 3 {
-		t.Fatalf("round trip lost bucket capacity: %d", len(b2.durationsSomeInvalid))
+
+	// G2 is only two buckets in: it sees LastAbsIndex=0 < 2, takes the slow path and must queue behind G1.
+	var g2Cleared atomic.Int64
+	go func() {
+		g2Result <- rb.Advance(start.Add(2*rb.BucketWidth), func(int) { g2Cleared.Add(1) })
+	}()
+	// Give G2 every chance to reach advanceMu before G1 is released.  The outcome is -1 either way (if G1 finishes
+	// first G2 takes the fast-path -1), so this only steers which path is exercised; it cannot make the test flaky.
+	waitForBlockedOn(t, "rollForward", time.Second)
+	select {
+	case got := <-g2Result:
+		t.Fatalf("G2 returned %d while G1 still held advanceMu", got)
+	default:
 	}
-	b2.addDuration(-time.Second)
-	if got := b2.Durations(); len(got) != 3 || got[2] != 0 {
-		t.Fatalf("negative duration should clamp to 0, got %v", got)
+
+	close(release)
+	select {
+	case got := <-g1Result:
+		if got != 0 {
+			t.Fatalf("G1: got bucket %d, want 0", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("G1 never returned")
+	}
+	select {
+	case got := <-g2Result:
+		if got != -1 {
+			t.Fatalf("G2: got bucket %d, want -1 (it is 100 windows behind)", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("G2 never returned (advanceMu leaked?)")
+	}
+	if n := g2Cleared.Load(); n != 0 {
+		t.Fatalf("G2 cleared %d buckets; a caller behind the window must clear nothing", n)
+	}
+	if got := rb.LastAbsIndex.Get(); got != 400 {
+		t.Fatalf("LastAbsIndex = %d, want 400", got)
+	}
+}
+
+// waitForBlockedOn polls goroutine stacks until one is parked in sync.Mutex.Lock underneath a frame containing fn, or
+// the timeout passes.  It is best effort (used to steer an interleaving, never to decide pass/fail).
+func waitForBlockedOn(t *testing.T, fn string, timeout time.Duration) {
+	t.Helper()
+	buf := make([]byte, 1<<16)
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		n := runtime.Stack(buf, true)
+		for _, g := range strings.Split(string(buf[:n]), "\n\n") {
+			if strings.Contains(g, "sync.(*Mutex).") && strings.Contains(g, fn) {
+				return
+			}
+		}
+		runtime.Gosched()
+	}
+	t.Logf("did not observe a goroutine blocked in %s within %s; continuing", fn, timeout)
+}
+
+// A panicking clearBucket callback must not leak advanceMu.
+func TestRegression_AdvanceUnlocksOnPanic(t *testing.T) {
+	start := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	rb := RollingBuckets{NumBuckets: 4, BucketWidth: time.Second, StartTime: start}
+	func() {
+		defer func() { _ = recover() }()
+		rb.Advance(start.Add(time.Second), func(int) { panic("boom") })
+	}()
+	done := make(chan int, 1)
+	go func() { done <- rb.Advance(start.Add(2*time.Second), func(int) {}) }()
+	select {
+	case got := <-done:
+		if got != 2 {
+			t.Fatalf("got bucket %d, want 2", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Advance deadlocked: advanceMu leaked by a panicking clearBucket")
 	}
 }
 

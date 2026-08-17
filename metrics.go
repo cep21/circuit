@@ -17,17 +17,13 @@ type varable interface {
 	Var() expvar.Var
 }
 
-func expvarToVal(in expvar.Var) interface{} {
-	return evar.ExpvarToVal(in)
-}
-
 // Var exposes run collectors as expvar
 func (r RunMetricsCollection) Var() expvar.Var {
 	return expvar.Func(func() interface{} {
 		ret := make([]interface{}, 0, len(r))
 		for _, c := range r {
 			if v, ok := c.(varable); ok {
-				asVal := expvarToVal(v.Var())
+				asVal := evar.ExpvarToVal(v.Var())
 				if asVal != nil {
 					ret = append(ret, asVal)
 				}
@@ -118,7 +114,7 @@ func (r FallbackMetricsCollection) Var() expvar.Var {
 		ret := make([]interface{}, 0, len(r))
 		for _, c := range r {
 			if v, ok := c.(varable); ok {
-				asVal := expvarToVal(v.Var())
+				asVal := evar.ExpvarToVal(v.Var())
 				if asVal != nil {
 					ret = append(ret, asVal)
 				}
@@ -147,9 +143,20 @@ func (r MetricsCollection) Opened(ctx context.Context, now time.Time) {
 	}
 }
 
-// Metrics reports internal circuit metric events.  Opened and Closed are delivered synchronously, strictly
-// alternating and in transition order.  A listener that itself causes a transition (for example by calling
-// CloseCircuit from Opened) sees that transition delivered after it returns.
+// Metrics reports internal circuit metric events.
+//
+// Opened and Closed are delivered in transition order, strictly alternating, one transition at a time, with no
+// circuit lock held.  Normally they run on the goroutine that caused the transition, before its
+// OpenCircuit/CloseCircuit/Execute call returns; but if another transition's listeners are still running (on
+// another goroutine, or further up this goroutine's stack because a listener re-entered the circuit) the
+// notification is queued and delivered by that goroutine after the earlier ones finish.  A listener that itself
+// causes a transition (for example by calling CloseCircuit from Opened) therefore sees that transition delivered
+// after it returns.  ctx is the context of the call that caused the transition and may already be done by the time
+// a listener runs.  now is never earlier than the instant the state actually changed.
+//
+// The circuit's own OpenToClosed/ClosedToOpen logic is not subject to this queue: it is notified synchronously at
+// the moment of the transition, before any other Metrics listener, so a slow or panicking listener cannot delay or
+// prevent the circuit arming its half-open behavior.
 type Metrics interface {
 	// Closed is called when the circuit transitions from Open to Closed.
 	Closed(ctx context.Context, now time.Time)

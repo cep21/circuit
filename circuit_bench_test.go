@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-
-	"github.com/cep21/circuit/v4/faststats"
 )
 
 var errBenchFailure = errors.New("bench failure")
@@ -74,9 +72,7 @@ func BenchmarkExecute(b *testing.B) {
 	})
 	b.Run("fallback-throttled", func(b *testing.B) {
 		c := NewCircuitFromConfig("b", Config{Execution: ExecutionConfig{MaxConcurrentRequests: -1, Timeout: -1}, Fallback: FallbackConfig{MaxConcurrentRequests: 1}})
-		var hold faststats.AtomicInt64
-		hold.Add(5)
-		c.concurrentFallbacks.Add(hold.Get())
+		c.concurrentFallbacks.Add(5)
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			_ = c.Execute(ctx, benchFails, benchFallback)

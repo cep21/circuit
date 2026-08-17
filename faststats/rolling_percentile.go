@@ -1,7 +1,6 @@
 package faststats
 
 import (
-	"encoding/json"
 	"expvar"
 	"fmt"
 	"math"
@@ -189,17 +188,17 @@ func (r *RollingPercentile) Reset(now time.Time) {
 
 // durationsBucket supports atomically adding durations to a size limited list
 type durationsBucket struct {
-	// durations is a fixed size and cannot change during operation.  Each slot holds nanoseconds+1 so that zero can
-	// mean "reserved by addDuration but not yet written" (or cleared): readers skip those instead of reporting a
-	// stale value from a previous window.
+	// durationsSomeInvalid is a fixed size and cannot change during operation.  Each slot holds an encodeDuration
+	// value (nanoseconds+1) so that zero can mean "reserved by addDuration but not yet written" (or cleared): readers
+	// skip those instead of reporting a stale value from a previous window.
 	durationsSomeInvalid []AtomicInt64
-	currentIndex         AtomicInt64
+	// currentIndex is how many slots have been handed out since the last clear.  It is only ever Set(0) or Add(1),
+	// so it is never negative, but it may exceed len(durationsSomeInvalid) (writers then wrap around).
+	currentIndex AtomicInt64
 }
 
 const unsetDuration = 0
 
-var _ json.Marshaler = &durationsBucket{}
-var _ json.Unmarshaler = &durationsBucket{}
 var _ fmt.Stringer = &durationsBucket{}
 
 func newDurationsBucket(bucketSize int) durationsBucket {
@@ -213,84 +212,28 @@ func (b *durationsBucket) String() string {
 	return fmt.Sprintf("durationsBucket(idx=%d)", b.currentIndex.Get())
 }
 
-type forMarshal struct {
-	// DurationsSomeInvalid holds the valid durations (nanoseconds) followed by zero padding up to the bucket size
-	DurationsSomeInvalid []int64
-	// CurrentIndex is how many leading entries of DurationsSomeInvalid are valid
-	CurrentIndex int64
-}
-
-// MarshalJSON returns the durations (in nanoseconds) as JSON.  It is thread safe.
-func (b *durationsBucket) MarshalJSON() ([]byte, error) {
-	m := forMarshal{
-		DurationsSomeInvalid: make([]int64, 0, len(b.durationsSomeInvalid)),
-	}
-	for _, d := range b.Durations() {
-		m.DurationsSomeInvalid = append(m.DurationsSomeInvalid, d.Nanoseconds())
-	}
-	m.CurrentIndex = int64(len(m.DurationsSomeInvalid))
-	for len(m.DurationsSomeInvalid) < len(b.durationsSomeInvalid) {
-		m.DurationsSomeInvalid = append(m.DurationsSomeInvalid, 0)
-	}
-	return json.Marshal(m)
-}
-
-// UnmarshalJSON stores JSON encoded durations into the bucket.  It is thread safe *only* if durations length matches.
-func (b *durationsBucket) UnmarshalJSON(data []byte) error {
-	var m forMarshal
-	if err := json.Unmarshal(data, &m); err != nil {
-		return err
-	}
-	if len(b.durationsSomeInvalid) != len(m.DurationsSomeInvalid) {
-		b.durationsSomeInvalid = make([]AtomicInt64, len(m.DurationsSomeInvalid))
-	}
-	if m.CurrentIndex < 0 {
-		m.CurrentIndex = 0
-	}
-	if m.CurrentIndex > int64(len(m.DurationsSomeInvalid)) {
-		m.CurrentIndex = int64(len(m.DurationsSomeInvalid))
-	}
-	for idx := range m.DurationsSomeInvalid {
-		if int64(idx) < m.CurrentIndex {
-			b.durationsSomeInvalid[idx].Set(encodeDuration(time.Duration(m.DurationsSomeInvalid[idx])))
-		} else {
-			b.durationsSomeInvalid[idx].Set(unsetDuration)
-		}
-	}
-	b.currentIndex.Set(m.CurrentIndex)
-	return nil
-}
-
-// encodeDuration maps a duration onto the slot encoding (ns+1, so 0 stays free as the unset sentinel).  Negative
-// durations are meaningless as latencies and are clamped to zero.
+// encodeDuration maps a duration onto the slot encoding: ns+1, so that 0 stays free as the unset sentinel.  Negative
+// durations are meaningless as latencies and are clamped to zero.  The +1 relies on two's-complement wrap around
+// (math.MaxInt64 encodes to math.MinInt64), which makes encode/decode a bijection over the non-negative durations
+// that can never produce unsetDuration.
 func encodeDuration(d time.Duration) int64 {
 	if d < 0 {
 		d = 0
 	}
-	if d == math.MaxInt64 {
-		// Cannot +1; sacrifice 1ns of range rather than collide with the unset sentinel
-		return math.MaxInt64
-	}
-	return d.Nanoseconds() + 1
+	return int64(d) + 1
+}
+
+// decodeDuration is the inverse of encodeDuration.  It must not be given unsetDuration.
+func decodeDuration(v int64) time.Duration {
+	return time.Duration(v - 1)
 }
 
 // size is an upper bound on how many durations are currently stored
 func (b *durationsBucket) size() int {
-	maxIndex := b.currentIndex.Get()
-	if maxIndex > int64(len(b.durationsSomeInvalid)) {
-		return len(b.durationsSomeInvalid)
-	}
-	if maxIndex < 0 {
-		return 0
-	}
-	return int(maxIndex)
+	return int(min(b.currentIndex.Get(), int64(len(b.durationsSomeInvalid))))
 }
 
-// Durations returns the durations currently stored in this bucket
-func (b *durationsBucket) Durations() []time.Duration {
-	return b.appendDurations(make([]time.Duration, 0, b.size()))
-}
-
+// appendDurations appends the durations currently stored in this bucket to ret and returns the result
 func (b *durationsBucket) appendDurations(ret []time.Duration) []time.Duration {
 	maxIndex := b.size()
 	for i := 0; i < maxIndex; i++ {
@@ -298,13 +241,28 @@ func (b *durationsBucket) appendDurations(ret []time.Duration) []time.Duration {
 		if v == unsetDuration {
 			continue
 		}
-		ret = append(ret, time.Duration(v-1))
+		ret = append(ret, decodeDuration(v))
 	}
 	return ret
 }
 
+// clear empties the bucket for reuse by a new window.  It is only called from RollingBuckets.Advance's locked slow
+// path (before the new LastAbsIndex is published, so no current-window writer can have been handed this bucket yet)
+// and from Reset.
+//
+// Only the slots handed out since the previous clear, [0, size()), can hold a value: make() zeroes every slot and
+// every clear unsets exactly the prefix that was handed out, so by induction slots at or beyond currentIndex are
+// already unset and need not be stored to again.  That keeps an idle-gap rollover from issuing len() atomic stores
+// per bucket.
+//
+// The order (unset the slots, then reset the index) is deliberately the same as a full clear: a sample whose slot is
+// reserved after the index reset is never wiped by this call.  A writer that reserves a slot while clear is running
+// is one whose bucket index was computed a full window ago (see RollingBuckets), or one racing an explicit Reset;
+// exactly as with a full clear its sample may be wiped or left beyond the reset index, where it stays invisible until
+// that slot is next reserved and is overwritten when that reservation is written.
 func (b *durationsBucket) clear() {
-	for i := range b.durationsSomeInvalid {
+	used := b.size()
+	for i := 0; i < used; i++ {
 		b.durationsSomeInvalid[i].Set(unsetDuration)
 	}
 	b.currentIndex.Set(0)

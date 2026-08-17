@@ -3,29 +3,32 @@ package circuit
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 )
 
-type regTimeoutCounter struct {
-	timeouts atomic.Int64
-	success  atomic.Int64
+// regRunCounter is a RunMetrics that counts the outcomes the regression tests care about
+type regRunCounter struct {
+	success, timeout, shortCircuit, reject atomic.Int64
 }
 
-func (a *regTimeoutCounter) Success(context.Context, time.Time, time.Duration)       { a.success.Add(1) }
-func (a *regTimeoutCounter) ErrFailure(context.Context, time.Time, time.Duration)    {}
-func (a *regTimeoutCounter) ErrTimeout(context.Context, time.Time, time.Duration)    { a.timeouts.Add(1) }
-func (a *regTimeoutCounter) ErrBadRequest(context.Context, time.Time, time.Duration) {}
-func (a *regTimeoutCounter) ErrInterrupt(context.Context, time.Time, time.Duration)  {}
-func (a *regTimeoutCounter) ErrConcurrencyLimitReject(context.Context, time.Time)    {}
-func (a *regTimeoutCounter) ErrShortCircuit(context.Context, time.Time)              {}
+func (a *regRunCounter) Success(context.Context, time.Time, time.Duration)       { a.success.Add(1) }
+func (a *regRunCounter) ErrFailure(context.Context, time.Time, time.Duration)    {}
+func (a *regRunCounter) ErrTimeout(context.Context, time.Time, time.Duration)    { a.timeout.Add(1) }
+func (a *regRunCounter) ErrBadRequest(context.Context, time.Time, time.Duration) {}
+func (a *regRunCounter) ErrInterrupt(context.Context, time.Time, time.Duration)  {}
+func (a *regRunCounter) ErrConcurrencyLimitReject(context.Context, time.Time)    { a.reject.Add(1) }
+func (a *regRunCounter) ErrShortCircuit(context.Context, time.Time)              { a.shortCircuit.Add(1) }
 
 // ExecutionTimeout used to be loaded twice in run(); a SetConfigThreadSafe between the loads produced a deadline
-// in the past and a spurious ErrTimeout for an instant, successful runFunc.
+// in the past and a spurious ErrTimeout for an instant, successful runFunc.  This test is probabilistic
+// (iteration-based): there is no deterministic seam between the two atomic reads to hook, so it hammers the
+// window instead and can only ever false-pass, never false-fail.
 func TestRegression_TimeoutReadOnceUnderConfigChange(t *testing.T) {
-	var m regTimeoutCounter
+	var m regRunCounter
 	c := NewCircuitFromConfig("t", Config{
 		Execution: ExecutionConfig{Timeout: time.Hour, MaxConcurrentRequests: -1},
 		Metrics:   MetricsCollectors{Run: []RunMetrics{&m}},
@@ -65,7 +68,7 @@ func TestRegression_TimeoutReadOnceUnderConfigChange(t *testing.T) {
 	runners.Wait()
 	close(stop)
 	wg.Wait()
-	if got := m.timeouts.Load(); got > 0 {
+	if got := m.timeout.Load(); got > 0 {
 		t.Fatalf("instant runFunc with a 1h (or disabled) timeout saw %d spurious ErrTimeout", got)
 	}
 }
@@ -114,17 +117,12 @@ func TestRegression_NilRunFuncNeverPanics(t *testing.T) {
 	}
 }
 
-type regTransitionCounter struct{ opened, closed atomic.Int64 }
-
-func (a *regTransitionCounter) Opened(context.Context, time.Time) { a.opened.Add(1) }
-func (a *regTransitionCounter) Closed(context.Context, time.Time) { a.closed.Add(1) }
-
 // Manual CloseCircuit()/OpenCircuit() and automatic closes act on the underlying state even while a Force* override
 // is set, so the state does not spring back when the override is cleared.
 func TestRegression_ManualTransitionsUnderForceFlags(t *testing.T) {
 	ctx := context.Background()
 	t.Run("CloseCircuit while ForcedClosed", func(t *testing.T) {
-		var tc regTransitionCounter
+		var tc transitionCounter
 		c := NewCircuitFromConfig("fc", Config{Metrics: MetricsCollectors{Circuit: []Metrics{&tc}}})
 		c.OpenCircuit(ctx)
 		cfg := c.Config()
@@ -134,10 +132,10 @@ func TestRegression_ManualTransitionsUnderForceFlags(t *testing.T) {
 		cfg.General.ForcedClosed = false
 		c.SetConfigThreadSafe(cfg)
 		if c.IsOpen() {
-			t.Fatalf("CloseCircuit() ignored while ForcedClosed; Closed() emitted %d times", tc.closed.Load())
+			t.Fatalf("CloseCircuit() ignored while ForcedClosed; Closed() emitted %d times", tc.closed.Get())
 		}
-		if tc.opened.Load() != 1 || tc.closed.Load() != 1 {
-			t.Fatalf("expected exactly one Opened and one Closed, got %d/%d", tc.opened.Load(), tc.closed.Load())
+		if tc.opened.Get() != 1 || tc.closed.Get() != 1 {
+			t.Fatalf("expected exactly one Opened and one Closed, got %d/%d", tc.opened.Get(), tc.closed.Get())
 		}
 	})
 	t.Run("successes while ForcedClosed close the circuit", func(t *testing.T) {
@@ -285,7 +283,9 @@ func TestRegression_HalfOpenTokenNotConsumedByThrottle(t *testing.T) {
 	cfg := c.Config()
 	cfg.General.ForcedClosed = true
 	c.SetConfigThreadSafe(cfg)
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		_ = c.Run(ctx, func(context.Context) error { close(started); <-release; return nil })
 	}()
 	<-started
@@ -300,9 +300,7 @@ func TestRegression_HalfOpenTokenNotConsumedByThrottle(t *testing.T) {
 		t.Fatalf("expected short-circuit error, got %v", err)
 	}
 	close(release)
-	for c.ConcurrentCommands() != 0 {
-		time.Sleep(time.Millisecond)
-	}
+	regWait(t, done, "the in-flight request to finish")
 	if err = c.Run(ctx, func(context.Context) error { ran++; return nil }); err != nil {
 		t.Fatalf("half-open permit was consumed by a throttled request that never ran: %v (ran=%d, open=%v)", err, ran, c.IsOpen())
 	}
@@ -389,15 +387,17 @@ func TestRegression_SetConfigNotThreadSafeWhileOpenStillRecovers(t *testing.T) {
 // While open and saturated, rejections are still short circuits (CircuitOpen()==true), not concurrency rejects.
 func TestRegression_OpenAndSaturatedIsShortCircuit(t *testing.T) {
 	ctx := context.Background()
-	var sc, rej atomic.Int64
-	m := &regCountingRunMetrics{shortCircuit: &sc, reject: &rej}
+	m := &regRunCounter{}
 	c := NewCircuitFromConfig("sat", Config{
 		General:   GeneralConfig{OpenToClosedFactory: func() OpenToClosed { return regAlwaysAllowCloser{} }},
 		Execution: ExecutionConfig{MaxConcurrentRequests: 1, Timeout: -1},
 		Metrics:   MetricsCollectors{Run: []RunMetrics{m}},
 	})
-	release, started := make(chan struct{}), make(chan struct{})
-	go func() { _ = c.Run(ctx, func(context.Context) error { close(started); <-release; return nil }) }()
+	release, started, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = c.Run(ctx, func(context.Context) error { close(started); <-release; return nil })
+	}()
 	<-started
 	c.OpenCircuit(ctx)
 	for i := 0; i < 5; i++ {
@@ -408,25 +408,13 @@ func TestRegression_OpenAndSaturatedIsShortCircuit(t *testing.T) {
 		}
 	}
 	close(release)
-	if sc.Load() != 5 || rej.Load() != 0 {
-		t.Fatalf("expected 5 short circuits / 0 rejects, got %d / %d", sc.Load(), rej.Load())
+	regWait(t, done, "the in-flight request to finish")
+	if sc, rej := m.shortCircuit.Load(), m.reject.Load(); sc != 5 || rej != 0 {
+		t.Fatalf("expected 5 short circuits / 0 rejects, got %d / %d", sc, rej)
 	}
 }
 
-type regCountingRunMetrics struct {
-	shortCircuit, reject *atomic.Int64
-}
-
-func (a *regCountingRunMetrics) Success(context.Context, time.Time, time.Duration)       {}
-func (a *regCountingRunMetrics) ErrFailure(context.Context, time.Time, time.Duration)    {}
-func (a *regCountingRunMetrics) ErrTimeout(context.Context, time.Time, time.Duration)    {}
-func (a *regCountingRunMetrics) ErrBadRequest(context.Context, time.Time, time.Duration) {}
-func (a *regCountingRunMetrics) ErrInterrupt(context.Context, time.Time, time.Duration)  {}
-func (a *regCountingRunMetrics) ErrConcurrencyLimitReject(context.Context, time.Time) {
-	a.reject.Add(1)
-}
-func (a *regCountingRunMetrics) ErrShortCircuit(context.Context, time.Time) { a.shortCircuit.Add(1) }
-
+// compat pin: these strings are part of the de-facto contract
 func TestRegression_CircuitErrorStrings(t *testing.T) {
 	// The precomputed messages must match what the old fmt.Sprintf produced
 	if got, want := errCircuitOpen.Error(), "circuit is open: concurrencyReached=false circuitOpen=true"; got != want {
@@ -524,18 +512,29 @@ func TestRegression_ReentrantMetricsListener(t *testing.T) {
 	}
 }
 
-type regPanickyMetrics struct{ calls atomic.Int64 }
-
-func (p *regPanickyMetrics) Opened(context.Context, time.Time) {
-	if p.calls.Add(1) == 1 {
-		panic("listener bug")
+// The circuit's own OpenToClosed logic is told about each transition directly, exactly once per transition, and is
+// not an element of CircuitMetricsCollector (which only holds the configured Metrics.Circuit listeners).
+func TestRegression_StateMachineNotifiedOnceAndNotACollector(t *testing.T) {
+	sm := newRegStreamCloser()
+	c := NewCircuitFromConfig("recording-closer", Config{General: GeneralConfig{
+		OpenToClosedFactory: func() OpenToClosed { return sm },
+	}})
+	if c.OpenToClose != OpenToClosed(sm) {
+		t.Fatalf("unexpected OpenToClose %#v", c.OpenToClose)
 	}
+	if n := len(c.CircuitMetricsCollector); n != 0 {
+		t.Fatalf("CircuitMetricsCollector should only hold configured Metrics.Circuit listeners, has %d", n)
+	}
+	ctx := context.Background()
+	c.OpenCircuit(ctx)
+	c.CloseCircuit(ctx)
+	sm.expect(t, "OC")
+	sm.expectNoMore(t)
 }
-func (p *regPanickyMetrics) Closed(context.Context, time.Time) { p.calls.Add(1) }
 
 // A panicking listener (recovered by the caller, as net/http would) must not stop later notifications.
 func TestRegression_PanickingMetricsListenerDoesNotWedgeDelivery(t *testing.T) {
-	p := &regPanickyMetrics{}
+	p := newRegBlockingMetrics('O', nil, func() { panic("listener bug") })
 	c := NewCircuitFromConfig("panicky", Config{Metrics: MetricsCollectors{Circuit: []Metrics{p}}})
 	ctx := context.Background()
 	func() {
@@ -545,9 +544,335 @@ func TestRegression_PanickingMetricsListenerDoesNotWedgeDelivery(t *testing.T) {
 	if !c.IsOpen() {
 		t.Fatal("state change should stick even though a listener panicked")
 	}
+	p.expect(t, "O")
 	c.CloseCircuit(ctx)
 	c.OpenCircuit(ctx)
-	if got := p.calls.Load(); got != 3 {
-		t.Fatalf("expected 3 listener calls (open, close, open), got %d", got)
+	p.expect(t, "CO")
+	p.expectNoMore(t)
+}
+
+const regDeadlockTimeout = 2 * time.Second
+
+func regWait(t *testing.T, ch <-chan struct{}, what string) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(regDeadlockTimeout):
+		t.Fatalf("timed out waiting for %s", what)
+	}
+}
+
+// regEventStream is a Metrics listener that publishes each delivered event ('O' / 'C') on a channel so tests can
+// wait for deliveries deterministically.
+type regEventStream struct{ ch chan byte }
+
+func newRegEventStream() *regEventStream { return &regEventStream{ch: make(chan byte, 64)} }
+
+func (s *regEventStream) Opened(context.Context, time.Time) { s.ch <- 'O' }
+func (s *regEventStream) Closed(context.Context, time.Time) { s.ch <- 'C' }
+
+// expect waits for exactly the events in want, in order.
+func (s *regEventStream) expect(t *testing.T, want string) {
+	t.Helper()
+	for i := 0; i < len(want); i++ {
+		select {
+		case got := <-s.ch:
+			if got != want[i] {
+				t.Fatalf("event %d: got %c, want %c (of %q)", i, got, want[i], want)
+			}
+		case <-time.After(regDeadlockTimeout):
+			t.Fatalf("timed out waiting for event %d (%c) of %q", i, want[i], want)
+		}
+	}
+}
+
+// expectNoMore asserts nothing further has been delivered *yet*.  Only sound when the test has arranged that no
+// goroutine can currently be delivering.
+func (s *regEventStream) expectNoMore(t *testing.T) {
+	t.Helper()
+	select {
+	case got := <-s.ch:
+		t.Fatalf("unexpected extra event %c", got)
+	default:
+	}
+}
+
+// regBlockingMetrics records events like regEventStream, and the FIRST time it sees blockOn ('O' or 'C') it
+// closes entered, waits for release (if non-nil) and then runs then (if non-nil; e.g. panic or runtime.Goexit).
+type regBlockingMetrics struct {
+	*regEventStream
+	blockOn byte
+	entered chan struct{}
+	release chan struct{}
+	then    func()
+	once    sync.Once
+}
+
+func newRegBlockingMetrics(blockOn byte, release chan struct{}, then func()) *regBlockingMetrics {
+	return &regBlockingMetrics{
+		regEventStream: newRegEventStream(),
+		blockOn:        blockOn,
+		entered:        make(chan struct{}),
+		release:        release,
+		then:           then,
+	}
+}
+
+func (b *regBlockingMetrics) Opened(ctx context.Context, now time.Time) {
+	b.regEventStream.Opened(ctx, now)
+	b.hook('O')
+}
+
+func (b *regBlockingMetrics) Closed(ctx context.Context, now time.Time) {
+	b.regEventStream.Closed(ctx, now)
+	b.hook('C')
+}
+
+func (b *regBlockingMetrics) hook(ev byte) {
+	if ev != b.blockOn {
+		return
+	}
+	first := false
+	b.once.Do(func() { first = true })
+	if !first {
+		return
+	}
+	close(b.entered)
+	if b.release != nil {
+		<-b.release
+	}
+	if b.then != nil {
+		b.then()
+	}
+}
+
+// regStreamCloser is an OpenToClosed stand-in that records the Opened/Closed calls the circuit makes to its own
+// state machine.
+type regStreamCloser struct {
+	neverCloses
+	*regEventStream
+}
+
+func newRegStreamCloser() *regStreamCloser {
+	return &regStreamCloser{regEventStream: newRegEventStream()}
+}
+
+func (r *regStreamCloser) Opened(ctx context.Context, now time.Time) {
+	r.regEventStream.Opened(ctx, now)
+}
+func (r *regStreamCloser) Closed(ctx context.Context, now time.Time) {
+	r.regEventStream.Closed(ctx, now)
+}
+
+// A user listener that blocks and then panics (recovered by its caller) while another goroutine's transition is
+// queued behind it must not strand that queued notification: both the state machine and the other user listeners
+// still hear about the later Opened.
+func TestRegression_PanickingListenerDoesNotStrandQueuedTransition(t *testing.T) {
+	ctx := context.Background()
+	sm := newRegStreamCloser()
+	good := newRegEventStream()
+	bad := newRegBlockingMetrics('C', make(chan struct{}), func() { panic("listener bug") })
+	c := NewCircuitFromConfig("strand", Config{
+		General: GeneralConfig{OpenToClosedFactory: func() OpenToClosed { return sm }},
+		Metrics: MetricsCollectors{Circuit: []Metrics{good, bad}},
+	})
+
+	c.OpenCircuit(ctx)
+	sm.expect(t, "O")
+	good.expect(t, "O")
+	bad.expect(t, "O")
+
+	aDone := make(chan interface{}, 1)
+	go func() {
+		defer func() { aDone <- recover() }()
+		c.CloseCircuit(ctx)
+	}()
+	regWait(t, bad.entered, "goroutine A to be inside the blocking Closed listener")
+	sm.expect(t, "C")
+	good.expect(t, "C")
+	bad.expect(t, "C")
+
+	// A holds the deliverer role, parked in bad.Closed.  This open flips the state, tells the state machine inline
+	// and queues its Opened for user listeners behind A.
+	opened := make(chan struct{})
+	go func() { c.OpenCircuit(ctx); close(opened) }()
+	regWait(t, opened, "OpenCircuit to return while another goroutine's listener is blocked")
+	if !c.IsOpen() {
+		t.Fatal("expected open")
+	}
+	sm.expect(t, "O")    // the state machine was told synchronously, at the moment of the flip ...
+	good.expectNoMore(t) // ... while user listeners are still queued behind A
+
+	close(bad.release) // A's listener now panics; A recovers it
+	select {
+	case r := <-aDone:
+		if r == nil {
+			t.Fatal("expected goroutine A to observe (and recover) the listener panic")
+		}
+	case <-time.After(regDeadlockTimeout):
+		t.Fatal("goroutine A never returned")
+	}
+	// The Opened that was queued behind the dead delivery loop must still be delivered.
+	good.expect(t, "O")
+	bad.expect(t, "O")
+	good.expectNoMore(t)
+	sm.expectNoMore(t)
+}
+
+// A listener that calls runtime.Goexit kills the delivering goroutine; the deliverer role must still be released
+// so later transitions are delivered.
+func TestRegression_GoexitListenerDoesNotWedgeDelivery(t *testing.T) {
+	ctx := context.Background()
+	good := newRegEventStream()
+	bad := newRegBlockingMetrics('O', nil, runtime.Goexit)
+	c := NewCircuitFromConfig("goexit", Config{Metrics: MetricsCollectors{Circuit: []Metrics{good, bad}}})
+
+	aExited := make(chan struct{})
+	go func() {
+		defer close(aExited) // deferred calls still run on Goexit
+		c.OpenCircuit(ctx)
+		t.Error("OpenCircuit returned; expected the listener's Goexit to end this goroutine")
+	}()
+	regWait(t, aExited, "goroutine A to exit via the listener's runtime.Goexit")
+	if !c.IsOpen() {
+		t.Fatal("state change should stick even though a listener called Goexit")
+	}
+	good.expect(t, "O")
+	bad.expect(t, "O")
+
+	closed := make(chan struct{})
+	go func() { c.CloseCircuit(ctx); c.OpenCircuit(ctx); close(closed) }()
+	regWait(t, closed, "CloseCircuit/OpenCircuit after a Goexit listener")
+	good.expect(t, "CO")
+	bad.expect(t, "CO")
+	good.expectNoMore(t)
+	if !c.IsOpen() {
+		t.Fatal("expected open")
+	}
+}
+
+// A slow user listener on one goroutine must not delay another goroutine's transition, nor the circuit telling
+// its own open/close logic about it.
+func TestRegression_SlowListenerDoesNotDelayStateMachines(t *testing.T) {
+	ctx := context.Background()
+	sm := newRegStreamCloser()
+	user := newRegBlockingMetrics('O', make(chan struct{}), nil)
+	c := NewCircuitFromConfig("slow", Config{
+		General: GeneralConfig{OpenToClosedFactory: func() OpenToClosed { return sm }},
+		Metrics: MetricsCollectors{Circuit: []Metrics{user}},
+	})
+
+	aDone := make(chan struct{})
+	go func() { defer close(aDone); c.OpenCircuit(ctx) }()
+	regWait(t, user.entered, "goroutine A to be inside the slow Opened listener")
+	sm.expect(t, "O")
+	user.expect(t, "O")
+
+	closeReturned := make(chan struct{})
+	go func() { c.CloseCircuit(ctx); close(closeReturned) }()
+	regWait(t, closeReturned, "CloseCircuit to return while another goroutine's Opened listener is still running")
+	if c.IsOpen() {
+		t.Fatal("CloseCircuit returned but the circuit still reads open")
+	}
+	sm.expect(t, "C")    // told synchronously inside CloseCircuit
+	user.expectNoMore(t) // Closed is queued behind A, which is still inside Opened
+	sm.expectNoMore(t)
+
+	close(user.release)
+	regWait(t, aDone, "goroutine A to finish delivering")
+	user.expect(t, "C")
+	user.expectNoMore(t)
+	sm.expectNoMore(t)
+}
+
+// regFlapOnceOpener's first ShouldOpen (attemptToOpen's unlocked pre-filter) deterministically simulates another
+// goroutine opening and closing the circuit before the locked re-ask, then says "open"; every later call says no.
+// Real openers must not re-enter the circuit; this one only does so from the unlocked call.
+type regFlapOnceOpener struct {
+	neverOpens
+	c     *Circuit
+	calls atomic.Int32
+}
+
+func (o *regFlapOnceOpener) ShouldOpen(ctx context.Context, _ time.Time) bool {
+	if o.calls.Add(1) == 1 {
+		o.c.OpenCircuit(ctx)
+		o.c.CloseCircuit(ctx)
+		return true
+	}
+	return false
+}
+
+// The automatic open path must re-ask ShouldOpen under the transition lock: the unlocked answer is stale if the
+// circuit opened and closed in between.
+func TestRegression_StaleShouldOpenRecheckedUnderLock(t *testing.T) {
+	ctx := context.Background()
+	opener := &regFlapOnceOpener{}
+	user := newRegEventStream()
+	c := NewCircuitFromConfig("stale-open", Config{
+		General:   GeneralConfig{ClosedToOpenFactory: func() ClosedToOpen { return opener }},
+		Execution: ExecutionConfig{Timeout: -1, MaxConcurrentRequests: -1},
+		Metrics:   MetricsCollectors{Circuit: []Metrics{user}},
+	})
+	opener.c = c
+
+	if err := c.Run(ctx, func(context.Context) error { return errors.New("boom") }); err == nil {
+		t.Fatal("expected the failure to be returned")
+	}
+	user.expect(t, "OC")
+	user.expectNoMore(t) // without the locked re-ask this would be O,C,O
+	if c.IsOpen() {
+		t.Fatal("stale ShouldOpen answer opened the circuit")
+	}
+	if got := opener.calls.Load(); got != 2 {
+		t.Fatalf("ShouldOpen asked %d times, want 2 (unlocked pre-filter + locked re-ask)", got)
+	}
+}
+
+// regFlapOnceCloser admits every probe; its first ShouldClose (checkSuccess's unlocked pre-check) simulates
+// another goroutine closing and re-opening the circuit before the locked re-ask, then says "close"; every later
+// call says no.
+type regFlapOnceCloser struct {
+	neverCloses
+	c     *Circuit
+	calls atomic.Int32
+}
+
+func (o *regFlapOnceCloser) Allow(context.Context, time.Time) bool { return true }
+
+func (o *regFlapOnceCloser) ShouldClose(ctx context.Context, _ time.Time) bool {
+	if o.calls.Add(1) == 1 {
+		o.c.CloseCircuit(ctx)
+		o.c.OpenCircuit(ctx)
+		return true
+	}
+	return false
+}
+
+// The automatic close path must re-ask ShouldClose under the transition lock: the unlocked answer is stale if the
+// circuit closed and re-opened in between.
+func TestRegression_StaleShouldCloseRecheckedUnderLock(t *testing.T) {
+	ctx := context.Background()
+	closer := &regFlapOnceCloser{}
+	user := newRegEventStream()
+	c := NewCircuitFromConfig("stale-close", Config{
+		General:   GeneralConfig{OpenToClosedFactory: func() OpenToClosed { return closer }},
+		Execution: ExecutionConfig{Timeout: -1, MaxConcurrentRequests: -1},
+		Metrics:   MetricsCollectors{Circuit: []Metrics{user}},
+	})
+	closer.c = c
+
+	c.OpenCircuit(ctx)
+	user.expect(t, "O")
+	if err := c.Run(ctx, func(context.Context) error { return nil }); err != nil {
+		t.Fatalf("half-open probe should have run and passed: %v", err)
+	}
+	user.expect(t, "CO")
+	user.expectNoMore(t) // without the locked re-ask this would be O,C,O,C
+	if !c.IsOpen() {
+		t.Fatal("stale ShouldClose answer closed the circuit")
+	}
+	if got := closer.calls.Load(); got != 2 {
+		t.Fatalf("ShouldClose asked %d times, want 2 (unlocked pre-check + locked re-ask)", got)
 	}
 }

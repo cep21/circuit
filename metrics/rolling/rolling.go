@@ -26,13 +26,11 @@ func (s *StatFactory) CreateConfig(circuitName string) circuit.Config {
 	rs := RunStats{}
 	cfg := RunStatsConfig{}
 	cfg.Merge(s.RunConfig)
-	cfg.Merge(defaultRunStatsConfig)
 	rs.SetConfigNotThreadSafe(cfg)
 
 	fs := FallbackStats{}
 	fcfg := FallbackStatsConfig{}
 	fcfg.Merge(s.FallbackConfig)
-	fcfg.Merge(defaultFallbackStatsConfig)
 	fs.SetConfigNotThreadSafe(fcfg)
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -114,6 +112,19 @@ func (r *RunStats) now() time.Time {
 	return nowFunc()
 }
 
+// rollingCounters returns every RollingCounter field of r
+func (r *RunStats) rollingCounters() []*faststats.RollingCounter {
+	return []*faststats.RollingCounter{
+		&r.Successes,
+		&r.ErrConcurrencyLimitRejects,
+		&r.ErrFailures,
+		&r.ErrShortCircuits,
+		&r.ErrTimeouts,
+		&r.ErrBadRequests,
+		&r.ErrInterrupts,
+	}
+}
+
 // Var allows exposing RunStats on expvar
 func (r *RunStats) Var() expvar.Var {
 	return expvar.Func(func() interface{} {
@@ -121,7 +132,7 @@ func (r *RunStats) Var() expvar.Var {
 		// Inc() uses would push their index far ahead and silently drop every subsequent event.
 		now := r.now()
 		// Roll every window forward to now so idle counters do not report stale sums forever
-		for _, cntr := range []*faststats.RollingCounter{&r.Successes, &r.ErrConcurrencyLimitRejects, &r.ErrFailures, &r.ErrShortCircuits, &r.ErrTimeouts, &r.ErrBadRequests, &r.ErrInterrupts} {
+		for _, cntr := range r.rollingCounters() {
 			cntr.RollingSumAt(now)
 		}
 		ret := map[string]interface{}{
@@ -212,6 +223,8 @@ func (r *RunStats) Config() RunStatsConfig {
 }
 
 // SetConfigNotThreadSafe updates the RunStats buckets.  Unset (zero) or negative values are replaced with defaults.
+// It is only for use before the stats are shared: it reassigns the rolling counters (including their internal
+// locks) wholesale, so calling it while the RunStats is in use may corrupt state or crash, not merely race.
 func (r *RunStats) SetConfigNotThreadSafe(config RunStatsConfig) {
 	config.sanitize()
 	config.Merge(defaultRunStatsConfig)
@@ -357,6 +370,16 @@ func (r *FallbackStatsConfig) Merge(other FallbackStatsConfig) {
 	}
 }
 
+// sanitize zeroes negative sizes so Merge treats them as unset instead of panicking in make()/division later
+func (r *FallbackStatsConfig) sanitize() {
+	if r.RollingStatsDuration < 0 {
+		r.RollingStatsDuration = 0
+	}
+	if r.RollingStatsNumBuckets < 0 {
+		r.RollingStatsNumBuckets = 0
+	}
+}
+
 var defaultFallbackStatsConfig = FallbackStatsConfig{
 	Now:                    time.Now,
 	RollingStatsDuration:   10 * time.Second,
@@ -366,14 +389,10 @@ var defaultFallbackStatsConfig = FallbackStatsConfig{
 var _ circuit.FallbackMetrics = &FallbackStats{}
 
 // SetConfigNotThreadSafe sets the configuration for fallback stats.  Unset (zero) or negative values are replaced
-// with defaults.
+// with defaults.  Like RunStats.SetConfigNotThreadSafe, it is only for use before the stats are shared: calling it
+// while the FallbackStats is in use may corrupt state or crash, not merely race.
 func (r *FallbackStats) SetConfigNotThreadSafe(config FallbackStatsConfig) {
-	if config.RollingStatsDuration < 0 {
-		config.RollingStatsDuration = 0
-	}
-	if config.RollingStatsNumBuckets < 0 {
-		config.RollingStatsNumBuckets = 0
-	}
+	config.sanitize()
 	config.Merge(defaultFallbackStatsConfig)
 	now := config.Now()
 	bucketWidth := time.Duration(config.RollingStatsDuration.Nanoseconds() / int64(config.RollingStatsNumBuckets))

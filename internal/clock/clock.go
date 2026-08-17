@@ -1,7 +1,7 @@
 package clock
 
 import (
-	"sort"
+	"slices"
 	"sync"
 	"time"
 )
@@ -52,8 +52,8 @@ func (m *MockClock) triggerCallbacks() {
 	m.callbacks = newArray
 	m.mu.Unlock()
 	// Fire in deadline order, like real timers would
-	sort.SliceStable(toCall, func(i, j int) bool {
-		return toCall[i].when.Before(toCall[j].when)
+	slices.SortStableFunc(toCall, func(a, b timedCallbacks) int {
+		return a.when.Compare(b.when)
 	})
 	for _, cb := range toCall {
 		cb.f()
