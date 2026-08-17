@@ -151,7 +151,9 @@ func (e *Opener) ShouldOpen(_ context.Context, now time.Time) bool {
 		// not enough requests. Will not open circuit
 		return false
 	}
-	return int64(e.errPercentage(now)*100) >= e.errorPercentage.Get()
+	// Integer math: float64(err)/float64(attempts)*100 truncates (e.g. 57/100 -> 56.999 -> 56) and would miss
+	// error rates that sit exactly on the threshold.
+	return e.errorsCount.RollingSumAt(now)*100 >= e.errorPercentage.Get()*attemptCount
 }
 
 func (e *Opener) errPercentage(now time.Time) float64 {
@@ -175,7 +177,14 @@ func (e *Opener) SetConfigThreadSafe(props ConfigureOpener) {
 }
 
 // SetConfigNotThreadSafe recreates the buckets.  It is not safe to call while the circuit is active.
+// Unset (zero) or invalid bucket settings take their values from the defaults rather than panic.
 func (e *Opener) SetConfigNotThreadSafe(props ConfigureOpener) {
+	if props.NumBuckets <= 0 {
+		props.NumBuckets = defaultConfigureOpener.NumBuckets
+	}
+	if props.RollingDuration <= 0 {
+		props.RollingDuration = defaultConfigureOpener.RollingDuration
+	}
 	e.SetConfigThreadSafe(props)
 	now := props.now()
 	rollingCounterBucketWidth := time.Duration(props.RollingDuration.Nanoseconds() / int64(props.NumBuckets))

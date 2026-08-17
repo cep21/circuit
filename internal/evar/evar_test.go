@@ -1,6 +1,7 @@
 package evar
 
 import (
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"testing"
@@ -37,11 +38,22 @@ func TestExpvarToVal(t *testing.T) {
 		t.Errorf("Expected result to be 42, got %v", result)
 	}
 
-	// Test with a non-Value-implementing expvar - using unique name to avoid collision
+	// A Var without a `Value() interface{}` method is preserved as its (JSON) String() rather than dropped
 	nonValueVar := expvar.NewString("test_" + t.Name() + "_" + fmt.Sprintf("%d", time.Now().UnixNano()))
+	nonValueVar.Set("hello")
 	result = ExpvarToVal(nonValueVar)
-	if result != nil {
-		t.Errorf("Expected result to be nil, got %v", result)
+	raw, ok := result.(json.RawMessage)
+	if !ok || string(raw) != `"hello"` {
+		t.Errorf("Expected raw JSON \"hello\", got %T %v", result, result)
+	}
+	asMap := expvar.NewMap("map_" + t.Name() + "_" + fmt.Sprintf("%d", time.Now().UnixNano()))
+	asMap.Add("k", 3)
+	if raw, ok := ExpvarToVal(asMap).(json.RawMessage); !ok || string(raw) != `{"k": 3}` {
+		t.Errorf("Expected map JSON to be preserved, got %s", raw)
+	}
+
+	if ExpvarToVal(nil) != nil {
+		t.Error("Expected nil for nil Var")
 	}
 }
 

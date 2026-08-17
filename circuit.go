@@ -30,18 +30,31 @@ type Circuit struct {
 	// Tracks if the circuit has been shut open or closed
 	isOpen faststats.AtomicBoolean
 
-	// Tracks how many commands are currently running
-	concurrentCommands faststats.AtomicInt64
-	// Tracks how many fallbacks are currently running
-	concurrentFallbacks faststats.AtomicInt64
-
 	// ClosedToOpen controls when to open a closed circuit
 	ClosedToOpen ClosedToOpen
 	// openToClosed controls when to close an open circuit
 	OpenToClose OpenToClosed
 
 	timeNow func() time.Time
+
+	// transitionMu serializes open<->close transitions with their Opened()/Closed() notifications so
+	// listeners never observe them out of order (e.g. Closed() delivered after a later Opened()).  It is
+	// never taken on the per-request fast path: only once a transition is actually being attempted.
+	transitionMu sync.Mutex
+
+	// The two counters below are written (atomic add) on every Execute.  Everything above is read-mostly and also
+	// consulted on every Execute, so keep the counters on their own cache line: otherwise each request on one core
+	// invalidates the config/state line every other core is reading (false sharing).
+	_ [cacheLineSize]byte
+	// Tracks how many commands are currently running
+	concurrentCommands faststats.AtomicInt64
+	// Tracks how many fallbacks are currently running
+	concurrentFallbacks faststats.AtomicInt64
+	_                   [cacheLineSize - 16]byte
 }
+
+// cacheLineSize is a conservative guess that covers amd64/arm64.  Being wrong only costs a little padding.
+const cacheLineSize = 64
 
 // NewCircuitFromConfig creates an inline circuit.  If you want to group all your circuits together, you should probably
 // just use Manager struct instead.
@@ -126,6 +139,15 @@ func (c *Circuit) SetConfigNotThreadSafe(config Config) {
 	c.CircuitMetricsCollector = append(c.CircuitMetricsCollector, config.Metrics.Circuit...)
 
 	c.SetConfigThreadSafe(config)
+
+	if c.isOpen.Get() {
+		// The open/close logic was just recreated from the factories and has never seen this circuit's state.  If we
+		// are (re)configured while open, tell the new logic so it can arm its half-open behavior; otherwise it may
+		// never allow a probe and the circuit could never close on its own.
+		now := c.now()
+		c.OpenToClose.Opened(context.Background(), now)
+		c.ClosedToOpen.Opened(context.Background(), now)
+	}
 }
 
 func (c *Circuit) now() time.Time {
@@ -183,23 +205,33 @@ func (c *Circuit) CloseCircuit(ctx context.Context) {
 
 // OpenCircuit will open a closed circuit.  The circuit will then try to repair itself
 func (c *Circuit) OpenCircuit(ctx context.Context) {
-	c.openCircuit(ctx, c.now())
+	c.openCircuit(ctx, c.now(), false)
 }
 
-// OpenCircuit opens a circuit, without checking error thresholds or request volume thresholds.  The circuit will, after
-// some delay, try to close again.
-func (c *Circuit) openCircuit(ctx context.Context, now time.Time) {
-	if c.threadSafeConfig.CircuitBreaker.ForcedClosed.Get() {
-		// Don't open circuits that are forced closed
+// openCircuit opens a circuit.  If recheck is true, ClosedToOpen.ShouldOpen is consulted again under the transition
+// lock (the caller's earlier answer may be stale if the circuit opened and closed in between); otherwise the open is
+// unconditional.  This operates on the underlying open/closed state, independent of the ForceOpen/ForcedClosed config
+// overrides (which only change how that state is interpreted).
+func (c *Circuit) openCircuit(ctx context.Context, now time.Time, recheck bool) {
+	if c.isOpen.Get() {
+		// Cheap pre-check: don't bother opening a circuit that is already open
 		return
 	}
-	if c.IsOpen() {
-		// Don't bother opening a circuit that is already open
-		return
-	}
-	if !c.isOpen.CompareAndSwap(false, true) {
+	c.transitionMu.Lock()
+	defer c.transitionMu.Unlock()
+	if c.isOpen.Get() {
 		// Another goroutine already opened it; don't double-emit Opened()
 		return
+	}
+	if recheck && !c.ClosedToOpen.ShouldOpen(ctx, now) {
+		return
+	}
+	c.isOpen.Set(true)
+	// Timestamp the transition *after* the flag flipped (never earlier than the event that caused it): any request
+	// that starts after this instant is guaranteed to have seen the open circuit, which lets OpenToClosed logic tell
+	// genuine half-open probes from requests that were already in flight.
+	if transitionTime := c.now(); transitionTime.After(now) {
+		now = transitionTime
 	}
 	c.CircuitMetricsCollector.Opened(ctx, now)
 }
@@ -224,33 +256,28 @@ func (c *Circuit) Run(ctx context.Context, runFunc func(context.Context) error) 
 // The returned error will either be the result of runFunc, the result of fallbackFunc, or an internal library error.
 // Internal library errors will match the interface Error and you can use type casting to check this.
 func (c *Circuit) Execute(ctx context.Context, runFunc func(context.Context) error, fallbackFunc func(context.Context, error) error) error {
+	if runFunc == nil {
+		return nil
+	}
 	if c.isEmptyOrNil() || c.threadSafeConfig.CircuitBreaker.Disabled.Get() {
 		return runFunc(ctx)
 	}
 
 	// Try to run the command in the context of the circuit
-	err := c.run(ctx, runFunc)
+	badRequest, err := c.run(ctx, runFunc)
 	if err == nil {
 		return nil
 	}
 	// A bad request should not trigger fallback logic.  The user just gave bad input.
 	// The list of conditions that trigger fallbacks is documented at
 	// https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#command-execution-event-types-comnetflixhystrixhystrixeventtype
-	if IsBadRequest(err) {
+	if badRequest {
 		return err
 	}
 	return c.fallback(ctx, err, fallbackFunc)
 }
 
 // --------- only private functions below here
-
-func (c *Circuit) throttleConcurrentCommands(currentCommandCount int64) error {
-	maxRequests := c.threadSafeConfig.Execution.MaxConcurrentRequests.Get()
-	if maxRequests >= 0 && currentCommandCount > maxRequests {
-		return errThrottledConcurrentCommands
-	}
-	return nil
-}
 
 // isEmptyOrNil returns true if the circuit is nil or if the circuit was created from an empty circuit.  The empty
 // circuit setup is mostly a guess (checking OpenToClose).  This allows us to give circuits reasonable behavior
@@ -260,35 +287,37 @@ func (c *Circuit) isEmptyOrNil() bool {
 }
 
 // run is the equivalent of Java Manager's http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#run()
-func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) (retErr error) {
-	if runFunc == nil {
-		return nil
-	}
+//
+// badRequest is true if retErr was classified as a bad request (see IsBadRequest), so callers do not
+// need to re-run that (comparatively expensive) classification.
+func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) (badRequest bool, retErr error) {
 	var expectedDoneBy time.Time
 	startTime := c.now()
 	originalContext := ctx
 
-	if !c.allowNewRun(ctx, startTime) {
+	maxConcurrent := c.threadSafeConfig.Execution.MaxConcurrentRequests.Get()
+	if !c.allowNewRun(ctx, startTime, maxConcurrent) {
 		// Rather than make this inline, return a global reference (for memory optimization sake).
 		c.CmdMetricCollector.ErrShortCircuit(ctx, startTime)
-		return errCircuitOpen
+		return false, errCircuitOpen
 	}
 
 	if c.ClosedToOpen.Prevent(ctx, startTime) {
-		return errCircuitOpen
+		return false, errCircuitOpen
 	}
 
 	currentCommandCount := c.concurrentCommands.Add(1)
 	defer c.concurrentCommands.Add(-1)
-	if err := c.throttleConcurrentCommands(currentCommandCount); err != nil {
+	if maxConcurrent >= 0 && currentCommandCount > maxConcurrent {
 		c.CmdMetricCollector.ErrConcurrencyLimitReject(ctx, startTime)
-		return err
+		return false, errThrottledConcurrentCommands
 	}
 
-	// Set timeout on the command if we have one
-	if c.threadSafeConfig.Execution.ExecutionTimeout.Get() > 0 {
+	// Set timeout on the command if we have one.  Read the atomic exactly once: a concurrent SetConfigThreadSafe
+	// between two reads could otherwise produce a deadline in the past and a spurious ErrTimeout.
+	if timeout := c.threadSafeConfig.Execution.ExecutionTimeout.Duration(); timeout > 0 {
 		var timeoutCancel func()
-		expectedDoneBy = startTime.Add(c.threadSafeConfig.Execution.ExecutionTimeout.Duration())
+		expectedDoneBy = startTime.Add(timeout)
 		ctx, timeoutCancel = context.WithDeadline(ctx, expectedDoneBy)
 		defer timeoutCancel()
 	}
@@ -303,44 +332,45 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 	// The HystrixBadRequestException is intended for use cases such as reporting illegal arguments or non-system
 	// failures that should not count against the failure metrics and should not trigger fallback logic.
 	if c.checkErrBadRequest(ctx, ret, runFuncDoneTime, totalCmdTime) {
-		return ret
+		return true, ret
 	}
 
 	// Even if there is no error (or if there is an error), if the request took too long it is always an error for the
 	// circuit.  Note that ret *MAY* actually be nil.  In that case, we still want to return nil.
 	if c.checkErrTimeout(ctx, expectedDoneBy, runFuncDoneTime, totalCmdTime) {
 		// Note: ret could possibly be nil.  We will still return nil, but the circuit will consider it a failure.
-		return ret
+		return false, ret
 	}
 
 	// The runFunc failed, but someone asked the original context to end.  This probably isn't a failure of the
 	// circuit: someone just wanted `Execute` to end early, so don't track it as a failure.
 	if c.checkErrInterrupt(ctx, originalContext, ret, runFuncDoneTime, totalCmdTime) {
-		return ret
+		return false, ret
 	}
 
 	if c.checkErrFailure(ctx, ret, runFuncDoneTime, totalCmdTime) {
-		return ret
+		return false, ret
 	}
 
 	// The circuit works.  Close it!
 	// Note: Execute this *after* you check for timeouts so we can still track circuit time outs that happen to also return a
 	//       valid value later.
 	c.checkSuccess(ctx, runFuncDoneTime, totalCmdTime)
-	return nil
+	return false, nil
 }
 
 func (c *Circuit) checkSuccess(ctx context.Context, runFuncDoneTime time.Time, totalCmdTime time.Duration) {
 	c.CmdMetricCollector.Success(ctx, runFuncDoneTime, totalCmdTime)
-	if c.IsOpen() {
+	if c.isOpen.Get() {
 		c.close(ctx, runFuncDoneTime, false)
 	}
 }
 
 // checkErrInterrupt returns true if this is considered an interrupt error: interrupt errors do not open the circuit.
 // Normally if the parent context is canceled before a timeout is reached, we don't consider the circuit
-// unhealthy. But when ExecutionConfig.IgnoreInterrupts set to true we try to classify originalContext.Err()
-// with help of ExecutionConfig.IsErrInterrupt function. When this function returns true we do not open the circuit
+// unhealthy: unless ExecutionConfig.IgnoreInterrupts is set to true, we classify originalContext.Err()
+// with the help of ExecutionConfig.IsErrInterrupt (default: every context error is an interrupt). When that
+// function returns true we do not count the failure against the circuit.
 func (c *Circuit) checkErrInterrupt(ctx context.Context, originalContext context.Context, ret error, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
 	// We need to see an error in both the original context and the return value to consider this an "interrupt" caused
 	// error.
@@ -375,7 +405,7 @@ func (c *Circuit) checkErrBadRequest(ctx context.Context, ret error, runFuncDone
 func (c *Circuit) checkErrFailure(ctx context.Context, ret error, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
 	if ret != nil {
 		c.CmdMetricCollector.ErrFailure(ctx, runFuncDoneTime, totalCmdTime)
-		if !c.IsOpen() {
+		if !c.isOpen.Get() {
 			c.attemptToOpen(ctx, runFuncDoneTime)
 		}
 		return true
@@ -387,7 +417,7 @@ func (c *Circuit) checkErrTimeout(ctx context.Context, expectedDoneBy time.Time,
 	// I don't use the deadline from the context because it could be a smaller timeout from the parent context
 	if !expectedDoneBy.IsZero() && expectedDoneBy.Before(runFuncDoneTime) {
 		c.CmdMetricCollector.ErrTimeout(ctx, runFuncDoneTime, totalCmdTime)
-		if !c.IsOpen() {
+		if !c.isOpen.Get() {
 			c.attemptToOpen(ctx, runFuncDoneTime)
 		}
 		return true
@@ -407,12 +437,12 @@ func (c *Circuit) fallback(ctx context.Context, err error, fallbackFunc func(con
 	currentFallbackCount := c.concurrentFallbacks.Add(1)
 	defer c.concurrentFallbacks.Add(-1)
 	maxFallback := c.threadSafeConfig.Fallback.MaxConcurrentRequests.Get()
+	startTime := c.now()
 	if maxFallback >= 0 && currentFallbackCount > maxFallback {
-		c.FallbackMetricCollector.ErrConcurrencyLimitReject(ctx, c.now())
-		return &circuitError{concurrencyLimitReached: true, msg: "throttling concurrency to fallbacks"}
+		c.FallbackMetricCollector.ErrConcurrencyLimitReject(ctx, startTime)
+		return errThrottledConcurrentFallbacks
 	}
 
-	startTime := c.now()
 	retErr := fallbackFunc(ctx, err)
 	totalCmdTime := c.now().Sub(startTime)
 	if retErr != nil {
@@ -425,32 +455,51 @@ func (c *Circuit) fallback(ctx context.Context, err error, fallbackFunc func(con
 
 // allowNewRun checks if the circuit is allowing new run commands. This happens if the circuit is closed, or
 // if it is open, but we want to explore to see if we should close it again.
-func (c *Circuit) allowNewRun(ctx context.Context, now time.Time) bool {
-	if !c.IsOpen() {
+func (c *Circuit) allowNewRun(ctx context.Context, now time.Time, maxConcurrent int64) bool {
+	if c.threadSafeConfig.CircuitBreaker.ForceOpen.Get() {
+		// Forced open means reject everything: do not even let half-open probes through.
+		return false
+	}
+	if c.threadSafeConfig.CircuitBreaker.ForcedClosed.Get() || !c.isOpen.Get() {
 		return true
 	}
-	if c.OpenToClose.Allow(ctx, now) {
-		return true
+	if maxConcurrent >= 0 && c.concurrentCommands.Get() >= maxConcurrent {
+		// Open *and* already at the concurrency limit: this request would be throttled without ever running, so do
+		// not spend the closer's (usually single, once-per-sleep-window) half-open permit on it.
+		return false
 	}
-	return false
+	return c.OpenToClose.Allow(ctx, now)
 }
 
-// close closes an open circuit.  Usually because we think it's healthy again.
+// close closes an open circuit.  Usually because we think it's healthy again.  Like openCircuit, this operates on
+// the underlying open/closed state independent of the ForceOpen/ForcedClosed overrides, so that (for example) a
+// manual CloseCircuit() while ForcedClosed is set does not silently spring back open once the override is removed.
 func (c *Circuit) close(ctx context.Context, now time.Time, forceClosed bool) {
-	if !c.IsOpen() {
+	if !c.isOpen.Get() {
 		// Not open.  Don't need to close it
 		return
 	}
-	if c.threadSafeConfig.CircuitBreaker.ForceOpen.Get() {
-		return
-	}
-	if forceClosed || c.OpenToClose.ShouldClose(ctx, now) {
-		if !c.isOpen.CompareAndSwap(true, false) {
-			// Another goroutine already closed it; don't double-emit Closed()
+	if !forceClosed {
+		if c.threadSafeConfig.CircuitBreaker.ForceOpen.Get() {
+			// While forced open, only an explicit CloseCircuit() may change the underlying state
 			return
 		}
-		c.CircuitMetricsCollector.Closed(ctx, now)
+		if !c.OpenToClose.ShouldClose(ctx, now) {
+			return
+		}
 	}
+	c.transitionMu.Lock()
+	defer c.transitionMu.Unlock()
+	if !c.isOpen.Get() {
+		// Another goroutine already closed it; don't double-emit Closed()
+		return
+	}
+	if !forceClosed && !c.OpenToClose.ShouldClose(ctx, now) {
+		// The circuit closed and re-opened between our first check and taking the lock; our answer was stale.
+		return
+	}
+	c.isOpen.Set(false)
+	c.CircuitMetricsCollector.Closed(ctx, now)
 }
 
 // attemptToOpen tries to open an unhealthy circuit.  Usually because we think run is having problems, and we want
@@ -462,14 +511,14 @@ func (c *Circuit) attemptToOpen(ctx context.Context, now time.Time) {
 		// Don't open circuits that are forced closed
 		return
 	}
-	if c.IsOpen() {
+	if c.isOpen.Get() {
 		// Don't bother opening a circuit that is already open
-		// This check isn't needed (it is also checked inside OpenCircuit below), but is an optimization to avoid
+		// This check isn't needed (it is also checked inside openCircuit below), but is an optimization to avoid
 		// the below logic when the circuit is in a bad state and would otherwise try to close itself repeatedly.
 		return
 	}
 
 	if c.ClosedToOpen.ShouldOpen(ctx, now) {
-		c.openCircuit(ctx, now)
+		c.openCircuit(ctx, now, true)
 	}
 }

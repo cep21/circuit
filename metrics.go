@@ -4,6 +4,8 @@ import (
 	"context"
 	"expvar"
 	"time"
+
+	"github.com/cep21/circuit/v4/internal/evar"
 )
 
 // RunMetricsCollection send metrics to multiple RunMetrics
@@ -16,13 +18,7 @@ type varable interface {
 }
 
 func expvarToVal(in expvar.Var) interface{} {
-	type iv interface {
-		Value() interface{}
-	}
-	if rawVal, ok := in.(iv); ok {
-		return rawVal.Value()
-	}
-	return nil
+	return evar.ExpvarToVal(in)
 }
 
 // Var exposes run collectors as expvar
@@ -151,7 +147,9 @@ func (r MetricsCollection) Opened(ctx context.Context, now time.Time) {
 	}
 }
 
-// Metrics reports internal circuit metric events
+// Metrics reports internal circuit metric events.  Opened and Closed are delivered synchronously, strictly
+// alternating and in transition order, while the circuit holds an internal transition lock: implementations must be
+// quick and must not call back into the same circuit's OpenCircuit/CloseCircuit (that would deadlock).
 type Metrics interface {
 	// Closed is called when the circuit transitions from Open to Closed.
 	Closed(ctx context.Context, now time.Time)

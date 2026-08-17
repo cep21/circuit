@@ -57,24 +57,6 @@ func TestDurationsBucket_String(t *testing.T) {
 	}
 }
 
-func TestDurationsBucket_IterateDurations(t *testing.T) {
-	x := newDurationsBucket(10)
-	x.IterateDurations(0, func(_ time.Duration) {
-		t.Fatal("nothing in there")
-	})
-	c := 0
-	x.addDuration(time.Second)
-	x.IterateDurations(0, func(d time.Duration) {
-		c++
-		if d != time.Second {
-			t.Fatal("Expected a second")
-		}
-	})
-	if c != 1 {
-		t.Fatal("Expected 1 counter")
-	}
-}
-
 func TestSortedDurations_asJSON(t *testing.T) {
 	x := SortedDurations{
 		time.Second, time.Millisecond,

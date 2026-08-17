@@ -60,6 +60,8 @@ func TestCloser_ConcurrentAttempts(t *testing.T) {
 		RequiredConcurrentSuccessful: 3,
 	})
 	c.Opened(ctx, now)
+	// Results are for requests that started (now - duration) after the circuit opened
+	now = now.Add(time.Minute)
 	assertBool(t, !c.ShouldClose(ctx, now), "Expected the circuit to not yet close")
 	c.Success(ctx, now, time.Second)
 	assertBool(t, !c.ShouldClose(ctx, now), "Expected the circuit to not yet close")
@@ -72,6 +74,10 @@ func TestCloser_ConcurrentAttempts(t *testing.T) {
 	c.ErrBadRequest(ctx, now, time.Second)
 	c.ErrInterrupt(ctx, now, time.Second)
 	c.ErrConcurrencyLimitReject(ctx, now)
+	assertBool(t, c.ShouldClose(ctx, now), "Expected the circuit to now close")
+
+	// A stale failure from a request that started before the circuit opened should not matter either
+	c.ErrFailure(ctx, now, time.Hour)
 	assertBool(t, c.ShouldClose(ctx, now), "Expected the circuit to now close")
 
 	c.ErrTimeout(ctx, now, time.Second)
@@ -94,6 +100,7 @@ func TestCloser_AfterFunc(t *testing.T) {
 
 		now := time.Now()
 		c.Opened(ctx, now)
+		now = now.Add(time.Minute)
 		c.Success(ctx, now, time.Second)
 		c.Success(ctx, now, time.Second)
 		c.Success(ctx, now, time.Second)

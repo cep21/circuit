@@ -1,6 +1,7 @@
 package clock
 
 import (
+	"sort"
 	"sync"
 	"time"
 )
@@ -29,7 +30,12 @@ func (m *MockClock) Set(t time.Time) time.Time {
 
 // Add some time, triggering sleeping callbacks
 func (m *MockClock) Add(d time.Duration) time.Time {
-	return m.Set(m.Now().Add(d))
+	m.mu.Lock()
+	m.currentTime = m.currentTime.Add(d)
+	ret := m.currentTime
+	m.mu.Unlock()
+	m.triggerCallbacks()
+	return ret
 }
 
 func (m *MockClock) triggerCallbacks() {
@@ -45,6 +51,10 @@ func (m *MockClock) triggerCallbacks() {
 	}
 	m.callbacks = newArray
 	m.mu.Unlock()
+	// Fire in deadline order, like real timers would
+	sort.SliceStable(toCall, func(i, j int) bool {
+		return toCall[i].when.Before(toCall[j].when)
+	})
 	for _, cb := range toCall {
 		cb.f()
 	}
@@ -87,7 +97,7 @@ func (m *MockClock) After(d time.Duration) <-chan time.Time {
 	return c
 }
 
-// TickUntil will tick the mock clock until shouldStop returns false.  Real sleep should be very small
+// TickUntil will tick the mock clock until shouldStop returns true.  Real sleep should be very small
 func TickUntil(m *MockClock, shouldStop func() bool, realSleep time.Duration, mockIncr time.Duration) {
 	for !shouldStop() {
 		time.Sleep(realSleep)

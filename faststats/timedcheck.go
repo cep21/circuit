@@ -17,6 +17,8 @@ type TimedCheck struct {
 	isFastFail        AtomicBoolean
 	isFailFastVersion AtomicInt64
 
+	// TimeAfterFunc, if set, replaces time.AfterFunc.  Set it before the TimedCheck is in use: it is read under the
+	// internal lock and must not be modified concurrently with SleepStart/Check.
 	TimeAfterFunc func(time.Duration, func()) *time.Timer
 
 	// All 3 of these variables must be accessed with the RWMutex
@@ -102,11 +104,12 @@ func (c *TimedCheck) resetOpenTimeWithLock(now time.Time) {
 		c.lastSetTimer.Stop()
 		c.lastSetTimer = nil
 	}
-	c.nextOpenTime = now.Add(c.sleepDuration.Duration())
+	sleepDuration := c.sleepDuration.Duration()
+	c.nextOpenTime = now.Add(sleepDuration)
 	c.currentlyAllowedEventCount = 0
 	c.isFastFail.Set(true)
 	currentVersion := c.isFailFastVersion.Add(1)
-	c.lastSetTimer = c.afterFunc(c.sleepDuration.Duration(), func() {
+	c.lastSetTimer = c.afterFunc(sleepDuration, func() {
 		// If sleep start is called again, don't reset from an old version
 		if currentVersion == c.isFailFastVersion.Get() {
 			c.isFastFail.Set(false)

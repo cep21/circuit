@@ -5,7 +5,7 @@ import (
 	"expvar"
 	"fmt"
 	"math"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -141,13 +141,15 @@ func (r *RollingPercentile) SortedDurations(now time.Time) []time.Duration {
 		return nil
 	}
 	r.rollingBucket.Advance(now, r.clearBucket)
-	ret := make([]time.Duration, 0, len(r.buckets)*10)
+	size := 0
 	for idx := range r.buckets {
-		ret = append(ret, r.buckets[idx].Durations()...)
+		size += r.buckets[idx].size()
 	}
-	sort.Slice(ret, func(i, j int) bool {
-		return ret[i] < ret[j]
-	})
+	ret := make([]time.Duration, 0, size)
+	for idx := range r.buckets {
+		ret = r.buckets[idx].appendDurations(ret)
+	}
+	slices.Sort(ret)
 	return ret
 }
 
@@ -187,10 +189,14 @@ func (r *RollingPercentile) Reset(now time.Time) {
 
 // durationsBucket supports atomically adding durations to a size limited list
 type durationsBucket struct {
-	// durations is a fixed size and cannot change during operation
+	// durations is a fixed size and cannot change during operation.  Each slot holds nanoseconds+1 so that zero can
+	// mean "reserved by addDuration but not yet written" (or cleared): readers skip those instead of reporting a
+	// stale value from a previous window.
 	durationsSomeInvalid []AtomicInt64
 	currentIndex         AtomicInt64
 }
+
+const unsetDuration = 0
 
 var _ json.Marshaler = &durationsBucket{}
 var _ json.Unmarshaler = &durationsBucket{}
@@ -208,18 +214,23 @@ func (b *durationsBucket) String() string {
 }
 
 type forMarshal struct {
+	// DurationsSomeInvalid holds the valid durations (nanoseconds) followed by zero padding up to the bucket size
 	DurationsSomeInvalid []int64
-	CurrentIndex         int64
+	// CurrentIndex is how many leading entries of DurationsSomeInvalid are valid
+	CurrentIndex int64
 }
 
-// MarshalJSON returns the durations as JSON.  It is thread safe.
+// MarshalJSON returns the durations (in nanoseconds) as JSON.  It is thread safe.
 func (b *durationsBucket) MarshalJSON() ([]byte, error) {
 	m := forMarshal{
-		DurationsSomeInvalid: make([]int64, len(b.durationsSomeInvalid)),
+		DurationsSomeInvalid: make([]int64, 0, len(b.durationsSomeInvalid)),
 	}
-	m.CurrentIndex = b.currentIndex.Get()
-	for idx := range b.durationsSomeInvalid {
-		m.DurationsSomeInvalid[idx] = b.durationsSomeInvalid[idx].Get()
+	for _, d := range b.Durations() {
+		m.DurationsSomeInvalid = append(m.DurationsSomeInvalid, d.Nanoseconds())
+	}
+	m.CurrentIndex = int64(len(m.DurationsSomeInvalid))
+	for len(m.DurationsSomeInvalid) < len(b.durationsSomeInvalid) {
+		m.DurationsSomeInvalid = append(m.DurationsSomeInvalid, 0)
 	}
 	return json.Marshal(m)
 }
@@ -233,39 +244,69 @@ func (b *durationsBucket) UnmarshalJSON(data []byte) error {
 	if len(b.durationsSomeInvalid) != len(m.DurationsSomeInvalid) {
 		b.durationsSomeInvalid = make([]AtomicInt64, len(m.DurationsSomeInvalid))
 	}
+	if m.CurrentIndex < 0 {
+		m.CurrentIndex = 0
+	}
+	if m.CurrentIndex > int64(len(m.DurationsSomeInvalid)) {
+		m.CurrentIndex = int64(len(m.DurationsSomeInvalid))
+	}
 	for idx := range m.DurationsSomeInvalid {
-		b.durationsSomeInvalid[idx].Set(m.DurationsSomeInvalid[idx])
+		if int64(idx) < m.CurrentIndex {
+			b.durationsSomeInvalid[idx].Set(encodeDuration(time.Duration(m.DurationsSomeInvalid[idx])))
+		} else {
+			b.durationsSomeInvalid[idx].Set(unsetDuration)
+		}
 	}
 	b.currentIndex.Set(m.CurrentIndex)
 	return nil
 }
 
-func (b *durationsBucket) Durations() []time.Duration {
+// encodeDuration maps a duration onto the slot encoding (ns+1, so 0 stays free as the unset sentinel).  Negative
+// durations are meaningless as latencies and are clamped to zero.
+func encodeDuration(d time.Duration) int64 {
+	if d < 0 {
+		d = 0
+	}
+	if d == math.MaxInt64 {
+		// Cannot +1; sacrifice 1ns of range rather than collide with the unset sentinel
+		return math.MaxInt64
+	}
+	return d.Nanoseconds() + 1
+}
+
+// size is an upper bound on how many durations are currently stored
+func (b *durationsBucket) size() int {
 	maxIndex := b.currentIndex.Get()
 	if maxIndex > int64(len(b.durationsSomeInvalid)) {
-		maxIndex = int64(len(b.durationsSomeInvalid))
+		return len(b.durationsSomeInvalid)
 	}
-	ret := make([]time.Duration, maxIndex)
-	for i := 0; i < int(maxIndex); i++ {
-		ret[i] = b.durationsSomeInvalid[i].Duration()
+	if maxIndex < 0 {
+		return 0
+	}
+	return int(maxIndex)
+}
+
+// Durations returns the durations currently stored in this bucket
+func (b *durationsBucket) Durations() []time.Duration {
+	return b.appendDurations(make([]time.Duration, 0, b.size()))
+}
+
+func (b *durationsBucket) appendDurations(ret []time.Duration) []time.Duration {
+	maxIndex := b.size()
+	for i := 0; i < maxIndex; i++ {
+		v := b.durationsSomeInvalid[i].Get()
+		if v == unsetDuration {
+			continue
+		}
+		ret = append(ret, time.Duration(v-1))
 	}
 	return ret
 }
 
-// IterateDurations allows executing a callback on the rolling durations bucket, returning a cursor you can pass into
-// future iteration calls
-func (b *durationsBucket) IterateDurations(startingIndex int64, callback func(time.Duration)) int64 {
-	lastAbsoluteIndex := b.currentIndex.Get() - 1
-	// work backwards from this value till we get to starting index
-	for i := lastAbsoluteIndex; i >= startingIndex; i-- {
-		arrayIndex := i % int64(len(b.durationsSomeInvalid))
-		val := b.durationsSomeInvalid[arrayIndex].Duration()
-		callback(val)
-	}
-	return lastAbsoluteIndex + 1
-}
-
 func (b *durationsBucket) clear() {
+	for i := range b.durationsSomeInvalid {
+		b.durationsSomeInvalid[i].Set(unsetDuration)
+	}
 	b.currentIndex.Set(0)
 }
 
@@ -275,5 +316,5 @@ func (b *durationsBucket) addDuration(d time.Duration) {
 	}
 	nextIndex := b.currentIndex.Add(1) - 1
 	arrayIndex := nextIndex % int64(len(b.durationsSomeInvalid))
-	b.durationsSomeInvalid[arrayIndex].Set(d.Nanoseconds())
+	b.durationsSomeInvalid[arrayIndex].Set(encodeDuration(d))
 }

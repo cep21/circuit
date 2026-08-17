@@ -53,7 +53,11 @@ func (c *ConsecutiveErrOpener) Prevent(_ context.Context, _ time.Time) bool {
 
 // Success resets the consecutive error count
 func (c *ConsecutiveErrOpener) Success(_ context.Context, _ time.Time, _ time.Duration) {
-	c.consecutiveCount.Set(0)
+	// Load before store: the overwhelmingly common case is already-zero, and an unconditional atomic store on
+	// every success makes all cores fight over this cache line.
+	if c.consecutiveCount.Get() != 0 {
+		c.consecutiveCount.Set(0)
+	}
 }
 
 // ErrBadRequest is ignored

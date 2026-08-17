@@ -235,3 +235,34 @@ func TestMockClock_AfterFunc_ReturnsNonNil(t *testing.T) {
 	// Should not panic
 	timer.Stop()
 }
+
+func TestMockClock_AddConcurrent(t *testing.T) {
+	m := &MockClock{}
+	start := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	m.Set(start)
+	var wg sync.WaitGroup
+	for i := 0; i < 200; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			m.Add(time.Second)
+		}()
+	}
+	wg.Wait()
+	if got := m.Now().Sub(start); got != 200*time.Second {
+		t.Fatalf("expected +200s after 200 concurrent Add(1s), got +%v (lost updates)", got)
+	}
+}
+
+func TestMockClock_CallbackOrder(t *testing.T) {
+	m := &MockClock{}
+	m.Set(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
+	var mu sync.Mutex
+	var order []int
+	m.AfterFunc(2*time.Second, func() { mu.Lock(); order = append(order, 2); mu.Unlock() })
+	m.AfterFunc(1*time.Second, func() { mu.Lock(); order = append(order, 1); mu.Unlock() })
+	m.Add(3 * time.Second)
+	if len(order) != 2 || order[0] != 1 || order[1] != 2 {
+		t.Fatalf("expected callbacks in deadline order [1 2], got %v", order)
+	}
+}
