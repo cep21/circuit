@@ -148,8 +148,8 @@ func (r MetricsCollection) Opened(ctx context.Context, now time.Time) {
 }
 
 // Metrics reports internal circuit metric events.  Opened and Closed are delivered synchronously, strictly
-// alternating and in transition order, while the circuit holds an internal transition lock: implementations must be
-// quick and must not call back into the same circuit's OpenCircuit/CloseCircuit (that would deadlock).
+// alternating and in transition order.  A listener that itself causes a transition (for example by calling
+// CloseCircuit from Opened) sees that transition delivered after it returns.
 type Metrics interface {
 	// Closed is called when the circuit transitions from Open to Closed.
 	Closed(ctx context.Context, now time.Time)

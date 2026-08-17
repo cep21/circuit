@@ -37,10 +37,15 @@ type Circuit struct {
 
 	timeNow func() time.Time
 
-	// transitionMu serializes open<->close transitions with their Opened()/Closed() notifications so
-	// listeners never observe them out of order (e.g. Closed() delivered after a later Opened()).  It is
-	// never taken on the per-request fast path: only once a transition is actually being attempted.
+	// transitionMu guards open<->close transitions and the two fields below.  It is never taken on the
+	// per-request fast path: only once a transition is actually being attempted, and never held while
+	// Opened()/Closed() listeners run.
 	transitionMu sync.Mutex
+	// pendingTransitions are state changes whose Opened()/Closed() notifications have not been delivered yet.
+	// They are delivered FIFO by a single goroutine at a time (deliveringTransitions) so listeners observe them
+	// strictly alternating and in order, while a listener that re-enters OpenCircuit/CloseCircuit just enqueues.
+	pendingTransitions    []transition
+	deliveringTransitions bool
 
 	// The two counters below are written (atomic add) on every Execute.  Everything above is read-mostly and also
 	// consulted on every Execute, so keep the counters on their own cache line: otherwise each request on one core
@@ -55,6 +60,13 @@ type Circuit struct {
 
 // cacheLineSize is a conservative guess that covers amd64/arm64.  Being wrong only costs a little padding.
 const cacheLineSize = 64
+
+// transition is a queued Opened (open=true) or Closed notification
+type transition struct {
+	open bool
+	ctx  context.Context
+	now  time.Time
+}
 
 // NewCircuitFromConfig creates an inline circuit.  If you want to group all your circuits together, you should probably
 // just use Manager struct instead.
@@ -218,12 +230,10 @@ func (c *Circuit) openCircuit(ctx context.Context, now time.Time, recheck bool) 
 		return
 	}
 	c.transitionMu.Lock()
-	defer c.transitionMu.Unlock()
-	if c.isOpen.Get() {
-		// Another goroutine already opened it; don't double-emit Opened()
-		return
-	}
-	if recheck && !c.ClosedToOpen.ShouldOpen(ctx, now) {
+	if c.isOpen.Get() || (recheck && !c.ClosedToOpen.ShouldOpen(ctx, now)) {
+		// Another goroutine already opened it (don't double-emit Opened()), or the caller's earlier ShouldOpen
+		// answer went stale because the circuit opened and closed in between.
+		c.transitionMu.Unlock()
 		return
 	}
 	c.isOpen.Set(true)
@@ -233,7 +243,52 @@ func (c *Circuit) openCircuit(ctx context.Context, now time.Time, recheck bool) 
 	if transitionTime := c.now(); transitionTime.After(now) {
 		now = transitionTime
 	}
-	c.CircuitMetricsCollector.Opened(ctx, now)
+	c.pendingTransitions = append(c.pendingTransitions, transition{open: true, ctx: ctx, now: now})
+	c.deliverTransitionsAndUnlock()
+}
+
+// deliverTransitionsAndUnlock must be called with transitionMu held, right after queueing a transition, and returns
+// with it released.  Notifications are delivered without holding the lock (listeners are user code that may be
+// slow or re-enter this circuit), by whichever goroutine got here first, in FIFO order until the queue is empty.
+func (c *Circuit) deliverTransitionsAndUnlock() {
+	if c.deliveringTransitions {
+		// A delivery loop further up some stack (possibly the very listener that re-entered us) will deliver the
+		// transition we just queued, after the ones before it.
+		c.transitionMu.Unlock()
+		return
+	}
+	c.deliveringTransitions = true
+	for len(c.pendingTransitions) > 0 {
+		next := c.pendingTransitions[0]
+		c.pendingTransitions = c.pendingTransitions[1:]
+		if len(c.pendingTransitions) == 0 {
+			c.pendingTransitions = nil
+		}
+		c.transitionMu.Unlock()
+		c.notifyTransition(next)
+		c.transitionMu.Lock()
+	}
+	c.deliveringTransitions = false
+	c.transitionMu.Unlock()
+}
+
+// notifyTransition invokes the Opened/Closed listeners for one transition.  transitionMu must NOT be held.
+func (c *Circuit) notifyTransition(t transition) {
+	defer func() {
+		if r := recover(); r != nil {
+			// A listener panicked.  If something up the stack recovers (net/http does), make sure later
+			// transitions can still be delivered rather than queueing forever behind a dead delivery loop.
+			c.transitionMu.Lock()
+			c.deliveringTransitions = false
+			c.transitionMu.Unlock()
+			panic(r)
+		}
+	}()
+	if t.open {
+		c.CircuitMetricsCollector.Opened(t.ctx, t.now)
+	} else {
+		c.CircuitMetricsCollector.Closed(t.ctx, t.now)
+	}
 }
 
 // Go executes `Execute`, but uses spawned goroutines to end early if the context is canceled.  Use this if you don't trust
@@ -489,17 +544,15 @@ func (c *Circuit) close(ctx context.Context, now time.Time, forceClosed bool) {
 		}
 	}
 	c.transitionMu.Lock()
-	defer c.transitionMu.Unlock()
-	if !c.isOpen.Get() {
-		// Another goroutine already closed it; don't double-emit Closed()
-		return
-	}
-	if !forceClosed && !c.OpenToClose.ShouldClose(ctx, now) {
-		// The circuit closed and re-opened between our first check and taking the lock; our answer was stale.
+	if !c.isOpen.Get() || (!forceClosed && !c.OpenToClose.ShouldClose(ctx, now)) {
+		// Another goroutine already closed it (don't double-emit Closed()), or the circuit closed and re-opened
+		// between our first check and taking the lock so our answer was stale.
+		c.transitionMu.Unlock()
 		return
 	}
 	c.isOpen.Set(false)
-	c.CircuitMetricsCollector.Closed(ctx, now)
+	c.pendingTransitions = append(c.pendingTransitions, transition{open: false, ctx: ctx, now: now})
+	c.deliverTransitionsAndUnlock()
 }
 
 // attemptToOpen tries to open an unhealthy circuit.  Usually because we think run is having problems, and we want

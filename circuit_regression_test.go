@@ -482,3 +482,72 @@ func TestRegression_ManagerVarNil(t *testing.T) {
 		t.Fatalf("unexpected: %s", s)
 	}
 }
+
+type regReentrantMetrics struct {
+	c      **Circuit
+	events []string
+}
+
+func (r *regReentrantMetrics) Opened(ctx context.Context, _ time.Time) {
+	r.events = append(r.events, "opened")
+	// Re-enter the circuit from inside the notification, as a "veto" style collector might
+	(*r.c).CloseCircuit(ctx)
+	r.events = append(r.events, "opened-returned")
+}
+func (r *regReentrantMetrics) Closed(context.Context, time.Time) {
+	r.events = append(r.events, "closed")
+}
+
+// A Metrics listener that calls back into the circuit must not deadlock, and still observes ordered delivery.
+func TestRegression_ReentrantMetricsListener(t *testing.T) {
+	var c *Circuit
+	m := &regReentrantMetrics{c: &c}
+	c = NewCircuitFromConfig("reentrant", Config{Metrics: MetricsCollectors{Circuit: []Metrics{m}}})
+	done := make(chan struct{})
+	go func() { c.OpenCircuit(context.Background()); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("OpenCircuit deadlocked when a Metrics.Opened listener called CloseCircuit")
+	}
+	if c.IsOpen() {
+		t.Fatal("listener's CloseCircuit should have taken effect")
+	}
+	want := []string{"opened", "opened-returned", "closed"}
+	if len(m.events) != len(want) {
+		t.Fatalf("events %v want %v", m.events, want)
+	}
+	for i := range want {
+		if m.events[i] != want[i] {
+			t.Fatalf("events %v want %v", m.events, want)
+		}
+	}
+}
+
+type regPanickyMetrics struct{ calls atomic.Int64 }
+
+func (p *regPanickyMetrics) Opened(context.Context, time.Time) {
+	if p.calls.Add(1) == 1 {
+		panic("listener bug")
+	}
+}
+func (p *regPanickyMetrics) Closed(context.Context, time.Time) { p.calls.Add(1) }
+
+// A panicking listener (recovered by the caller, as net/http would) must not stop later notifications.
+func TestRegression_PanickingMetricsListenerDoesNotWedgeDelivery(t *testing.T) {
+	p := &regPanickyMetrics{}
+	c := NewCircuitFromConfig("panicky", Config{Metrics: MetricsCollectors{Circuit: []Metrics{p}}})
+	ctx := context.Background()
+	func() {
+		defer func() { _ = recover() }()
+		c.OpenCircuit(ctx)
+	}()
+	if !c.IsOpen() {
+		t.Fatal("state change should stick even though a listener panicked")
+	}
+	c.CloseCircuit(ctx)
+	c.OpenCircuit(ctx)
+	if got := p.calls.Load(); got != 3 {
+		t.Fatalf("expected 3 listener calls (open, close, open), got %d", got)
+	}
+}
