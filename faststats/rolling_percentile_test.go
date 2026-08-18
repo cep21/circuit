@@ -36,42 +36,12 @@ func TestRollingPercentile_Reset(t *testing.T) {
 func TestDurationsBucket_String(t *testing.T) {
 	x := newDurationsBucket(10)
 	x.addDuration(time.Second)
-	dur := x.Durations()
+	dur := x.appendDurations(nil)
 	if !reflect.DeepEqual(dur, []time.Duration{time.Second}) {
 		t.Fatalf("unexpected durations")
 	}
 	if x.String() != "durationsBucket(idx=1)" {
 		t.Fatalf("unexpected string value: %s", x.String())
-	}
-
-	b, err := json.Marshal(&x)
-	if err != nil {
-		t.Fatalf("Expect no error: %s", err)
-	}
-	var y durationsBucket
-	if err := json.Unmarshal(b, &y); err != nil {
-		t.Fatal("unexpected error marshalling", err)
-	}
-	if !reflect.DeepEqual(y.Durations(), x.Durations()) {
-		t.Fatal("expected same durations")
-	}
-}
-
-func TestDurationsBucket_IterateDurations(t *testing.T) {
-	x := newDurationsBucket(10)
-	x.IterateDurations(0, func(_ time.Duration) {
-		t.Fatal("nothing in there")
-	})
-	c := 0
-	x.addDuration(time.Second)
-	x.IterateDurations(0, func(d time.Duration) {
-		c++
-		if d != time.Second {
-			t.Fatal("Expected a second")
-		}
-	})
-	if c != 1 {
-		t.Fatal("Expected 1 counter")
 	}
 }
 

@@ -56,7 +56,7 @@ func (m *MetricEventStream) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 		http.Error(rw, "Streaming unsupported!", http.StatusInternalServerError)
 		return
 	}
-	rw.Header().Add("Content-Type", "text/event-stream")
+	rw.Header().Set("Content-Type", "text/event-stream")
 	rw.Header().Set("Cache-Control", "no-cache")
 	rw.Header().Set("Connection", "keep-alive")
 
@@ -69,6 +69,11 @@ func (m *MetricEventStream) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 		delete(m.eventStreams, req)
 		m.mu.Unlock()
 	}()
+
+	// Send the status line and headers now rather than with the first event: with no circuits registered (or a slow
+	// tick) the client would otherwise see no response at all and eventually time out.
+	rw.WriteHeader(http.StatusOK)
+	flusher.Flush()
 
 	for {
 		select {

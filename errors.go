@@ -5,14 +5,23 @@ import (
 	"fmt"
 )
 
-var errThrottledConcurrentCommands = &circuitError{concurrencyLimitReached: true, msg: "throttling connections to command"}
-var errCircuitOpen = &circuitError{circuitOpen: true, msg: "circuit is open"}
+var errThrottledConcurrentCommands = (&circuitError{concurrencyLimitReached: true}).withMsg("throttling connections to command")
+var errThrottledConcurrentFallbacks = (&circuitError{concurrencyLimitReached: true}).withMsg("throttling concurrency to fallbacks")
+var errCircuitOpen = (&circuitError{circuitOpen: true}).withMsg("circuit is open")
 
 // circuitError is used for internally generated errors
 type circuitError struct {
 	concurrencyLimitReached bool
 	circuitOpen             bool
-	msg                     string
+	// msg is the fully formatted Error() string, precomputed so the (shared, immutable) sentinel errors do not
+	// allocate on every Error() call.
+	msg string
+}
+
+// withMsg precomputes Error() (so the shared, immutable sentinels never allocate) and returns m for chaining.
+func (m *circuitError) withMsg(msg string) *circuitError {
+	m.msg = fmt.Sprintf("%s: concurrencyReached=%t circuitOpen=%t", msg, m.concurrencyLimitReached, m.circuitOpen)
+	return m
 }
 
 var _ Error = &circuitError{}
@@ -27,7 +36,7 @@ type Error interface {
 }
 
 func (m *circuitError) Error() string {
-	return fmt.Sprintf("%s: concurrencyReached=%t circuitOpen=%t", m.msg, m.ConcurrencyLimitReached(), m.CircuitOpen())
+	return m.msg
 }
 
 func (m *circuitError) ConcurrencyLimitReached() bool {
@@ -45,13 +54,23 @@ type BadRequest interface {
 	BadRequest() bool
 }
 
-// IsBadRequest returns true if the error is of type BadRequest
+// IsBadRequest returns true if the error is of type BadRequest, checking wrapped errors like errors.As.
 func IsBadRequest(err error) bool {
 	if err == nil {
 		return false
 	}
-	var br BadRequest
-	return errors.As(err, &br) && br.BadRequest()
+	// Fast paths first: this runs on every failed Execute (including the short-circuit/throttle shed path that
+	// matters most under overload), and reflective errors.As costs ~20x more plus an allocation.
+	switch e := err.(type) {
+	case *circuitError:
+		return false
+	case BadRequest:
+		return e.BadRequest()
+	case interface{ Unwrap() error }, interface{ Unwrap() []error }, interface{ As(interface{}) bool }:
+		var br BadRequest
+		return errors.As(err, &br) && br.BadRequest()
+	}
+	return false
 }
 
 // SimpleBadRequest is a simple wrapper for an error to mark it as a bad request
@@ -61,6 +80,11 @@ type SimpleBadRequest struct {
 
 // Cause returns the wrapped error
 func (s SimpleBadRequest) Cause() error {
+	return s.Err
+}
+
+// Unwrap returns the wrapped error so errors.Is / errors.As can see through a SimpleBadRequest
+func (s SimpleBadRequest) Unwrap() error {
 	return s.Err
 }
 

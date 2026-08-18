@@ -39,6 +39,7 @@ func OpenerFactory(config ConfigureOpener) func() circuit.ClosedToOpen {
 // ConfigureOpener configures Opener
 type ConfigureOpener struct {
 	// ErrorThresholdPercentage is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakererrorthresholdpercentage
+	// The circuit opens when the rolling error percentage is at or above this value.
 	ErrorThresholdPercentage int64
 	// RequestVolumeThreshold is https://github.com/Netflix/Hystrix/wiki/Configuration#circuitbreakerrequestvolumethreshold
 	RequestVolumeThreshold int64
@@ -151,7 +152,9 @@ func (e *Opener) ShouldOpen(_ context.Context, now time.Time) bool {
 		// not enough requests. Will not open circuit
 		return false
 	}
-	return int64(e.errPercentage(now)*100) >= e.errorPercentage.Get()
+	// Integer math: float64(err)/float64(attempts)*100 truncates (e.g. 57/100 -> 56.999 -> 56) and would miss
+	// error rates that sit exactly on the threshold.
+	return e.errorsCount.RollingSumAt(now)*100 >= e.errorPercentage.Get()*attemptCount
 }
 
 func (e *Opener) errPercentage(now time.Time) float64 {
@@ -174,8 +177,17 @@ func (e *Opener) SetConfigThreadSafe(props ConfigureOpener) {
 	e.requestVolumeThreshold.Set(props.RequestVolumeThreshold)
 }
 
-// SetConfigNotThreadSafe recreates the buckets.  It is not safe to call while the circuit is active.
+// SetConfigNotThreadSafe recreates the buckets.  It is only for use before the Opener is attached to a live
+// circuit: it reassigns the rolling counters (including their internal locks) wholesale, so calling it while the
+// circuit is active may corrupt state or crash, not merely race.
+// Unset (zero) or invalid bucket settings take their values from the defaults rather than panic.
 func (e *Opener) SetConfigNotThreadSafe(props ConfigureOpener) {
+	if props.NumBuckets <= 0 {
+		props.NumBuckets = defaultConfigureOpener.NumBuckets
+	}
+	if props.RollingDuration <= 0 {
+		props.RollingDuration = defaultConfigureOpener.RollingDuration
+	}
 	e.SetConfigThreadSafe(props)
 	now := props.now()
 	rollingCounterBucketWidth := time.Duration(props.RollingDuration.Nanoseconds() / int64(props.NumBuckets))

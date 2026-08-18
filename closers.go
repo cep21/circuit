@@ -7,11 +7,19 @@ import (
 
 // ClosedToOpen receives events and controls if the circuit should open or close as a result of those events.
 // Return true if the circuit should open, false if the circuit should close.
+//
+// Every method, including the embedded Metrics' Opened/Closed (which the circuit delivers to its own ClosedToOpen
+// synchronously, inside the transition critical section, before any other listener), is invoked on the request
+// path or inside that critical section.  Implementations must be fast and non-blocking and must not call
+// OpenCircuit/CloseCircuit on the same circuit.
 type ClosedToOpen interface {
 	RunMetrics
 	Metrics
 	// ShouldOpen will attempt to open a circuit that is currently closed, after a bad request comes in.  Only called
-	// after bad requests, never called after a successful request
+	// after bad requests, never called after a successful request.  It may be asked twice for one failure: once as
+	// a cheap pre-filter and, if that says yes, again under the circuit's transition lock right before the state
+	// flips (the first answer can go stale if the circuit opened and closed in between).  Not called while
+	// ForcedClosed is set.
 	ShouldOpen(ctx context.Context, now time.Time) bool
 	// Prevent a single request from going through while the circuit is closed.
 	// Even though the circuit is closed, and we want to allow the circuit to remain closed, we still prevent this
@@ -20,14 +28,26 @@ type ClosedToOpen interface {
 	Prevent(ctx context.Context, now time.Time) bool
 }
 
-// OpenToClosed controls logic that tries to close an open circuit
+// OpenToClosed controls logic that tries to close an open circuit.
+//
+// Every method, including the embedded Metrics' Opened/Closed (which the circuit delivers to its own OpenToClosed
+// synchronously, inside the transition critical section, before any other listener), is invoked on the request
+// path or inside that critical section.  Implementations must be fast and non-blocking and must not call
+// OpenCircuit/CloseCircuit on the same circuit.
 type OpenToClosed interface {
 	RunMetrics
 	Metrics
-	// ShouldClose is called after a request is allowed to go through, and the circuit is open.  If the circuit should
-	// now close, return true.  If the circuit should remain open, return false.
+	// ShouldClose is called after a request is allowed to go through and succeeds while the circuit is open.  If
+	// the circuit should now close, return true.  If the circuit should remain open, return false.  Like
+	// ClosedToOpen.ShouldOpen it may be asked twice for one success: once as a cheap pre-filter and again under the
+	// circuit's transition lock right before the state flips.  Not called while ForceOpen is set (only an explicit
+	// CloseCircuit closes a forced-open circuit).
 	ShouldClose(ctx context.Context, now time.Time) bool
-	// Allow a single request while remaining in the closed state
+	// Allow is consulted while the circuit is OPEN to admit a single half-open probe request: return true to let
+	// this one request through to test whether the backend has recovered.  It is not called while ForceOpen is set
+	// or when the request would already exceed MaxConcurrentRequests.  Allow may race with Opened for the same open
+	// event (a request on another goroutine can observe the open state the instant it flips); implementations that
+	// arm state in Opened should return false until armed.
 	Allow(ctx context.Context, now time.Time) bool
 }
 

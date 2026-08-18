@@ -4,6 +4,8 @@ import (
 	"errors"
 	"expvar"
 	"sync"
+
+	"github.com/cep21/circuit/v4/internal/evar"
 )
 
 // CommandPropertiesConstructor is a generic function that can create command properties to configure a circuit by name
@@ -19,6 +21,9 @@ type Manager struct {
 	circuitMap map[string]*Circuit
 	// mu locks circuitMap, not DefaultCircuitProperties
 	mu sync.RWMutex
+	// createMu serializes CreateCircuit (including running DefaultCircuitProperties) without holding mu, so that
+	// constructors may read from the Manager
+	createMu sync.Mutex
 }
 
 // AllCircuits returns every hystrix circuit tracked
@@ -38,11 +43,14 @@ func (h *Manager) AllCircuits() []*Circuit {
 // Var allows you to expose all your hystrix circuits on expvar
 func (h *Manager) Var() expvar.Var {
 	return expvar.Func(func() interface{} {
+		ret := make(map[string]interface{})
+		if h == nil {
+			return ret
+		}
 		h.mu.RLock()
 		defer h.mu.RUnlock()
-		ret := make(map[string]interface{})
 		for k, v := range h.circuitMap {
-			ev := expvarToVal(v.Var())
+			ev := evar.ExpvarToVal(v.Var())
 			if ev != nil {
 				ret[k] = ev
 			}
@@ -71,25 +79,36 @@ func (h *Manager) MustCreateCircuit(name string, config ...Config) *Circuit {
 	return c
 }
 
-// CreateCircuit creates a new circuit, or returns error if a circuit with that name already exists
+var errCircuitExists = errors.New("circuit with that name already exists")
+
+// CreateCircuit creates a new circuit, or returns an error if a circuit with that name already exists (in which case
+// DefaultCircuitProperties constructors are not run).  Constructors run one create at a time and may call
+// GetCircuit/AllCircuits, but must not call CreateCircuit/MustCreateCircuit on the same Manager.
 func (h *Manager) CreateCircuit(name string, configs ...Config) (*Circuit, error) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.circuitMap == nil {
-		h.circuitMap = make(map[string]*Circuit, 5)
+	// Creates are serialized by createMu (constructors are not required to be thread safe), but h.mu is *not* held
+	// while user constructors run so they may safely call back into the Manager (GetCircuit/AllCircuits).
+	h.createMu.Lock()
+	defer h.createMu.Unlock()
+	// Check for duplicates *before* running DefaultCircuitProperties: those constructors commonly have side effects
+	// keyed by name (e.g. rolling.StatFactory registers stats by circuit name) that a doomed duplicate create would
+	// otherwise clobber.
+	if h.GetCircuit(name) != nil {
+		return nil, errCircuitExists
 	}
 	finalConfig := Config{}
 	for _, c := range configs {
 		finalConfig.Merge(c)
 	}
-	// Merge in reverse order so the most recently appending constructor is more important
+	// Merge in reverse order so the most recently appending constructor is more important.
 	for i := len(h.DefaultCircuitProperties) - 1; i >= 0; i-- {
 		finalConfig.Merge(h.DefaultCircuitProperties[i](name))
 	}
-	_, exists := h.circuitMap[name]
-	if exists {
-		return nil, errors.New("circuit with that name already exists")
+	created := NewCircuitFromConfig(name, finalConfig)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.circuitMap == nil {
+		h.circuitMap = make(map[string]*Circuit, 5)
 	}
-	h.circuitMap[name] = NewCircuitFromConfig(name, finalConfig)
-	return h.circuitMap[name], nil
+	h.circuitMap[name] = created
+	return created, nil
 }
