@@ -231,18 +231,18 @@ func TestFallbackStats_Var(t *testing.T) {
 	r.Success(ctx, now, time.Millisecond)
 	r.ErrFailure(ctx, now, time.Millisecond)
 	r.ErrConcurrencyLimitReject(ctx, now)
-	var out map[string]int64
-	if err := json.Unmarshal([]byte(r.Var().String()), &out); err != nil {
+	var out struct {
+		Successes                  int64
+		ErrFailures                int64
+		ErrConcurrencyLimitRejects int64
+	}
+	dec := json.NewDecoder(strings.NewReader(r.Var().String()))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&out); err != nil {
 		t.Fatal(err)
 	}
-	expected := map[string]int64{"Successes": 2, "ErrFailures": 1, "ErrConcurrencyLimitRejects": 1}
-	for k, v := range expected {
-		if out[k] != v {
-			t.Errorf("%s: expected %d got %d (%v)", k, v, out[k], out)
-		}
-	}
-	if len(out) != len(expected) {
-		t.Errorf("unexpected keys in %v", out)
+	if out.Successes != 2 || out.ErrFailures != 1 || out.ErrConcurrencyLimitRejects != 1 {
+		t.Errorf("unexpected fallback stats: %+v", out)
 	}
 }
 

@@ -102,8 +102,8 @@ func TestGeneralConfig_MergeCustomConfig(t *testing.T) {
 
 	t.Run("receiver keys win", func(t *testing.T) {
 		cfg := GeneralConfig{CustomConfig: map[interface{}]interface{}{"a": "mine"}}
-		cfg.merge(GeneralConfig{CustomConfig: map[interface{}]interface{}{"a": "theirs", "b": "theirs"}})
-		assert.Equal(t, map[interface{}]interface{}{"a": "mine", "b": "theirs"}, cfg.CustomConfig)
+		cfg.merge(GeneralConfig{CustomConfig: map[interface{}]interface{}{"a": "other-a", "b": "other-b"}})
+		assert.Equal(t, map[interface{}]interface{}{"a": "mine", "b": "other-b"}, cfg.CustomConfig)
 	})
 
 	t.Run("Config.Merge carries CustomConfig", func(t *testing.T) {
