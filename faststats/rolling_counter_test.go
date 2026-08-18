@@ -425,3 +425,12 @@ func TestRollingCounter_MoveForward(t *testing.T) {
 		t.Errorf("Should see a sum of 1 after advancing past all the buckets, saw %d", s)
 	}
 }
+
+func TestRollingCounter_RollingSum(t *testing.T) {
+	r := NewRollingCounter(time.Hour, 10, time.Now())
+	r.Inc(time.Now())
+	r.Inc(time.Now())
+	if s := r.RollingSum(); s != 2 {
+		t.Fatalf("expected rolling sum of 2, got %d", s)
+	}
+}

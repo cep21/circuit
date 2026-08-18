@@ -2,6 +2,7 @@ package hystrix
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -95,4 +96,29 @@ func TestOpenerFactory_ConcurrentCreation(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func TestOpener_MarshalJSON_ErrPercentage(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now()
+	o := OpenerFactory(ConfigureOpener{Now: func() time.Time { return now }})().(*Opener)
+	o.Success(ctx, now, time.Millisecond)
+	o.Success(ctx, now, time.Millisecond)
+	o.Success(ctx, now, time.Millisecond)
+	o.ErrFailure(ctx, now, time.Millisecond)
+	b, err := o.MarshalJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out map[string]json.RawMessage
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatal(err)
+	}
+	var pct float64
+	if err := json.Unmarshal(out["err_%"], &pct); err != nil {
+		t.Fatalf("%s: %v", b, err)
+	}
+	if pct != 0.25 {
+		t.Fatalf("expected 25%% errors, got %v from %s", pct, b)
+	}
 }

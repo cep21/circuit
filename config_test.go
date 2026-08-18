@@ -82,3 +82,33 @@ func TestExecutionConfig_Merge(t *testing.T) {
 		assert.True(t, cfg.IsErrInterrupt(nil))
 	})
 }
+
+func TestGeneralConfig_MergeCustomConfig(t *testing.T) {
+	t.Run("nothing to merge leaves nil map", func(t *testing.T) {
+		cfg := GeneralConfig{}
+		cfg.merge(GeneralConfig{})
+		assert.Nil(t, cfg.CustomConfig)
+	})
+
+	t.Run("copies into nil receiver map without aliasing", func(t *testing.T) {
+		other := GeneralConfig{CustomConfig: map[interface{}]interface{}{"a": 1, "b": "two"}}
+		cfg := GeneralConfig{}
+		cfg.merge(other)
+		assert.Equal(t, map[interface{}]interface{}{"a": 1, "b": "two"}, cfg.CustomConfig)
+		cfg.CustomConfig["c"] = 3
+		_, leaked := other.CustomConfig["c"]
+		assert.False(t, leaked, "merge must copy, not alias, the other map")
+	})
+
+	t.Run("receiver keys win", func(t *testing.T) {
+		cfg := GeneralConfig{CustomConfig: map[interface{}]interface{}{"a": "mine"}}
+		cfg.merge(GeneralConfig{CustomConfig: map[interface{}]interface{}{"a": "theirs", "b": "theirs"}})
+		assert.Equal(t, map[interface{}]interface{}{"a": "mine", "b": "theirs"}, cfg.CustomConfig)
+	})
+
+	t.Run("Config.Merge carries CustomConfig", func(t *testing.T) {
+		cfg := Config{}
+		cfg.Merge(Config{General: GeneralConfig{CustomConfig: map[interface{}]interface{}{"k": "v"}}})
+		assert.Equal(t, "v", cfg.General.CustomConfig["k"])
+	})
+}

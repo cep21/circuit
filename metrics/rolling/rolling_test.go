@@ -2,6 +2,7 @@ package rolling
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -218,5 +219,62 @@ func TestRunStats_ErrorPercentage(t *testing.T) {
 	r.ErrTimeout(ctx, now, time.Second)
 	if r.ErrorPercentage() != 1.0 {
 		t.Errorf("Expect all errors")
+	}
+}
+
+func TestFallbackStats_Var(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now()
+	var r FallbackStats
+	r.SetConfigNotThreadSafe(defaultFallbackStatsConfig)
+	r.Success(ctx, now, time.Millisecond)
+	r.Success(ctx, now, time.Millisecond)
+	r.ErrFailure(ctx, now, time.Millisecond)
+	r.ErrConcurrencyLimitReject(ctx, now)
+	var out map[string]int64
+	if err := json.Unmarshal([]byte(r.Var().String()), &out); err != nil {
+		t.Fatal(err)
+	}
+	expected := map[string]int64{"Successes": 2, "ErrFailures": 1, "ErrConcurrencyLimitRejects": 1}
+	for k, v := range expected {
+		if out[k] != v {
+			t.Errorf("%s: expected %d got %d (%v)", k, v, out[k], out)
+		}
+	}
+	if len(out) != len(expected) {
+		t.Errorf("unexpected keys in %v", out)
+	}
+}
+
+func TestSetConfigNotThreadSafe_NegativeValues(t *testing.T) {
+	ctx := context.Background()
+	var r RunStats
+	r.SetConfigNotThreadSafe(RunStatsConfig{
+		RollingStatsDuration:        -1,
+		RollingStatsNumBuckets:      -1,
+		RollingPercentileDuration:   -1,
+		RollingPercentileNumBuckets: -1,
+		RollingPercentileBucketSize: -1,
+	})
+	got, expected := r.Config(), defaultRunStatsConfig
+	if got.RollingStatsDuration != expected.RollingStatsDuration ||
+		got.RollingStatsNumBuckets != expected.RollingStatsNumBuckets ||
+		got.RollingPercentileDuration != expected.RollingPercentileDuration ||
+		got.RollingPercentileNumBuckets != expected.RollingPercentileNumBuckets ||
+		got.RollingPercentileBucketSize != expected.RollingPercentileBucketSize {
+		t.Fatalf("negative values should be treated as unset: got %+v want %+v", got, expected)
+	}
+	now := time.Now()
+	r.Success(ctx, now, time.Millisecond)
+	if r.Successes.RollingSumAt(now) != 1 {
+		t.Fatal("expected a success")
+	}
+
+	var f FallbackStats
+	f.SetConfigNotThreadSafe(FallbackStatsConfig{RollingStatsDuration: -1, RollingStatsNumBuckets: -1})
+	now = time.Now()
+	f.Success(ctx, now, time.Millisecond)
+	if f.Successes.RollingSumAt(now) != 1 {
+		t.Fatal("expected a fallback success")
 	}
 }

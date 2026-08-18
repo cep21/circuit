@@ -55,7 +55,16 @@ func TestExpvarToVal(t *testing.T) {
 	if ExpvarToVal(nil) != nil {
 		t.Error("Expected nil for nil Var")
 	}
+
+	// A misbehaving Var whose String() is not JSON is passed through as a plain string
+	if s, ok := ExpvarToVal(notJSONVar{}).(string); !ok || s != "not json" {
+		t.Errorf("Expected plain string fallback, got %T %v", ExpvarToVal(notJSONVar{}), ExpvarToVal(notJSONVar{}))
+	}
 }
+
+type notJSONVar struct{}
+
+func (notJSONVar) String() string { return "not json" }
 
 func TestForExpvar(t *testing.T) {
 	// Test with an object that has Var()
