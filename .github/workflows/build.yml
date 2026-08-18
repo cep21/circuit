@@ -12,6 +12,11 @@ on:
   push:
   pull_request:
 
+env:
+  # Pinned so new lint rules arrive via a dependency update PR rather than breaking unrelated builds.
+  # renovate: datasource=github-releases depName=golangci/golangci-lint
+  GOLANGCI_LINT_VERSION: v2.12.2
+
 jobs:
   test:
     strategy:
@@ -35,6 +40,8 @@ jobs:
         run: make test-race
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
       - name: Output coverage
         run: go test -v -covermode=count -coverprofile=coverage.out ./...
       - name: upload coverage
