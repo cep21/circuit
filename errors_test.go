@@ -28,3 +28,13 @@ func TestIsBadRequest(t *testing.T) {
 	require.True(t, IsBadRequest(wrappedErr))
 	require.False(t, IsBadRequest(fmt.Errorf("wrapped: %w", errors.New("not bad"))))
 }
+
+func TestSimpleBadRequest_CauseUnwrap(t *testing.T) {
+	inner := errors.New("inner")
+	s := SimpleBadRequest{Err: inner}
+	require.Same(t, inner, s.Cause())
+	require.Same(t, inner, s.Unwrap())
+	require.ErrorIs(t, s, inner)
+	require.ErrorIs(t, fmt.Errorf("wrapped: %w", s), inner)
+	require.Equal(t, "inner", s.Error())
+}

@@ -458,7 +458,7 @@ make fuzz     # active fuzzing (FUZZTIME per target, default 30s)
 make help     # full target list
 ```
 
-`make ci` mirrors the GitHub Actions workflow: build, `go test -race -count 10`, and `golangci-lint run`. If it passes locally, CI should pass.
+`make ci` mirrors the GitHub Actions workflow: build, `go test -race -count 10`, and `golangci-lint run`. If it passes locally, CI should pass. CI pins the golangci-lint version (`GOLANGCI_LINT_VERSION` in `.github/workflows/build.yml`); use the same version locally if results differ.
 
 # [Example](https://github.com/cep21/circuit/blob/master/example/main.go)
 

@@ -786,3 +786,64 @@ func TestCloseCircuit_EmitsClosedExactlyOnce(t *testing.T) {
 		t.Errorf("Closed() called %d times, want exactly 1", got)
 	}
 }
+
+func TestNilReceivers(t *testing.T) {
+	var c *Circuit
+	if c.Name() != "" {
+		t.Error("nil circuit should have no name")
+	}
+	if s := c.Var().String(); s != "null" {
+		t.Errorf("unexpected Var for nil circuit: %s", s)
+	}
+	var h *Manager
+	if h.AllCircuits() != nil {
+		t.Error("nil manager should have no circuits")
+	}
+	if h.GetCircuit("anything") != nil {
+		t.Error("nil manager should find no circuit")
+	}
+}
+
+// A ForcedClosed circuit never transitions to open, even when its opener wants to, so clearing the override
+// leaves it closed rather than springing open from stale state.
+func TestForcedClosedNeverOpens(t *testing.T) {
+	ctx := context.Background()
+	var opened faststats.AtomicInt64
+	c := NewCircuitFromConfig("forced-closed", Config{
+		General: GeneralConfig{
+			ForcedClosed:        true,
+			ClosedToOpenFactory: func() ClosedToOpen { return alwaysOpens{} },
+		},
+		Metrics: MetricsCollectors{Circuit: []Metrics{openedCounter{&opened}}},
+	})
+	for i := 0; i < 5; i++ {
+		err := c.Execute(ctx, testhelp.AlwaysFails, nil)
+		if err == nil {
+			t.Fatal("expected the run error back")
+		}
+	}
+	if c.IsOpen() || opened.Get() != 0 {
+		t.Fatalf("forced-closed circuit opened: IsOpen=%v opened=%d", c.IsOpen(), opened.Get())
+	}
+	cfg := c.Config()
+	cfg.General.ForcedClosed = false
+	c.SetConfigThreadSafe(cfg)
+	if c.IsOpen() {
+		t.Fatal("clearing ForcedClosed must not reveal an open circuit")
+	}
+	if err := c.Execute(ctx, testhelp.AlwaysFails, nil); err == nil {
+		t.Fatal("expected the run error back")
+	}
+	if !c.IsOpen() || opened.Get() != 1 {
+		t.Fatalf("circuit should open once the override is gone: IsOpen=%v opened=%d", c.IsOpen(), opened.Get())
+	}
+}
+
+type alwaysOpens struct{ neverOpens }
+
+func (alwaysOpens) ShouldOpen(context.Context, time.Time) bool { return true }
+
+type openedCounter struct{ n *faststats.AtomicInt64 }
+
+func (o openedCounter) Opened(context.Context, time.Time) { o.n.Add(1) }
+func (o openedCounter) Closed(context.Context, time.Time) {}

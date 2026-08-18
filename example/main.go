@@ -25,42 +25,59 @@ import (
 const exampleURL = "http://localhost:7979/hystrix-dashboard/monitor/monitor.html?streams=%5B%7B%22name%22%3A%22%22%2C%22stream%22%3A%22http%3A%2F%2Flocalhost%3A8123%2Fhystrix.stream%22%2C%22auth%22%3A%22%22%2C%22delay%22%3A%22%22%7D%5D"
 
 func main() {
+	interval := flag.Duration("interval", time.Millisecond*100, "Setup duration between metric ticks")
+	addr := flag.String("addr", "127.0.0.1:8123", "Address to listen on")
+	flag.Parse()
+	sock, err := net.Listen("tcp", *addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	printInstructions(sock.Addr().String())
+	handler, es := newHandler(*interval)
+	go func() {
+		mustPass(es.Start())
+	}()
+	srv := http.Server{Handler: handler, ReadHeaderTimeout: time.Second}
+	log.Fatal(srv.Serve(sock))
+}
+
+// newHandler creates the example circuits and returns a handler serving /hystrix.stream and /debug/vars, plus the
+// event stream backing /hystrix.stream.  The caller must Start and eventually Close the stream.
+func newHandler(interval time.Duration) (http.Handler, *metriceventstream.MetricEventStream) {
 	f := rolling.StatFactory{}
-	h := circuit.Manager{
+	h := &circuit.Manager{
 		DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{f.CreateConfig},
 	}
-	expvar.Publish("hystrix", h.Var())
-	es := metriceventstream.MetricEventStream{
-		Manager: &h,
+	if expvar.Get("hystrix") == nil {
+		expvar.Publish("hystrix", h.Var())
 	}
-	go func() {
-		log.Fatal(es.Start())
-	}()
-	interval := flag.Duration("interval", time.Millisecond*100, "Setup duration between metric ticks")
-	flag.Parse()
-	createBackgroundCircuits(&h, *interval)
-	http.Handle("/hystrix.stream", &es)
-	sock, err := net.Listen("tcp", "127.0.0.1:8123")
-	if err != nil {
-		panic(err)
+	es := &metriceventstream.MetricEventStream{
+		Manager: h,
 	}
-	log.Println("Serving on socket :8123")
+	createBackgroundCircuits(h, interval)
+	mux := http.NewServeMux()
+	mux.Handle("/hystrix.stream", es)
+	mux.Handle("/debug/vars", expvar.Handler())
+	return mux, es
+}
+
+func printInstructions(addr string) {
+	log.Printf("Serving on socket %s\n", addr)
 	log.Println("To view the stream, execute: ")
-	log.Println("  curl http://127.0.0.1:8123/hystrix.stream")
+	log.Printf("  curl http://%s/hystrix.stream\n", addr)
 	log.Println()
 	log.Println("To view expvar metrics, visit expvar in your browser")
-	log.Println("  http://127.0.0.1:8123/debug/vars")
+	log.Printf("  http://%s/debug/vars\n", addr)
 	log.Println()
 	log.Println("To view a dashboard, follow the instructions at https://github.com/Netflix-Skunkworks/hystrix-dashboard#run-via-gradle")
 	log.Println("  git clone git@github.com:Netflix-Skunkworks/hystrix-dashboard.git")
 	log.Println("  cd hystrix-dashboard")
 	log.Println("  ./gradlew jettyRun")
 	log.Println()
-	log.Println("Then, add the stream http://127.0.0.1:8123/hystrix.stream")
+	log.Printf("Then, add the stream http://%s/hystrix.stream\n", addr)
 	log.Println()
-	log.Println("A URL directly to the page usually looks something like this")
+	log.Println("A URL directly to the page usually looks something like this (adjust the port if you changed -addr)")
 	log.Printf("   %s\n", exampleURL)
-	log.Fatal(http.Serve(sock, nil))
 }
 
 func mustFail(err error) {

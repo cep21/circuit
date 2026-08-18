@@ -61,3 +61,22 @@ func TestAtomicBoolean(t *testing.T) {
 		t.Error("Value not stored in correctly")
 	}
 }
+
+func TestAtomicUnmarshalJSONInvalid(t *testing.T) {
+	var i AtomicInt64
+	i.Set(7)
+	if err := i.UnmarshalJSON([]byte(`"nope"`)); err == nil {
+		t.Fatal("expected an error")
+	}
+	if i.Get() != 7 {
+		t.Fatal("failed unmarshal must not change the value")
+	}
+	var b AtomicBoolean
+	b.Set(true)
+	if err := b.UnmarshalJSON([]byte(`3`)); err == nil {
+		t.Fatal("expected an error")
+	}
+	if !b.Get() {
+		t.Fatal("failed unmarshal must not change the value")
+	}
+}
