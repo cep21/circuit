@@ -142,6 +142,41 @@ fmt.Println("This is a hystrix configured circuit", c.Name())
 // Output: This is a hystrix configured circuit hystrix-circuit
 ```
 
+## Adaptive Hystrix (`closers/hystrix-adaptive`)
+
+The [hystrix](https://pkg.go.dev/github.com/cep21/circuit/v4/closers/hystrix) opener trips the breaker when enough requests fail. That is what you want when the dependency is actually unhealthy—but when *everything* is simply a bit slow, many calls may time out and look like total failure even though nothing is uniquely broken. Package **`hystrixadaptive`** (`import "github.com/cep21/circuit/v4/closers/hystrix-adaptive"`) layers on top of the usual Hystrix opener: it can be more patient in that situation (mostly timeouts, not hard errors), give a little slack while the outage pattern looks like blanket slowness, and tighten again when fast successes return. You tune how much slack is allowed and how quickly it grows or shrinks. It only affects **when** the breaker opens; **per-call** deadlines are still whatever you set on **`Execution.Timeout`**.
+
+```go
+configuration := hystrixadaptive.Factory{
+  Factory: hystrix.Factory{
+    ConfigureCloser: hystrix.ConfigureCloser{
+      // Same half-open / sleep window behavior as plain Hystrix
+    },
+  },
+  ConfigureAdaptive: hystrixadaptive.ConfigureAdaptive{
+    ConfigureOpener: hystrix.ConfigureOpener{
+      RequestVolumeThreshold: 10,
+    },
+    // Expected healthy latency; "fast" successes decay headroom below this.
+    BaselineLatency: 100 * time.Millisecond,
+    // Cap on accumulated headroom (e.g. allow up to baseline + 200ms conceptually).
+    MaxExtraLatency: 200 * time.Millisecond,
+    // Added on each timeout and on successes slower than baseline+headroom.
+    IncreaseExtra: 10 * time.Millisecond,
+    // Subtracted when a success finishes faster than BaselineLatency.
+    DecreaseExtra: 10 * time.Millisecond,
+    // While headroom > 0, defer opening if timeouts/(timeouts+failures) is at least this ratio.
+    MinTimeoutRatioToDefer: 0.85,
+  },
+}
+h := circuit.Manager{
+  DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{configuration.Configure},
+}
+c := h.MustCreateCircuit("adaptive-hystrix")
+fmt.Println("This circuit uses the adaptive Hystrix opener", c.Name())
+// Output: This circuit uses the adaptive Hystrix opener adaptive-hystrix
+```
+
 ## [Enable dashboard metrics](https://godoc.org/github.com/cep21/circuit/metriceventstream#example-MetricEventStream)
 
 Dashboard metrics can be enabled with the MetricEventStream object. This example creates an event stream handler,
