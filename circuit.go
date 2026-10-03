@@ -19,12 +19,10 @@ type Circuit struct {
 	// This is used to help run `Go` calls in the background
 	goroutineWrapper goroutineWrapper
 	name             string
-	// The passed in config is not atomic and thread safe.  We reference thread safe values during circuit operations
-	// with atomicCircuitConfig.  Those are, also, the only values that can actually be changed while a circuit is
-	// running.
+	// Most live configuration reads use atomicCircuitConfig. The interrupt callback is copied under the mutex
+	// before it is called.
 	notThreadSafeConfig Config
-	// The mutex supports setting and reading the command properties, but is not locked when we reference the config
-	// while live: we use the threadSafeConfig below
+	// The mutex protects configuration snapshots and the interrupt callback.
 	notThreadSafeConfigMu sync.Mutex
 	threadSafeConfig      atomicCircuitConfig
 
@@ -501,7 +499,9 @@ func (c *Circuit) checkErrInterrupt(ctx context.Context, originalContext context
 		return false
 	}
 
+	c.notThreadSafeConfigMu.Lock()
 	isErrInterrupt := c.notThreadSafeConfig.Execution.IsErrInterrupt
+	c.notThreadSafeConfigMu.Unlock()
 	if isErrInterrupt == nil {
 		isErrInterrupt = func(_ error) bool {
 			// By default, we consider any error from the original context an interrupt causing error

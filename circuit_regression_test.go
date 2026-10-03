@@ -75,6 +75,88 @@ func TestRegression_TimeoutReadOnceUnderConfigChange(t *testing.T) {
 
 type regAlwaysAllowCloser struct{ neverCloses }
 
+func TestRegression_InterruptReadUnderConfigChange(t *testing.T) {
+	for _, custom := range []bool{false, true} {
+		name := "default"
+		if custom {
+			name = "custom"
+		}
+		t.Run(name, func(t *testing.T) {
+			c := NewCircuitFromConfig("interrupt", Config{
+				Execution: ExecutionConfig{Timeout: -1, MaxConcurrentRequests: -1},
+			})
+			cfg := c.Config()
+			if custom {
+				cfg.Execution.IsErrInterrupt = func(err error) bool { return errors.Is(err, context.Canceled) }
+				c.SetConfigThreadSafe(cfg)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			stop := make(chan struct{})
+			var writer sync.WaitGroup
+			writer.Add(1)
+			go func() {
+				defer writer.Done()
+				for {
+					select {
+					case <-stop:
+						return
+					default:
+					}
+					c.SetConfigThreadSafe(cfg)
+				}
+			}()
+			defer func() {
+				close(stop)
+				writer.Wait()
+			}()
+			var runners sync.WaitGroup
+			for range 4 {
+				runners.Add(1)
+				go func() {
+					defer runners.Done()
+					for range 2000 {
+						if err := c.Run(ctx, func(ctx context.Context) error { return ctx.Err() }); err != context.Canceled {
+							t.Errorf("expected context cancellation, got %v", err)
+							return
+						}
+					}
+				}()
+			}
+			runners.Wait()
+		})
+	}
+}
+
+func TestRegression_InterruptCallbackReconfiguresCircuit(t *testing.T) {
+	c := NewCircuitFromConfig("interrupt", Config{Execution: ExecutionConfig{Timeout: -1}})
+	cfg := c.Config()
+	cfg.Execution.IsErrInterrupt = func(err error) bool {
+		updated := c.Config()
+		updated.Execution.IgnoreInterrupts = true
+		c.SetConfigThreadSafe(updated)
+		return errors.Is(err, context.Canceled)
+	}
+	c.SetConfigThreadSafe(cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- c.Run(ctx, func(ctx context.Context) error { return ctx.Err() })
+	}()
+	select {
+	case err := <-done:
+		if err != context.Canceled {
+			t.Fatalf("expected context cancellation, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("interrupt callback blocked while updating configuration")
+	}
+	if !c.Config().Execution.IgnoreInterrupts {
+		t.Fatal("interrupt callback did not update configuration")
+	}
+}
+
 func (regAlwaysAllowCloser) Allow(context.Context, time.Time) bool       { return true }
 func (regAlwaysAllowCloser) ShouldClose(context.Context, time.Time) bool { return true }
 
