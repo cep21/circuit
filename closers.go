@@ -25,6 +25,7 @@ type ClosedToOpen interface {
 	// Even though the circuit is closed, and we want to allow the circuit to remain closed, we still prevent this
 	// command from happening.  The error will return as a short circuit to the caller, as well as trigger fallback
 	// logic.  This could be useful if your circuit is closed, but some external force wants you to pretend to be open.
+	// Not called while ForcedClosed is set.
 	Prevent(ctx context.Context, now time.Time) bool
 }
 

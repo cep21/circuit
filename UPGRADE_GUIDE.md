@@ -79,3 +79,26 @@ v4.2 has no breaking API changes, but several bug fixes change observable behavi
   the Go 1 compatibility rules, but worth knowing).  It also must not be copied after first use.
 * expvar output now includes collectors whose `Var` lacks a `Value()` method (rendered from
   `String()`); JSON shapes of existing keys are unchanged.
+
+# Behavior changes after v4.2
+
+No API changes.  These bug fixes change observable behavior:
+
+* Requests rejected by a concurrency limit no longer count in `ConcurrentCommands`/`ConcurrentFallbacks` while
+  their rejection is being reported.
+* `ClosedToOpen.Prevent` is not consulted while `ForcedClosed` is set.
+* An error returned at exactly the `Timeout` deadline (always the case under `testing/synctest`) is an `ErrTimeout`,
+  not an `ErrFailure` or `ErrInterrupt`.
+* `Circuit.SetConfigThreadSafe` keeps the settings it cannot change (`TimeKeeper`, the open/close factories,
+  `GoLostErrors`, `Metrics`) in `Config()` when they are left unset.  Settings it can change are still applied as
+  given: a zero `Timeout` means no timeout and a zero `MaxConcurrentRequests` rejects everything, so start from
+  `Config()`.
+* `Config.Merge` no longer writes into storage shared with other copies of a `Config`.
+* `Go`: `GoLostErrors` is not called for an abandoned call that eventually succeeds, and a callback that calls
+  `runtime.Goexit` (e.g. `t.Fatal`) now ends with an error right away instead of waiting for the context.
+* `hystrix.Closer` always needs at least one successful probe, even with `RequiredConcurrentSuccessful` left at zero.
+* The second `ShouldOpen`/`ShouldClose` call (under the transition lock) is given the current time rather than the
+  request's completion time.
+* `RollingCounter.TotalSum` is now derived on read under a short lock (about 25ns) so that `Inc` does a single atomic
+  write.  Avoid calling it on every request.
+* `MetricEventStream` returns after the headers for `HEAD` requests.

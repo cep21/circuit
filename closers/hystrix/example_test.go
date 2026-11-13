@@ -47,9 +47,10 @@ func ExampleCloser_SetConfigThreadSafe() {
 	c := h.MustCreateCircuit("hystrix-circuit")
 	fmt.Println("The default sleep window", c.OpenToClose.(*hystrix.Closer).Config().SleepWindow)
 	// This configuration update function is thread safe.  We can modify this at runtime while the circuit is active
-	c.OpenToClose.(*hystrix.Closer).SetConfigThreadSafe(hystrix.ConfigureCloser{
-		SleepWindow: time.Second * 3,
-	})
+	closer := c.OpenToClose.(*hystrix.Closer)
+	cfg := closer.Config()
+	cfg.SleepWindow = time.Second * 3
+	closer.SetConfigThreadSafe(cfg)
 	fmt.Println("The new sleep window", c.OpenToClose.(*hystrix.Closer).Config().SleepWindow)
 	// Output:
 	// The default sleep window 5s

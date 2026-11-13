@@ -3,6 +3,8 @@ package circuit
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"testing"
 )
 
@@ -80,6 +82,11 @@ func BenchmarkExecute(b *testing.B) {
 	})
 }
 
+type benchAsError struct{}
+
+func (benchAsError) Error() string       { return "as" }
+func (benchAsError) As(interface{}) bool { return false }
+
 func BenchmarkIsBadRequest(b *testing.B) {
 	b.Run("circuit-error", func(b *testing.B) {
 		b.ReportAllocs()
@@ -100,6 +107,24 @@ func BenchmarkIsBadRequest(b *testing.B) {
 			_ = IsBadRequest(err)
 		}
 	})
+	wrapped := fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", errBenchFailure))
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"wrapped", wrapped},
+		{"joined", errors.Join(errBenchFailure, io.EOF, wrapped)},
+		{"wrapped-bad-request", fmt.Errorf("outer: %w", SimpleBadRequest{Err: errBenchFailure})},
+		{"as-method", fmt.Errorf("outer: %w", benchAsError{})},
+		{"deadline-exceeded", context.DeadlineExceeded},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = IsBadRequest(tc.err)
+			}
+		})
+	}
 	b.Run("Error()", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {

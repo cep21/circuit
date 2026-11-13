@@ -306,11 +306,12 @@ func (r *RunStats) ErrorsAt(now time.Time) int64 {
 
 // ErrorPercentageAt is [0.0 - 1.0] errors/legitimate
 func (r *RunStats) ErrorPercentageAt(now time.Time) float64 {
-	attemptCount := r.LegitimateAttemptsAt(now)
+	// Read the error counters once: reading them again for the numerator can exceed 1.0 while requests are failing
+	errCount := r.ErrorsAt(now)
+	attemptCount := r.Successes.RollingSumAt(now) + errCount
 	if attemptCount == 0 {
 		return 0
 	}
-	errCount := r.ErrorsAt(now)
 	return float64(errCount) / float64(attemptCount)
 }
 

@@ -190,7 +190,8 @@ type RunMetrics interface {
 
 	// ErrConcurrencyLimitReject each time a circuit is rejected due to concurrency limits
 	ErrConcurrencyLimitReject(ctx context.Context, now time.Time)
-	// ErrShortCircuit each time runFunc is not called because the circuit was open.
+	// ErrShortCircuit each time runFunc is not called because the circuit was open.  A request stopped by
+	// ClosedToOpen.Prevent happens on a closed circuit, so it is not reported here (or to any other method).
 	ErrShortCircuit(ctx context.Context, now time.Time)
 }
 

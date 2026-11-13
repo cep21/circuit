@@ -224,12 +224,11 @@ func ExampleCommandPropertiesConstructor() {
 func ExampleCircuit_SetConfigThreadSafe() {
 	h := circuit.Manager{}
 	c := h.MustCreateCircuit("changes-at-runtime", circuit.Config{})
-	// ... later on (during live)
-	c.SetConfigThreadSafe(circuit.Config{
-		Execution: circuit.ExecutionConfig{
-			MaxConcurrentRequests: int64(12),
-		},
-	})
+	// ... later on (during live).  Start from the current config: live settings left at zero are applied as zero
+	// (no timeout, no concurrent fallbacks allowed), not as their defaults.
+	cfg := c.Config()
+	cfg.Execution.MaxConcurrentRequests = 12
+	c.SetConfigThreadSafe(cfg)
 }
 
 // Even though Go executes inside a goroutine, we catch that panic and bubble it up the same

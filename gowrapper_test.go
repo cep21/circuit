@@ -35,67 +35,30 @@ func (e *errWaiter) lostErrors(err error, panics interface{}) {
 }
 
 func Test_goroutineWrapper_waitForErrors(t *testing.T) {
-	type args struct {
-		runFuncErr   chan error
-		panicResults chan interface{}
-	}
-	type testRun struct {
+	tests := []struct {
 		lostCapture errWaiter
 		name        string
-		args        args
-		gorun       func(t *testRun)
+		result      goResult
 		expected    errWaiter
-	}
-	tests := []testRun{
+	}{
 		{
-			name: "onFuncErr",
-			args: args{
-				runFuncErr:   make(chan error),
-				panicResults: make(chan interface{}),
-			},
-			gorun: func(t *testRun) {
-				t.args.runFuncErr <- errors.New("bad")
-			},
-			expected: errWaiter{
-				err: errors.New("bad"),
-			},
+			name:     "onFuncErr",
+			result:   goResult{err: errors.New("bad")},
+			expected: errWaiter{err: errors.New("bad")},
 		},
 		{
-			name: "onPanic",
-			args: args{
-				runFuncErr:   make(chan error),
-				panicResults: make(chan interface{}),
-			},
-			gorun: func(t *testRun) {
-				t.args.panicResults <- "bad panic"
-			},
-			expected: errWaiter{
-				panics: "bad panic",
-			},
-		},
-		{
-			name: "nilPanicResults",
-			args: args{
-				runFuncErr:   make(chan error),
-				panicResults: nil,
-			},
-			gorun: func(t *testRun) {
-				t.args.runFuncErr <- errors.New("lost")
-			},
-			expected: errWaiter{
-				err: errors.New("lost"),
-			},
+			name:     "onPanic",
+			result:   goResult{panics: "bad panic"},
+			expected: errWaiter{panics: "bad panic"},
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			g := &goroutineWrapper{
-				lostErrors: tt.lostCapture.lostErrors,
-			}
 			tt.lostCapture.init()
-			go tt.gorun(&tt)
-			g.waitForErrors(tt.args.runFuncErr, tt.args.panicResults)
+			result := make(chan goResult)
+			go func() { result <- tt.result }()
+			waitForErrors(tt.lostCapture.lostErrors, result)
 			// Reset these so deep equal works ...
 			tt.lostCapture.panicChan = nil
 			tt.lostCapture.errChan = nil

@@ -158,17 +158,19 @@ func (e *Opener) ShouldOpen(_ context.Context, now time.Time) bool {
 }
 
 func (e *Opener) errPercentage(now time.Time) float64 {
+	// Errors are read first (they are incremented last), so failures landing between the two reads cannot inflate the
+	// ratio.  A concurrent reset or window roll still can, hence the clamp.
+	errCount := e.errorsCount.RollingSumAt(now)
 	attemptCount := e.legitimateAttemptsCount.RollingSumAt(now)
 	if attemptCount == 0 {
 		// not enough requests (can't make a percent of zero)
 		return -1
 	}
-
-	errCount := e.errorsCount.RollingSumAt(now)
-	return float64(errCount) / float64(attemptCount)
+	return min(float64(errCount)/float64(attemptCount), 1)
 }
 
-// SetConfigThreadSafe modifies error % and request volume threshold
+// SetConfigThreadSafe modifies error % and request volume threshold.  Defaults are not merged in (an omitted field is
+// applied as zero), so start from Config().
 func (e *Opener) SetConfigThreadSafe(props ConfigureOpener) {
 	e.mu.Lock()
 	defer e.mu.Unlock()

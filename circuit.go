@@ -2,7 +2,9 @@ package circuit
 
 import (
 	"context"
+	"encoding/json"
 	"expvar"
+	"fmt"
 	"sync"
 	"time"
 
@@ -19,10 +21,9 @@ type Circuit struct {
 	// This is used to help run `Go` calls in the background
 	goroutineWrapper goroutineWrapper
 	name             string
-	// Most live configuration reads use atomicCircuitConfig. The interrupt callback is copied under the mutex
-	// before it is called.
+	// Live configuration reads use atomicCircuitConfig.
 	notThreadSafeConfig Config
-	// The mutex protects configuration snapshots and the interrupt callback.
+	// The mutex protects configuration snapshots.
 	notThreadSafeConfigMu sync.Mutex
 	threadSafeConfig      atomicCircuitConfig
 
@@ -96,10 +97,12 @@ func (c *Circuit) ConcurrentFallbacks() int64 {
 
 // SetConfigThreadSafe changes the current configuration of this circuit. Note that many config parameters, specifically those
 // around creating stat tracking buckets, are not modifiable during runtime for efficiency reasons.  Those buckets
-// will stay the same.
+// will stay the same.  Settings that only SetConfigNotThreadSafe applies (TimeKeeper, the open/close factories,
+// GoLostErrors and Metrics) stay in effect, so leaving them unset in config keeps their current value in Config().
 func (c *Circuit) SetConfigThreadSafe(config Config) {
 	c.notThreadSafeConfigMu.Lock()
 	defer c.notThreadSafeConfigMu.Unlock()
+	config.keepStaticSettings(c.notThreadSafeConfig)
 	c.notThreadSafeConfig = config
 	c.threadSafeConfig.reset(c.notThreadSafeConfig)
 	if cfg, ok := c.OpenToClose.(Configurable); ok {
@@ -111,7 +114,8 @@ func (c *Circuit) SetConfigThreadSafe(config Config) {
 }
 
 // Config returns the circuit's configuration.  Modifications to this configuration are not reflected by the circuit.
-// In other words, this creates a copy.
+// In other words, this creates a copy.  The copy is shallow: replace (or Merge into) CustomConfig and the Metrics
+// slices rather than editing them in place.
 func (c *Circuit) Config() Config {
 	c.notThreadSafeConfigMu.Lock()
 	defer c.notThreadSafeConfigMu.Unlock()
@@ -183,12 +187,22 @@ func (c *Circuit) Var() expvar.Var {
 			"run_metrics":          evar.ExpvarToVal(c.CmdMetricCollector.Var()),
 			"concurrent_commands":  c.ConcurrentCommands(),
 			"concurrent_fallbacks": c.ConcurrentFallbacks(),
-			"closer":               c.OpenToClose,
-			"opener":               c.ClosedToOpen,
+			"closer":               jsonSafe(c.OpenToClose),
+			"opener":               jsonSafe(c.ClosedToOpen),
 			"fallback_metrics":     evar.ExpvarToVal(c.FallbackMetricCollector.Var()),
 		}
 		return ret
 	})
+}
+
+// jsonSafe returns v, or just its type name if encoding/json cannot encode it (custom open/close logic may well have
+// exported func or chan fields, or a MarshalJSON that fails).  expvar.Func swallows encoding errors and renders an
+// empty string, so one such value would otherwise make the whole expvar document invalid JSON.
+func jsonSafe(v interface{}) interface{} {
+	if _, err := json.Marshal(v); err != nil {
+		return fmt.Sprintf("%T", v)
+	}
+	return v
 }
 
 // Name of this circuit
@@ -260,10 +274,18 @@ func (c *Circuit) commitTransition(ctx context.Context, now time.Time, open bool
 		// Another goroutine got here first; don't double-emit Opened()/Closed()
 		return false
 	}
-	if recheck != nil && !recheck(ctx, now) {
-		// The caller's earlier ShouldOpen/ShouldClose answer went stale: the circuit transitioned there and back
-		// between that unlocked check and us taking the lock.
-		return false
+	if recheck != nil {
+		// Re-ask at the current time, not at the caller's (request completion) time: other requests may have reported
+		// results with a later now since.  Time-windowed logic (e.g. hystrix Opener) asked about an instant its
+		// counters have partly rolled past would compare windows that do not line up.
+		if current := c.now(); current.After(now) {
+			now = current
+		}
+		if !recheck(ctx, now) {
+			// The caller's earlier ShouldOpen/ShouldClose answer went stale: e.g. the circuit transitioned there and
+			// back between that unlocked check and us taking the lock.
+			return false
+		}
 	}
 	c.isOpen.Set(open)
 	// Timestamp the transition *after* the flag flipped, as the later of the caller's now and the clock: any request
@@ -380,14 +402,14 @@ func (c *Circuit) Execute(ctx context.Context, runFunc func(context.Context) err
 	}
 
 	// Try to run the command in the context of the circuit
-	err := c.run(ctx, runFunc)
+	badRequest, err := c.run(ctx, runFunc)
 	if err == nil {
 		return nil
 	}
 	// A bad request should not trigger fallback logic.  The user just gave bad input.
 	// The list of conditions that trigger fallbacks is documented at
 	// https://github.com/Netflix/Hystrix/wiki/Metrics-and-Monitoring#command-execution-event-types-comnetflixhystrixhystrixeventtype
-	if IsBadRequest(err) {
+	if badRequest {
 		return err
 	}
 	return c.fallback(ctx, err, fallbackFunc)
@@ -403,7 +425,8 @@ func (c *Circuit) isEmptyOrNil() bool {
 }
 
 // run is the equivalent of Java Manager's http://netflix.github.io/Hystrix/javadoc/com/netflix/hystrix/HystrixCommand.html#run()
-func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) (retErr error) {
+// badRequest is IsBadRequest(retErr), so the caller does not have to walk the error a second time.
+func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) (badRequest bool, retErr error) {
 	var expectedDoneBy time.Time
 	startTime := c.now()
 	originalContext := ctx
@@ -412,19 +435,20 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 	if !c.allowNewRun(ctx, startTime, maxConcurrent) {
 		// Rather than make this inline, return a global reference (for memory optimization sake).
 		c.CmdMetricCollector.ErrShortCircuit(ctx, startTime)
-		return errCircuitOpen
+		return false, errCircuitOpen
 	}
 
-	if c.ClosedToOpen.Prevent(ctx, startTime) {
-		return errCircuitOpen
+	if !c.threadSafeConfig.CircuitBreaker.ForcedClosed.Get() && c.ClosedToOpen.Prevent(ctx, startTime) {
+		// Deliberately reports no RunMetrics: the circuit is closed, so ErrShortCircuit would blame the backend
+		// (and fail SLO tracking) for a request that something else decided to stop.
+		return false, errCircuitOpen
 	}
 
-	currentCommandCount := c.concurrentCommands.Add(1)
-	defer c.concurrentCommands.Add(-1)
-	if maxConcurrent >= 0 && currentCommandCount > maxConcurrent {
+	if !acquireSlot(&c.concurrentCommands, maxConcurrent) {
 		c.CmdMetricCollector.ErrConcurrencyLimitReject(ctx, startTime)
-		return errThrottledConcurrentCommands
+		return false, errThrottledConcurrentCommands
 	}
+	defer c.concurrentCommands.Add(-1)
 
 	// Set timeout on the command if we have one.  Read the atomic exactly once: a concurrent SetConfigThreadSafe
 	// between two reads could otherwise produce a deadline in the past and a spurious ErrTimeout.
@@ -438,38 +462,35 @@ func (c *Circuit) run(ctx context.Context, runFunc func(context.Context) error) 
 	ret := runFunc(ctx)
 	runFuncDoneTime := c.now()
 	totalCmdTime := runFuncDoneTime.Sub(startTime)
+	// The first check to claim the result wins.  These share one return on purpose: the compiler only uses its cheap
+	// (open-coded) defer implementation while returns*defers <= 15 (see go build -gcflags=-d=defer).
+	switch {
 	// See bad request documentation at https://github.com/Netflix/Hystrix/wiki/How-To-Use#error-propagation
 	// This request had invalid input, but shouldn't be marked as an 'error' for the circuit
 	// From documentation
 	// -------
 	// The HystrixBadRequestException is intended for use cases such as reporting illegal arguments or non-system
 	// failures that should not count against the failure metrics and should not trigger fallback logic.
-	if c.checkErrBadRequest(ctx, ret, runFuncDoneTime, totalCmdTime) {
-		return ret
-	}
+	case c.checkErrBadRequest(ctx, ret, runFuncDoneTime, totalCmdTime):
+		badRequest = true
 
 	// Even if there is no error (or if there is an error), if the request took too long it is always an error for the
 	// circuit.  Note that ret *MAY* actually be nil.  In that case, we still want to return nil.
-	if c.checkErrTimeout(ctx, expectedDoneBy, runFuncDoneTime, totalCmdTime) {
-		// Note: ret could possibly be nil.  We will still return nil, but the circuit will consider it a failure.
-		return ret
-	}
+	case c.checkErrTimeout(ctx, ret, expectedDoneBy, runFuncDoneTime, totalCmdTime):
 
 	// The runFunc failed, but someone asked the original context to end.  This probably isn't a failure of the
 	// circuit: someone just wanted `Execute` to end early, so don't track it as a failure.
-	if c.checkErrInterrupt(ctx, originalContext, ret, runFuncDoneTime, totalCmdTime) {
-		return ret
-	}
+	case c.checkErrInterrupt(ctx, originalContext, ret, runFuncDoneTime, totalCmdTime):
 
-	if c.checkErrFailure(ctx, ret, runFuncDoneTime, totalCmdTime) {
-		return ret
-	}
+	case c.checkErrFailure(ctx, ret, runFuncDoneTime, totalCmdTime):
 
 	// The circuit works.  Close it!
 	// Note: Execute this *after* you check for timeouts so we can still track circuit time outs that happen to also return a
 	//       valid value later.
-	c.checkSuccess(ctx, runFuncDoneTime, totalCmdTime)
-	return nil
+	default:
+		c.checkSuccess(ctx, runFuncDoneTime, totalCmdTime)
+	}
+	return badRequest, ret
 }
 
 // checkSuccess records a success and, if the circuit is open, tries to close it automatically.
@@ -495,26 +516,22 @@ func (c *Circuit) checkSuccess(ctx context.Context, runFuncDoneTime time.Time, t
 func (c *Circuit) checkErrInterrupt(ctx context.Context, originalContext context.Context, ret error, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
 	// We need to see an error in both the original context and the return value to consider this an "interrupt" caused
 	// error.
-	if ret == nil || originalContext.Err() == nil {
+	if ret == nil || c.threadSafeConfig.GoSpecific.IgnoreInterrupts.Get() {
+		return false
+	}
+	// Err is only asked once: on a canceled context it takes a lock that may be shared by the whole process
+	originalErr := originalContext.Err()
+	if originalErr == nil {
 		return false
 	}
 
-	c.notThreadSafeConfigMu.Lock()
-	isErrInterrupt := c.notThreadSafeConfig.Execution.IsErrInterrupt
-	c.notThreadSafeConfigMu.Unlock()
-	if isErrInterrupt == nil {
-		isErrInterrupt = func(_ error) bool {
-			// By default, we consider any error from the original context an interrupt causing error
-			return true
-		}
+	// By default, we consider any error from the original context an interrupt causing error
+	isErrInterrupt, _ := c.threadSafeConfig.GoSpecific.IsErrInterrupt.Load().(func(error) bool)
+	if isErrInterrupt != nil && !isErrInterrupt(originalErr) {
+		return false
 	}
-
-	if !c.threadSafeConfig.GoSpecific.IgnoreInterrupts.Get() && isErrInterrupt(originalContext.Err()) {
-		c.CmdMetricCollector.ErrInterrupt(ctx, runFuncDoneTime, totalCmdTime)
-		return true
-	}
-
-	return false
+	c.CmdMetricCollector.ErrInterrupt(ctx, runFuncDoneTime, totalCmdTime)
+	return true
 }
 
 func (c *Circuit) checkErrBadRequest(ctx context.Context, ret error, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
@@ -536,9 +553,14 @@ func (c *Circuit) checkErrFailure(ctx context.Context, ret error, runFuncDoneTim
 	return false
 }
 
-func (c *Circuit) checkErrTimeout(ctx context.Context, expectedDoneBy time.Time, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
+func (c *Circuit) checkErrTimeout(ctx context.Context, ret error, expectedDoneBy time.Time, runFuncDoneTime time.Time, totalCmdTime time.Duration) bool {
 	// I don't use the deadline from the context because it could be a smaller timeout from the parent context
-	if !expectedDoneBy.IsZero() && expectedDoneBy.Before(runFuncDoneTime) {
+	if expectedDoneBy.IsZero() {
+		return false
+	}
+	// The context deadline fires *at* expectedDoneBy, so an error while the clock still reads exactly that instant
+	// (always the case under testing/synctest) is a timeout too.
+	if expectedDoneBy.Before(runFuncDoneTime) || (ret != nil && expectedDoneBy.Equal(runFuncDoneTime)) {
 		c.CmdMetricCollector.ErrTimeout(ctx, runFuncDoneTime, totalCmdTime)
 		if !c.isOpen.Get() {
 			c.attemptToOpen(ctx, runFuncDoneTime)
@@ -557,15 +579,13 @@ func (c *Circuit) fallback(ctx context.Context, err error, fallbackFunc func(con
 	}
 
 	// Throttle concurrent fallback calls
-	currentFallbackCount := c.concurrentFallbacks.Add(1)
-	defer c.concurrentFallbacks.Add(-1)
-	maxFallback := c.threadSafeConfig.Fallback.MaxConcurrentRequests.Get()
-	startTime := c.now()
-	if maxFallback >= 0 && currentFallbackCount > maxFallback {
-		c.FallbackMetricCollector.ErrConcurrencyLimitReject(ctx, startTime)
+	if !acquireSlot(&c.concurrentFallbacks, c.threadSafeConfig.Fallback.MaxConcurrentRequests.Get()) {
+		c.FallbackMetricCollector.ErrConcurrencyLimitReject(ctx, c.now())
 		return errThrottledConcurrentFallbacks
 	}
+	defer c.concurrentFallbacks.Add(-1)
 
+	startTime := c.now()
 	retErr := fallbackFunc(ctx, err)
 	totalCmdTime := c.now().Sub(startTime)
 	if retErr != nil {
@@ -574,6 +594,25 @@ func (c *Circuit) fallback(ctx context.Context, err error, fallbackFunc func(con
 	}
 	c.FallbackMetricCollector.Success(ctx, startTime, totalCmdTime)
 	return nil
+}
+
+// acquireSlot increments running unless that would exceed limit (negative: unlimited).  Rejected callers must not
+// count as running: under overload the rejections would otherwise keep the counter at the limit themselves (a caller
+// can be descheduled, or be reporting metrics, while it holds its increment) and starve requests while nothing is
+// actually running.  So look before incrementing, and undo right away if someone else got the last slot first.
+func acquireSlot(running *faststats.AtomicInt64, limit int64) bool {
+	if limit < 0 {
+		running.Add(1)
+		return true
+	}
+	if running.Get() >= limit {
+		return false
+	}
+	if running.Add(1) > limit {
+		running.Add(-1)
+		return false
+	}
+	return true
 }
 
 // allowNewRun checks if the circuit is allowing new run commands. This happens if the circuit is closed, or

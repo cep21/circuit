@@ -206,3 +206,43 @@ func TestSortedDurations_Var(t *testing.T) {
 		t.Errorf("p90 mismatch: got %s, want %s", m["p90"], durations.Percentile(90).String())
 	}
 }
+
+func newDurationsBucket(bucketSize int) durationsBucket {
+	return durationsBucket{
+		durationsSomeInvalid: make([]AtomicInt64, bucketSize),
+	}
+}
+
+// Buckets share a backing array, but must never see (or be able to grow into) each other's slots
+func TestMakeBucketsAreDisjoint(t *testing.T) {
+	for _, size := range []int{0, 1, 7, 100} {
+		buckets := makeBuckets(4, size)
+		for i := range buckets {
+			if l, c := len(buckets[i].durationsSomeInvalid), cap(buckets[i].durationsSomeInvalid); l != size || c != size {
+				t.Fatalf("size=%d bucket %d: len=%d cap=%d", size, i, l, c)
+			}
+			for j := 0; j < 3*size; j++ {
+				buckets[i].addDuration(time.Duration(i))
+			}
+		}
+		buckets[2].clear()
+		for i := range buckets {
+			got := buckets[i].appendDurations(nil)
+			want := size
+			if i == 2 {
+				want = 0
+			}
+			if len(got) != want {
+				t.Fatalf("size=%d bucket %d holds %d samples, want %d", size, i, len(got), want)
+			}
+			for _, d := range got {
+				if d != time.Duration(i) {
+					t.Fatalf("size=%d bucket %d holds foreign sample %d", size, i, d)
+				}
+			}
+		}
+	}
+	if got := makeBuckets(0, -1); len(got) != 0 {
+		t.Fatal("expected no buckets")
+	}
+}
