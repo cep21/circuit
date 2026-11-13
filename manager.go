@@ -44,15 +44,12 @@ func (h *Manager) AllCircuits() []*Circuit {
 func (h *Manager) Var() expvar.Var {
 	return expvar.Func(func() interface{} {
 		ret := make(map[string]interface{})
-		if h == nil {
-			return ret
-		}
-		h.mu.RLock()
-		defer h.mu.RUnlock()
-		for k, v := range h.circuitMap {
-			ev := evar.ExpvarToVal(v.Var())
+		// Work from a snapshot: rendering a circuit runs user code (collectors' Var), which may read from the Manager.
+		// Doing that under h.mu would be a recursive read lock that deadlocks against a concurrent CreateCircuit.
+		for _, c := range h.AllCircuits() {
+			ev := evar.ExpvarToVal(c.Var())
 			if ev != nil {
-				ret[k] = ev
+				ret[c.Name()] = ev
 			}
 		}
 		return ret

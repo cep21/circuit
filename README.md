@@ -228,7 +228,7 @@ This example shows how to update hystrix configuration at runtime.
 
 ```go
 // Start off using the defaults
-configuration := hystrix.ConfigFactory{}
+configuration := hystrix.Factory{}
 h := circuit.Manager{
   // Tell the manager to use this configuration factory whenever it makes a new circuit
   DefaultCircuitProperties: []circuit.CommandPropertiesConstructor{configuration.Configure},
@@ -236,9 +236,10 @@ h := circuit.Manager{
 c := h.MustCreateCircuit("hystrix-circuit")
 fmt.Println("The default sleep window", c.OpenToClose.(*hystrix.Closer).Config().SleepWindow)
 // This configuration update function is thread safe.  We can modify this at runtime while the circuit is active
-c.OpenToClose.(*hystrix.Closer).SetConfigThreadSafe(hystrix.ConfigureCloser{
-  SleepWindow: time.Second * 3,
-})
+closer := c.OpenToClose.(*hystrix.Closer)
+cfg := closer.Config()
+cfg.SleepWindow = time.Second * 3
+closer.SetConfigThreadSafe(cfg)
 fmt.Println("The new sleep window", c.OpenToClose.(*hystrix.Closer).Config().SleepWindow)
 // Output:
 // The default sleep window 5s

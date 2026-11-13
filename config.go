@@ -1,6 +1,9 @@
 package circuit
 
 import (
+	"maps"
+	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/cep21/circuit/v4/faststats"
@@ -29,7 +32,7 @@ type GeneralConfig struct {
 	// open the circuit.  OpenCircuit/CloseCircuit still change the underlying state.
 	ForcedClosed bool `json:",omitempty"`
 	// GoLostErrors can receive errors that would otherwise be lost by `Go` executions.  For example, if Go returns
-	// early but some long time later an error or panic eventually happens.
+	// early but some long time later an error or panic eventually happens.  Exactly one argument is non-nil.
 	GoLostErrors func(err error, panics interface{}) `json:"-"`
 	// ClosedToOpenFactory creates logic that determines if the circuit should go from Closed to Open state.
 	// By default, it never opens
@@ -130,14 +133,10 @@ func (c *FallbackConfig) merge(other FallbackConfig) {
 
 func (g *GeneralConfig) mergeCustomConfig(other GeneralConfig) {
 	if len(other.CustomConfig) != 0 {
-		if g.CustomConfig == nil {
-			g.CustomConfig = make(map[interface{}]interface{}, len(other.CustomConfig))
-		}
-		for k, v := range other.CustomConfig {
-			if _, exists := g.CustomConfig[k]; !exists {
-				g.CustomConfig[k] = v
-			}
-		}
+		// Build a new map: g may be a copy of a Config whose map is shared with other copies
+		merged := maps.Clone(other.CustomConfig)
+		maps.Copy(merged, g.CustomConfig)
+		g.CustomConfig = merged
 	}
 }
 
@@ -169,9 +168,10 @@ func (g *GeneralConfig) merge(other GeneralConfig) {
 }
 
 func (m *MetricsCollectors) merge(other MetricsCollectors) {
-	m.Run = append(m.Run, other.Run...)
-	m.Fallback = append(m.Fallback, other.Fallback...)
-	m.Circuit = append(m.Circuit, other.Circuit...)
+	// Clip so append never writes into spare capacity shared with other copies of the same Config
+	m.Run = append(slices.Clip(m.Run), other.Run...)
+	m.Fallback = append(slices.Clip(m.Fallback), other.Fallback...)
+	m.Circuit = append(slices.Clip(m.Circuit), other.Circuit...)
 }
 
 // Merge these properties with another command's properties.  Anything set to the zero value, will takes values from
@@ -182,6 +182,29 @@ func (c *Config) Merge(other Config) *Config {
 	c.Metrics.merge(other.Metrics)
 	c.General.merge(other.General)
 	return c
+}
+
+// keepStaticSettings fills the settings that cannot change on a live circuit, when unset, from the current config.
+func (c *Config) keepStaticSettings(current Config) {
+	c.General.TimeKeeper.merge(current.General.TimeKeeper)
+	if c.General.ClosedToOpenFactory == nil {
+		c.General.ClosedToOpenFactory = current.General.ClosedToOpenFactory
+	}
+	if c.General.OpenToClosedFactory == nil {
+		c.General.OpenToClosedFactory = current.General.OpenToClosedFactory
+	}
+	if c.General.GoLostErrors == nil {
+		c.General.GoLostErrors = current.General.GoLostErrors
+	}
+	if c.Metrics.Run == nil {
+		c.Metrics.Run = current.Metrics.Run
+	}
+	if c.Metrics.Fallback == nil {
+		c.Metrics.Fallback = current.Metrics.Fallback
+	}
+	if c.Metrics.Circuit == nil {
+		c.Metrics.Circuit = current.Metrics.Circuit
+	}
 }
 
 // atomicCircuitConfig is used during circuit operations and allows atomic read/write operations.  This lets users
@@ -202,6 +225,8 @@ type atomicCircuitConfig struct {
 	}
 	GoSpecific struct {
 		IgnoreInterrupts faststats.AtomicBoolean
+		// IsErrInterrupt holds a (possibly nil) func(error) bool
+		IsErrInterrupt atomic.Value
 	}
 }
 
@@ -214,6 +239,7 @@ func (a *atomicCircuitConfig) reset(config Config) {
 	a.Execution.MaxConcurrentRequests.Set(config.Execution.MaxConcurrentRequests)
 
 	a.GoSpecific.IgnoreInterrupts.Set(config.Execution.IgnoreInterrupts)
+	a.GoSpecific.IsErrInterrupt.Store(config.Execution.IsErrInterrupt)
 
 	a.Fallback.Disabled.Set(config.Fallback.Disabled)
 	a.Fallback.MaxConcurrentRequests.Set(config.Fallback.MaxConcurrentRequests)

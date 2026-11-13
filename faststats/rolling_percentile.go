@@ -119,8 +119,10 @@ func NewRollingPercentile(bucketWidth time.Duration, numBuckets int, bucketSize 
 
 func makeBuckets(numBuckets int, bucketSize int) []durationsBucket {
 	ret := make([]durationsBucket, numBuckets)
-	for i := 0; i < numBuckets; i++ {
-		ret[i] = newDurationsBucket(bucketSize)
+	// One backing array for all buckets: fewer allocations, and less memory lost to allocator size class rounding
+	slots := make([]AtomicInt64, numBuckets*bucketSize)
+	for i := range ret {
+		ret[i].durationsSomeInvalid, slots = slots[:bucketSize:bucketSize], slots[bucketSize:]
 	}
 	return ret
 }
@@ -201,12 +203,6 @@ const unsetDuration = 0
 
 var _ fmt.Stringer = &durationsBucket{}
 
-func newDurationsBucket(bucketSize int) durationsBucket {
-	return durationsBucket{
-		durationsSomeInvalid: make([]AtomicInt64, bucketSize),
-	}
-}
-
 // String displays the current index
 func (b *durationsBucket) String() string {
 	return fmt.Sprintf("durationsBucket(idx=%d)", b.currentIndex.Get())
@@ -273,6 +269,6 @@ func (b *durationsBucket) addDuration(d time.Duration) {
 		return
 	}
 	nextIndex := b.currentIndex.Add(1) - 1
-	arrayIndex := nextIndex % int64(len(b.durationsSomeInvalid))
+	arrayIndex := mod(nextIndex, int64(len(b.durationsSomeInvalid)))
 	b.durationsSomeInvalid[arrayIndex].Set(encodeDuration(d))
 }

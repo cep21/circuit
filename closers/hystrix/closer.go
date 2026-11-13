@@ -215,9 +215,11 @@ func (s *Closer) ErrTimeout(_ context.Context, now time.Time, duration time.Dura
 	}
 }
 
-// ShouldClose is true if we have enough successful attempts in a row.
+// ShouldClose is true if we have enough successful attempts in a row.  At least one is always required: with
+// RequiredConcurrentSuccessful left at zero (e.g. a SetConfigThreadSafe that only sets SleepWindow) the success of a
+// request that was already in flight when the circuit opened would otherwise close it without any probe.
 func (s *Closer) ShouldClose(_ context.Context, _ time.Time) bool {
-	return s.concurrentSuccessfulAttempts.Get() >= s.closeOnCurrentCount.Get()
+	return s.concurrentSuccessfulAttempts.Get() >= max(s.closeOnCurrentCount.Get(), 1)
 }
 
 // Config returns the current configuration.  Use SetConfigThreadSafe to modify the current configuration.
@@ -229,7 +231,8 @@ func (s *Closer) Config() ConfigureCloser {
 
 // SetConfigThreadSafe updates SleepWindow, HalfOpenAttempts and RequiredConcurrentSuccessful on a live Closer.
 // config.AfterFunc is recorded (and visible via Config()) but not applied: AfterFunc cannot be changed on a live
-// Closer; use SetConfigNotThreadSafe for that.
+// Closer; use SetConfigNotThreadSafe for that.  Defaults are not merged in (an omitted SleepWindow is applied as zero),
+// so start from Config().
 func (s *Closer) SetConfigThreadSafe(config ConfigureCloser) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

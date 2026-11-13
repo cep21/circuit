@@ -59,6 +59,12 @@ func (m *MetricEventStream) ServeHTTP(rw http.ResponseWriter, req *http.Request)
 	rw.Header().Set("Content-Type", "text/event-stream")
 	rw.Header().Set("Cache-Control", "no-cache")
 	rw.Header().Set("Connection", "keep-alive")
+	if req.Method == http.MethodHead {
+		// There is no body to stream.  The client is done after the headers and will reuse the connection, which is
+		// stuck for as long as this handler runs.
+		rw.WriteHeader(http.StatusOK)
+		return
+	}
 
 	myBytesToWrite := make(chan []byte, 1024)
 	m.mu.Lock()
@@ -173,9 +179,22 @@ func collectCommandMetrics(cb *circuit.Circuit) *streamCmdMetric {
 		// We still show the circuit, but everything shows up as zero
 		builtInRollingFallbackMetricCollector = &rolling.FallbackStats{}
 	}
-	now := cb.Config().General.TimeKeeper.Now()
-	snap := builtInRollingCmdMetricCollector.Latencies.SnapshotAt(now)
 	circuitConfig := cb.Config()
+	now := circuitConfig.General.TimeKeeper.Now()
+	snap := builtInRollingCmdMetricCollector.Latencies.SnapshotAt(now)
+	// Read each rolling counter once and derive the health numbers from those reads, so one event never contradicts
+	// itself (errorCount > requestCount, errorPercentage > 100) while requests are completing.
+	successes := builtInRollingCmdMetricCollector.Successes.RollingSumAt(now)
+	failures := builtInRollingCmdMetricCollector.ErrFailures.RollingSumAt(now)
+	timeouts := builtInRollingCmdMetricCollector.ErrTimeouts.RollingSumAt(now)
+	interrupts := builtInRollingCmdMetricCollector.ErrInterrupts.RollingSumAt(now)
+	errorCount := failures + timeouts
+	legitimateAttempts := successes + errorCount
+	var errorPct int64
+	if legitimateAttempts > 0 {
+		// Integer math: int64(100 * float) truncates (57/100 -> 56.999 -> 56)
+		errorPct = 100 * errorCount / legitimateAttempts
+	}
 	return attachHystrixProperties(cb, &streamCmdMetric{
 		Type:           "HystrixCommand",
 		Name:           cb.Name(),
@@ -183,24 +202,23 @@ func collectCommandMetrics(cb *circuit.Circuit) *streamCmdMetric {
 		ReportingHosts: 1,
 		Time:           now.UnixNano() / time.Millisecond.Nanoseconds(),
 
-		RequestCount:       builtInRollingCmdMetricCollector.LegitimateAttemptsAt(now) + builtInRollingCmdMetricCollector.ErrInterrupts.RollingSumAt(now),
-		ErrorCount:         builtInRollingCmdMetricCollector.ErrorsAt(now),
-		ErrorPct:           int64(100 * builtInRollingCmdMetricCollector.ErrorPercentageAt(now)),
+		RequestCount:       legitimateAttempts + interrupts,
+		ErrorCount:         errorCount,
+		ErrorPct:           errorPct,
 		CircuitBreakerOpen: cb.IsOpen(),
 
 		RollingCountFallbackSuccess:   builtInRollingFallbackMetricCollector.Successes.RollingSumAt(now),
 		RollingCountFallbackFailure:   builtInRollingFallbackMetricCollector.ErrFailures.RollingSumAt(now),
 		RollingCountFallbackRejection: builtInRollingFallbackMetricCollector.ErrConcurrencyLimitRejects.RollingSumAt(now),
 
-		RollingCountSuccess:           builtInRollingCmdMetricCollector.Successes.RollingSumAt(now),
+		RollingCountSuccess:           successes,
 		RollingCountSemaphoreRejected: builtInRollingCmdMetricCollector.ErrConcurrencyLimitRejects.RollingSumAt(now),
-		RollingCountFailure:           builtInRollingCmdMetricCollector.ErrFailures.RollingSumAt(now),
+		RollingCountFailure:           failures,
 		RollingCountShortCircuited:    builtInRollingCmdMetricCollector.ErrShortCircuits.RollingSumAt(now),
-		RollingCountTimeout:           builtInRollingCmdMetricCollector.ErrTimeouts.RollingSumAt(now),
+		RollingCountTimeout:           timeouts,
 		// Note: There is no errInterrupt field inside the dashboard, but i still want to expose these metrics there,
 		//       so I just roll them into BadRequests
-		// nolint: lll
-		RollingCountBadRequests: builtInRollingCmdMetricCollector.ErrBadRequests.RollingSumAt(now) + builtInRollingCmdMetricCollector.ErrInterrupts.RollingSumAt(now),
+		RollingCountBadRequests: builtInRollingCmdMetricCollector.ErrBadRequests.RollingSumAt(now) + interrupts,
 
 		TotalCountFallbackSuccess:   builtInRollingFallbackMetricCollector.Successes.TotalSum(),
 		TotalCountFallbackFailure:   builtInRollingFallbackMetricCollector.ErrFailures.TotalSum(),

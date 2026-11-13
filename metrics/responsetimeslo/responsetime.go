@@ -21,13 +21,22 @@ import (
 // will count as failing the SLA.
 type Tracker struct {
 	MaximumHealthyTime faststats.AtomicInt64
-	MeetsSLOCount      faststats.AtomicInt64
-	FailsSLOCount      faststats.AtomicInt64
-	Collectors         []Collector
+
+	// The two counters are written on every request while everything around them is read on every request: keep them
+	// on a cache line of their own so one core's increment does not invalidate what the other cores are reading.
+	_             [cacheLineSize]byte
+	MeetsSLOCount faststats.AtomicInt64
+	FailsSLOCount faststats.AtomicInt64
+	_             [cacheLineSize]byte
+
+	Collectors []Collector
 
 	mu     sync.Mutex
 	config Config
 }
+
+// cacheLineSize covers amd64 and most arm64 parts.  Being wrong only costs a little padding.
+const cacheLineSize = 64
 
 // Config controls how SLO is tracked by default for a Tracker
 type Config struct {

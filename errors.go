@@ -1,7 +1,6 @@
 package circuit
 
 import (
-	"errors"
 	"fmt"
 )
 
@@ -60,17 +59,56 @@ func IsBadRequest(err error) bool {
 		return false
 	}
 	// Fast paths first: this runs on every failed Execute (including the short-circuit/throttle shed path that
-	// matters most under overload), and reflective errors.As costs ~20x more plus an allocation.
+	// matters most under overload).
 	switch e := err.(type) {
 	case *circuitError:
 		return false
 	case BadRequest:
 		return e.BadRequest()
 	case interface{ Unwrap() error }, interface{ Unwrap() []error }, interface{ As(interface{}) bool }:
-		var br BadRequest
-		return errors.As(err, &br) && br.BadRequest()
+		var target *BadRequest
+		br, found := findBadRequest(err, &target)
+		return found && br.BadRequest()
 	}
 	return false
+}
+
+// findBadRequest is errors.As(err, *BadRequest) without the reflection, which costs ~10x more plus an allocation.  It
+// visits err's tree in the same order.  target is what As methods are handed: it is only allocated once one is
+// found, and is shared by the whole walk.
+func findBadRequest(err error, target **BadRequest) (br BadRequest, found bool) {
+	for {
+		if br, ok := err.(BadRequest); ok {
+			return br, true
+		}
+		if x, ok := err.(interface{ As(interface{}) bool }); ok {
+			if *target == nil {
+				*target = new(BadRequest)
+			}
+			if x.As(*target) {
+				return **target, true
+			}
+		}
+		switch x := err.(type) {
+		case interface{ Unwrap() error }:
+			err = x.Unwrap()
+			if err == nil {
+				return nil, false
+			}
+		case interface{ Unwrap() []error }:
+			for _, err := range x.Unwrap() {
+				if err == nil {
+					continue
+				}
+				if br, ok := findBadRequest(err, target); ok {
+					return br, true
+				}
+			}
+			return nil, false
+		default:
+			return nil, false
+		}
+	}
 }
 
 // SimpleBadRequest is a simple wrapper for an error to mark it as a bad request

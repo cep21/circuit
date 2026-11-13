@@ -2,6 +2,8 @@ package faststats
 
 import (
 	"fmt"
+	"math"
+	"math/bits"
 	"sync"
 	"time"
 )
@@ -9,9 +11,9 @@ import (
 // RollingBuckets simulates a time rolling list of buckets of items.  It is safe to use JSON to encode this object
 // in a thread safe way.  A RollingBuckets must not be copied after first use.
 //
-// The steady state (now falls in the current bucket) is a single atomic load.  Rolling the window forward takes a
-// mutex, at most once per BucketWidth, so that buckets are always cleared *before* the new index is published to
-// concurrent writers.
+// The steady state (now falls in the current bucket) is a single atomic load and no 64-bit division.  Rolling the
+// window forward takes a mutex, at most once per BucketWidth, so that buckets are always cleared *before* the new
+// index is published to concurrent writers.
 //
 // One inherent limitation remains: a write whose bucket index was computed a full window (NumBuckets*BucketWidth) or
 // more before it lands -- because the caller's `now` lags that far behind another caller's, or the goroutine was
@@ -44,11 +46,19 @@ func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 		return -1
 	}
 	n := int64(r.NumBuckets)
+	last := r.LastAbsIndex.Get()
+	// Steady state: now falls inside bucket `last`, i.e. last*width <= diff < (last+1)*width.  Testing that takes a
+	// multiply where computing absIndex takes a (much slower) 64-bit divide.  The 128-bit product keeps the test exact
+	// for any LastAbsIndex, including a negative or absurdly large one written by the user.
+	hi, lo := bits.Mul64(uint64(last), uint64(r.BucketWidth)) //nolint:gosec // negative last is rejected below
+	if hi == 0 && lo <= uint64(diff) && uint64(diff)-lo < uint64(r.BucketWidth) {
+		return int(mod(last, n))
+	}
 	// Keep the absolute index in int64: as an int it wraps on 32-bit platforms (1ms buckets => 24 days).
 	absIndex := diff.Nanoseconds() / r.BucketWidth.Nanoseconds()
-	bucket := int(absIndex % n)
-	if behind := r.LastAbsIndex.Get() - absIndex; behind >= 0 {
-		// Fast path: we are at (or behind) the current time.
+	bucket := int(mod(absIndex, n))
+	if behind := last - absIndex; behind >= 0 {
+		// No need to roll: we are behind the current time.
 		if behind >= n {
 			// We rolled past the list.  This point is before the start of our rolling window. Ignore it.
 			return -1
@@ -64,6 +74,15 @@ func (r *RollingBuckets) Advance(now time.Time, clearBucket func(int)) int {
 	return bucket
 }
 
+// mod returns a % n for n > 0.  It uses a 32-bit divide when the operands allow it, which is several times
+// faster than a 64-bit one on many CPUs (and avoids a runtime call on 32-bit platforms).
+func mod(a int64, n int64) int64 {
+	if a|n >= 0 && a|n <= math.MaxUint32 {
+		return int64(uint32(a) % uint32(n)) //nolint:gosec // range checked above
+	}
+	return a % n
+}
+
 // rollForward moves LastAbsIndex forward to absIndex, unless another goroutine got there (or further) first, and
 // returns the LastAbsIndex it left behind.  It serializes on advanceMu so that exactly one goroutine clears each
 // expired bucket, and so LastAbsIndex is only published once those buckets are empty.  Publishing first (as the
@@ -76,7 +95,7 @@ func (r *RollingBuckets) rollForward(absIndex int64, n int64, clearBucket func(i
 		return last
 	}
 	for i := last + 1; i <= absIndex && i <= last+n; i++ {
-		clearBucket(int(i % n))
+		clearBucket(int(mod(i, n)))
 	}
 	r.LastAbsIndex.Set(absIndex)
 	return absIndex

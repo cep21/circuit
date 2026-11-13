@@ -14,11 +14,15 @@ type RollingCounter struct {
 	// The values of the individual buckets are atomic, so they do not take the mutex
 	buckets []AtomicInt64
 
-	// totalSum counts every event ever.  There is deliberately no rollingSum field: the rolling sum is derived on read
-	// as the sum of buckets (a handful of atomic loads) rather than maintained as a second contended counter on every
-	// Inc, which is both faster on the hot path and can never disagree with the buckets (a separately-maintained sum
-	// could transiently go negative).
-	totalSum AtomicInt64
+	// retired counts every event that is not in a bucket: it was moved here when its bucket was cleared, or never
+	// had a bucket to begin with.  There are deliberately no rollingSum or totalSum fields: both are derived on read
+	// (the sum of buckets, plus retired for the total) rather than maintained as further contended counters on every
+	// Inc.  That leaves Inc with a single atomic write, keeps this struct's own cache lines read-mostly, and the sums
+	// can never disagree with the buckets.
+	//
+	// Counts only move from a bucket to retired while holding rollingBucket.advanceMu.  Apart from those moves, buckets
+	// and retired only ever grow.
+	retired AtomicInt64
 
 	rollingBucket RollingBuckets
 }
@@ -49,12 +53,25 @@ type jsonCounter struct {
 
 // MarshalJSON JSON encodes a counter.  It is thread safe.
 func (r *RollingCounter) MarshalJSON() ([]byte, error) {
-	var rollingSum AtomicInt64
-	rollingSum.Set(r.sumBuckets())
-	return json.Marshal(jsonCounter{
-		Buckets:       r.buckets,
-		RollingSum:    &rollingSum,
-		TotalSum:      &r.totalSum,
+	var buckets []int64
+	if r.buckets != nil {
+		buckets = make([]int64, len(r.buckets))
+	}
+	var rollingSum int64
+	for i := range r.buckets {
+		buckets[i] = r.buckets[i].Get()
+		rollingSum += buckets[i]
+	}
+	// Same shape as jsonCounter.  TotalSum is read after the buckets so it always covers them.
+	return json.Marshal(struct {
+		Buckets       []int64
+		RollingSum    int64
+		TotalSum      int64
+		RollingBucket *RollingBuckets
+	}{
+		Buckets:       buckets,
+		RollingSum:    rollingSum,
+		TotalSum:      r.TotalSum(),
 		RollingBucket: &r.rollingBucket,
 	})
 }
@@ -78,7 +95,7 @@ func (r *RollingCounter) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("RollingCounter.UnmarshalJSON: %w", err)
 	}
 	r.buckets = into.Buckets
-	r.totalSum.Store(into.TotalSum.Get())
+	r.retired.Store(into.TotalSum.Get() - r.sumBuckets())
 	r.rollingBucket.Store(into.RollingBucket)
 	return nil
 }
@@ -102,15 +119,14 @@ func (r *RollingCounter) StringAt(now time.Time) string {
 
 // Inc adds a single event to the current bucket
 func (r *RollingCounter) Inc(now time.Time) {
-	r.totalSum.Add(1)
-	if len(r.buckets) == 0 {
-		return
+	if len(r.buckets) != 0 {
+		if idx := r.rollingBucket.Advance(now, r.clearBucket); idx >= 0 {
+			r.buckets[idx].Add(1)
+			return
+		}
 	}
-	idx := r.rollingBucket.Advance(now, r.clearBucket)
-	if idx < 0 {
-		return
-	}
-	r.buckets[idx].Add(1)
+	// Outside of the rolling window, but still part of TotalSum
+	r.retired.Add(1)
 }
 
 func (r *RollingCounter) sumBuckets() int64 {
@@ -134,7 +150,11 @@ func (r *RollingCounter) RollingSum() int64 {
 
 // TotalSum returns the total number of events of all time
 func (r *RollingCounter) TotalSum() int64 {
-	return r.totalSum.Get()
+	// The lock keeps counts from moving between a bucket and retired while we add them up.  Every term can then only
+	// grow, so the result is exact and never smaller than an earlier TotalSum.
+	r.rollingBucket.advanceMu.Lock()
+	defer r.rollingBucket.advanceMu.Unlock()
+	return r.retired.Get() + r.sumBuckets()
 }
 
 // GetBuckets returns a copy of the buckets in order backwards in time
@@ -155,13 +175,18 @@ func (r *RollingCounter) GetBuckets(now time.Time) []int64 {
 	return ret
 }
 
+// clearBucket retires everything in a bucket.  rollingBucket.advanceMu must be held (Advance holds it).
 func (r *RollingCounter) clearBucket(idx int) {
-	r.buckets[idx].Set(0)
+	if r.buckets[idx].Get() != 0 {
+		r.retired.Add(r.buckets[idx].Swap(0))
+	}
 }
 
-// Reset the counter to all zero values.
+// Reset the rolling window to all zero values.  TotalSum is not affected.
 func (r *RollingCounter) Reset(now time.Time) {
 	r.rollingBucket.Advance(now, r.clearBucket)
+	r.rollingBucket.advanceMu.Lock()
+	defer r.rollingBucket.advanceMu.Unlock()
 	for i := range r.buckets {
 		r.clearBucket(i)
 	}

@@ -30,7 +30,8 @@ cover:
 # Example: make fuzz FUZZTIME=2m
 FUZZTIME ?= 30s
 FUZZ_TARGETS := FuzzRollingCounterOps FuzzRollingCounterJSON \
-	FuzzSortedDurationsPercentile FuzzRollingBucketAdvance FuzzTimedCheckJSON
+	FuzzSortedDurationsPercentile FuzzRollingBucketAdvance FuzzTimedCheckJSON \
+	FuzzAdvanceMatchesReference FuzzCounterMatchesReference
 fuzz:
 	@for t in $(FUZZ_TARGETS); do \
 		echo "=== fuzz $$t ($(FUZZTIME)) ==="; \
