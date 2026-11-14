@@ -58,7 +58,9 @@ func TestMetricEventStream(t *testing.T) {
 		t.Error("no error expected from closing event stream")
 	}
 	// And finally wait for start to end
-	<-eventStreamStartResult
+	if err := <-eventStreamStartResult; err != nil {
+		t.Error("no error expected from a closed event stream's Start:", err)
+	}
 }
 
 func TestMetricEventStream_HystrixProperties(t *testing.T) {
@@ -86,7 +88,9 @@ func TestMetricEventStream_HystrixProperties(t *testing.T) {
 	if err := eventStream.Close(); err != nil {
 		t.Fatal(err)
 	}
-	<-startResult
+	if err := <-startResult; err != nil {
+		t.Fatal(err)
+	}
 
 	seen := map[string]streamCmdMetric{}
 	for _, line := range strings.Split(recorder.Body.String(), "\n") {

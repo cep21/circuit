@@ -67,7 +67,9 @@ func BenchmarkTick(b *testing.B) {
 			}
 			b.StopTimer()
 			_ = es.Close()
-			<-done
+			if err := <-done; err != nil {
+				b.Fatal(err)
+			}
 		})
 	}
 }
